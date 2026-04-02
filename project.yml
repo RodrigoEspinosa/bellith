@@ -1,0 +1,40 @@
+name: Recminal
+options:
+  minimumXcodeGenVersion: "2.0"
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  defaultConfig: Debug
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+
+targets:
+  Recminal:
+    type: application
+    platform: macOS
+    sources:
+      - path: Recminal
+        excludes:
+          - "*.entitlements"
+          - "Info.plist"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rec.recminal
+        INFOPLIST_FILE: Recminal/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Recminal/Recminal.entitlements
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_OBJC_BRIDGING_HEADER: ""
+        OTHER_LDFLAGS:
+          - "-framework Metal"
+          - "-framework MetalKit"
+          - "-framework CoreText"
+          - "-framework QuartzCore"
+          - "-framework Carbon"
+          - "-lstdc++"
+          - "-lz"
+    dependencies:
+      - framework: Frameworks/GhosttyKit.xcframework
+        embed: false
