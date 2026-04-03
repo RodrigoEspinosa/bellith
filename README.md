@@ -44,10 +44,13 @@ The GhosttyKit XCFramework is distributed as a binary dependency. It will be fet
 
 ### 4. Build & Run
 
-Open `Bellith.xcodeproj` in Xcode and run the **Bellith** target, or build from the command line:
+Open `Bellith.xcodeproj` in Xcode and run the **Bellith** target, or use the Makefile:
 
 ```bash
-xcodebuild -project Bellith.xcodeproj -scheme Bellith -configuration Debug build
+make build    # Build the app
+make run      # Build and open the app
+make clean    # Clean build artifacts
+make generate # Regenerate Xcode project from project.yml
 ```
 
 ## Keyboard Shortcuts
