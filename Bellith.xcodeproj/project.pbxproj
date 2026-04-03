@@ -1,0 +1,416 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0FF0294C8F9B14B9DBB9051F /* SplitPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB50294EC30FB94671823CFA /* SplitPaneView.swift */; };
+		11073F73D52E0F9CEAFB4FB5 /* TerminalWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 973180A10E7387D33EBEA8DC /* TerminalWindow.swift */; };
+		114F10461A0D9F305FF71202 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */; };
+		3A8626193F1471C659C10A4A /* BlurView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AF3103FA440F936419F4846 /* BlurView.swift */; };
+		5DD63722AB2EE526EB096050 /* GhosttyKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1E2025F109793353C35658F9 /* GhosttyKit.xcframework */; };
+		6D65D2902B34E20D77196A44 /* TerminalSurfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41878447E775AEA363F6EF96 /* TerminalSurfaceView.swift */; };
+		7F77B0D9CD2EBB86D801E76B /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21183D4A7A9CA0A0013ED67A /* Theme.swift */; };
+		8D9DF7E5913F1219BCCB6C79 /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC37E4957DC183CD1B8074BA /* HUDView.swift */; };
+		A497CDCB9182E12C715A1A43 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7F6C0E62F0D6DFD08E3A8E5 /* AppDelegate.swift */; };
+		A58FC4DBB6D1A65B63DEEC49 /* InputHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 342FF523B6C2BC463C0BD849 /* InputHelpers.swift */; };
+		AAEC14C4379EFD86E0A0BCCE /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69849D6EC718E0BFF019C9D8 /* TabBarView.swift */; };
+		D9B06ED212407C4E58B58CE2 /* TerminalConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E054D89080718E9732C73F2 /* TerminalConfig.swift */; };
+		DAA8ECCB0288FD778CA430DD /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA87F2112E9FD1A9C106D8F2 /* SidebarView.swift */; };
+		DBFD98B2DDBABADA6AA755D7 /* TerminalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92B2F8E9E8CAEFBB81287640 /* TerminalApp.swift */; };
+		E6C4B16306D75CBAA4B92CBE /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D81E5A7EC571B5B7FE65052 /* PreferencesView.swift */; };
+		F0688F637632B59A01825393 /* TerminalContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72367912169712669D03FD67 /* TerminalContainerView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0E054D89080718E9732C73F2 /* TerminalConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalConfig.swift; sourceTree = "<group>"; };
+		1E2025F109793353C35658F9 /* GhosttyKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = GhosttyKit.xcframework; path = Frameworks/GhosttyKit.xcframework; sourceTree = "<group>"; };
+		21183D4A7A9CA0A0013ED67A /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		342FF523B6C2BC463C0BD849 /* InputHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputHelpers.swift; sourceTree = "<group>"; };
+		41878447E775AEA363F6EF96 /* TerminalSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSurfaceView.swift; sourceTree = "<group>"; };
+		52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
+		5D81E5A7EC571B5B7FE65052 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
+		69849D6EC718E0BFF019C9D8 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
+		72367912169712669D03FD67 /* TerminalContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalContainerView.swift; sourceTree = "<group>"; };
+		8AF3103FA440F936419F4846 /* BlurView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlurView.swift; sourceTree = "<group>"; };
+		8DCCD398564B84A07E66F1B1 /* Bellith.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Bellith.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		92B2F8E9E8CAEFBB81287640 /* TerminalApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalApp.swift; sourceTree = "<group>"; };
+		973180A10E7387D33EBEA8DC /* TerminalWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalWindow.swift; sourceTree = "<group>"; };
+		BC37E4957DC183CD1B8074BA /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
+		CB50294EC30FB94671823CFA /* SplitPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitPaneView.swift; sourceTree = "<group>"; };
+		D7F6C0E62F0D6DFD08E3A8E5 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		EA87F2112E9FD1A9C106D8F2 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		EA08AA80D81307CF5B4BAF8F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5DD63722AB2EE526EB096050 /* GhosttyKit.xcframework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0A52C7DB9C0C4AA4E340A01B /* Bellith */ = {
+			isa = PBXGroup;
+			children = (
+				77DA8562D603F051F9AFAEE5 /* App */,
+				2DFA76A5A35BFC692A95E5A4 /* Bridge */,
+				2E5B61C6FBAE38CE1F2A2657 /* Views */,
+			);
+			path = Bellith;
+			sourceTree = "<group>";
+		};
+		0F21FF6DBBF3414B1DECFEF4 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				8DCCD398564B84A07E66F1B1 /* Bellith.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		2DFA76A5A35BFC692A95E5A4 /* Bridge */ = {
+			isa = PBXGroup;
+			children = (
+				342FF523B6C2BC463C0BD849 /* InputHelpers.swift */,
+				92B2F8E9E8CAEFBB81287640 /* TerminalApp.swift */,
+				0E054D89080718E9732C73F2 /* TerminalConfig.swift */,
+			);
+			path = Bridge;
+			sourceTree = "<group>";
+		};
+		2E5B61C6FBAE38CE1F2A2657 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				8AF3103FA440F936419F4846 /* BlurView.swift */,
+				52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */,
+				BC37E4957DC183CD1B8074BA /* HUDView.swift */,
+				5D81E5A7EC571B5B7FE65052 /* PreferencesView.swift */,
+				EA87F2112E9FD1A9C106D8F2 /* SidebarView.swift */,
+				CB50294EC30FB94671823CFA /* SplitPaneView.swift */,
+				69849D6EC718E0BFF019C9D8 /* TabBarView.swift */,
+				72367912169712669D03FD67 /* TerminalContainerView.swift */,
+				41878447E775AEA363F6EF96 /* TerminalSurfaceView.swift */,
+				973180A10E7387D33EBEA8DC /* TerminalWindow.swift */,
+				21183D4A7A9CA0A0013ED67A /* Theme.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		58546C94506ED9008079B4C7 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				1E2025F109793353C35658F9 /* GhosttyKit.xcframework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		77DA8562D603F051F9AFAEE5 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				D7F6C0E62F0D6DFD08E3A8E5 /* AppDelegate.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		E12192DE5116946EB1F3FA39 = {
+			isa = PBXGroup;
+			children = (
+				0A52C7DB9C0C4AA4E340A01B /* Bellith */,
+				58546C94506ED9008079B4C7 /* Frameworks */,
+				0F21FF6DBBF3414B1DECFEF4 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		778E92626B2B9935B9C85D15 /* Bellith */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 755E27ED870B57D657A02182 /* Build configuration list for PBXNativeTarget "Bellith" */;
+			buildPhases = (
+				4A48D59B697B4F213297631E /* Sources */,
+				EA08AA80D81307CF5B4BAF8F /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Bellith;
+			packageProductDependencies = (
+			);
+			productName = Bellith;
+			productReference = 8DCCD398564B84A07E66F1B1 /* Bellith.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D3BEACB9C7B8122AE78E354E /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					778E92626B2B9935B9C85D15 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 963733E6A96F9DC81C09FE74 /* Build configuration list for PBXProject "Bellith" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = E12192DE5116946EB1F3FA39;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 0F21FF6DBBF3414B1DECFEF4 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				778E92626B2B9935B9C85D15 /* Bellith */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4A48D59B697B4F213297631E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A497CDCB9182E12C715A1A43 /* AppDelegate.swift in Sources */,
+				3A8626193F1471C659C10A4A /* BlurView.swift in Sources */,
+				114F10461A0D9F305FF71202 /* CommandPaletteView.swift in Sources */,
+				8D9DF7E5913F1219BCCB6C79 /* HUDView.swift in Sources */,
+				A58FC4DBB6D1A65B63DEEC49 /* InputHelpers.swift in Sources */,
+				E6C4B16306D75CBAA4B92CBE /* PreferencesView.swift in Sources */,
+				DAA8ECCB0288FD778CA430DD /* SidebarView.swift in Sources */,
+				0FF0294C8F9B14B9DBB9051F /* SplitPaneView.swift in Sources */,
+				AAEC14C4379EFD86E0A0BCCE /* TabBarView.swift in Sources */,
+				DBFD98B2DDBABADA6AA755D7 /* TerminalApp.swift in Sources */,
+				D9B06ED212407C4E58B58CE2 /* TerminalConfig.swift in Sources */,
+				F0688F637632B59A01825393 /* TerminalContainerView.swift in Sources */,
+				6D65D2902B34E20D77196A44 /* TerminalSurfaceView.swift in Sources */,
+				11073F73D52E0F9CEAFB4FB5 /* TerminalWindow.swift in Sources */,
+				7F77B0D9CD2EBB86D801E76B /* Theme.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		6EE652C867DE42BB603BEB98 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Bellith/Bellith.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Frameworks\"",
+				);
+				INFOPLIST_FILE = Bellith/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"-framework Metal",
+					"-framework MetalKit",
+					"-framework CoreText",
+					"-framework QuartzCore",
+					"-framework Carbon",
+					"-lstdc++",
+					"-lz",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.rec.bellith;
+				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
+			};
+			name = Debug;
+		};
+		88EAE5C55DF95E2DCCF62E90 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Bellith/Bellith.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Frameworks\"",
+				);
+				INFOPLIST_FILE = Bellith/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"-framework Metal",
+					"-framework MetalKit",
+					"-framework CoreText",
+					"-framework QuartzCore",
+					"-framework Carbon",
+					"-lstdc++",
+					"-lz",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.rec.bellith;
+				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
+			};
+			name = Release;
+		};
+		B84F7A994A98AACCF52D7F3D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Debug;
+		};
+		D0273572193C326BD4051BC7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		755E27ED870B57D657A02182 /* Build configuration list for PBXNativeTarget "Bellith" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6EE652C867DE42BB603BEB98 /* Debug */,
+				88EAE5C55DF95E2DCCF62E90 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		963733E6A96F9DC81C09FE74 /* Build configuration list for PBXProject "Bellith" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B84F7A994A98AACCF52D7F3D /* Debug */,
+				D0273572193C326BD4051BC7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = D3BEACB9C7B8122AE78E354E /* Project object */;
+}

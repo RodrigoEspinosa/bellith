@@ -225,6 +225,12 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         guard event.type == .keyDown, focused else { return false }
         guard let surface else { return false }
 
+        // Let Cmd+Q pass through to the system menu for quit
+        let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if mods == .command && (event.charactersIgnoringModifiers ?? "") == "q" {
+            return false
+        }
+
         var keyEv = InputHelpers.ghosttyKeyEvent(from: event, action: GHOSTTY_ACTION_PRESS)
         var flags = ghostty_binding_flags_e(rawValue: 0)
 

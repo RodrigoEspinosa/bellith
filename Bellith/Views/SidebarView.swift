@@ -1,13 +1,14 @@
 import AppKit
 
-/// Zen-style vertical sidebar that overlays the terminal.
-/// Dark opaque panel, auto-hides, fades in from the left edge.
+/// Zen-style vertical sidebar — a separate panel floating in the window frame.
+/// Slides in from the left with smooth content displacement.
 final class SidebarView: NSView {
-    static let expandedWidth: CGFloat = 220
+    static let expandedWidth: CGFloat = 200
 
     private var tabRows: [SidebarTabRow] = []
     private let newTabButton = NSButton()
-    private let separator = CALayer()
+    private let headerLabel = NSTextField(labelWithString: "")
+    private let bottomBar = NSView()
 
     private(set) var isExpanded = false
     private var hideTimer: Timer?
@@ -18,26 +19,48 @@ final class SidebarView: NSView {
     var onSelectTab: ((Int) -> Void)?
     var onCloseTab: ((Int) -> Void)?
     var onNewTab: (() -> Void)?
+    var onExpandChanged: ((Bool) -> Void)?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.backgroundColor = NSColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 0.97).cgColor
+
+        // Slightly elevated from the frame — between frame and content color
+        layer?.backgroundColor = NSColor(red: 0.09, green: 0.09, blue: 0.10, alpha: 1.0).cgColor
+        layer?.borderColor = NSColor(white: 1.0, alpha: 0.07).cgColor
+        layer?.borderWidth = 0.5
         alphaValue = 0
 
-        // Right edge separator
-        separator.backgroundColor = NSColor(white: 1.0, alpha: 0.06).cgColor
-        layer?.addSublayer(separator)
+        // Header label — shows "Tabs" or could show workspace name
+        headerLabel.stringValue = "Tabs"
+        headerLabel.font = .systemFont(ofSize: 11, weight: .semibold)
+        headerLabel.textColor = Theme.textMuted
+        headerLabel.isEditable = false
+        headerLabel.isBezeled = false
+        headerLabel.drawsBackground = false
+        addSubview(headerLabel)
 
-        // New tab button at bottom
+        // Bottom bar with separator and new tab button
+        bottomBar.wantsLayer = true
+        addSubview(bottomBar)
+
+        let bottomSep = CALayer()
+        bottomSep.backgroundColor = NSColor(white: 1.0, alpha: 0.06).cgColor
+        bottomSep.frame = NSRect(x: 12, y: 0, width: 176, height: 0.5)
+        bottomSep.autoresizingMask = [.layerWidthSizable]
+        bottomBar.layer?.addSublayer(bottomSep)
+
+        // New tab button — more intentional styling
         newTabButton.isBordered = false
         newTabButton.title = ""
         newTabButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "New Tab")
-        newTabButton.contentTintColor = Theme.textMuted
+        newTabButton.contentTintColor = Theme.textSecondary
         newTabButton.imageScaling = .scaleProportionallyDown
         newTabButton.target = self
         newTabButton.action = #selector(handleNewTab)
-        addSubview(newTabButton)
+        newTabButton.wantsLayer = true
+        newTabButton.layer?.cornerRadius = 6
+        bottomBar.addSubview(newTabButton)
     }
 
     @available(*, unavailable)
@@ -66,14 +89,21 @@ final class SidebarView: NSView {
 
     override func layout() {
         super.layout()
-        separator.frame = NSRect(x: bounds.width - 0.5, y: 0, width: 0.5, height: bounds.height)
-
-        let topInset: CGFloat = 46
-        let sideInset: CGFloat = 8
-        let rowHeight: CGFloat = 32
+        let sideInset: CGFloat = 10
+        let topInset: CGFloat = 16
+        let rowHeight: CGFloat = 34
         let rowSpacing: CGFloat = 2
 
-        var y = bounds.height - topInset
+        // Header
+        headerLabel.frame = NSRect(
+            x: sideInset + 8,
+            y: bounds.height - topInset - 14,
+            width: bounds.width - sideInset * 2,
+            height: 14
+        )
+
+        // Tab rows
+        var y = bounds.height - topInset - 14 - 12
 
         for row in tabRows {
             y -= rowHeight
@@ -81,7 +111,10 @@ final class SidebarView: NSView {
             y -= rowSpacing
         }
 
-        newTabButton.frame = NSRect(x: sideInset, y: 10, width: 28, height: 28)
+        // Bottom bar
+        let bottomHeight: CGFloat = 44
+        bottomBar.frame = NSRect(x: 0, y: 0, width: bounds.width, height: bottomHeight)
+        newTabButton.frame = NSRect(x: sideInset, y: 8, width: 28, height: 28)
     }
 
     // MARK: - Show / Hide
@@ -94,6 +127,7 @@ final class SidebarView: NSView {
         guard !isExpanded else { return }
         isExpanded = true
         hideTimer?.invalidate()
+        onExpandChanged?(true)
 
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = Theme.animMedium
@@ -108,6 +142,7 @@ final class SidebarView: NSView {
         guard isExpanded else { return }
         isExpanded = false
         hideTimer?.invalidate()
+        onExpandChanged?(false)
 
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = Theme.animMedium
@@ -155,6 +190,7 @@ private final class SidebarTabRow: NSView {
     private let iconView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
     private let closeButton = NSButton()
+    private let selectionIndicator = CALayer()
     private let isSelected: Bool
     private var isHovered = false
 
@@ -162,15 +198,23 @@ private final class SidebarTabRow: NSView {
         self.isSelected = isSelected
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = Theme.radiusElement
+        layer?.cornerRadius = 8
+
+        // Accent bar on the left edge of selected tab
+        if isSelected {
+            selectionIndicator.backgroundColor = Theme.accent.cgColor
+            selectionIndicator.cornerRadius = 1.5
+            layer?.addSublayer(selectionIndicator)
+        }
 
         let symbolName = isSelected ? "terminal.fill" : "terminal"
         iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
-        iconView.contentTintColor = isSelected ? Theme.accent : Theme.textSecondary
+        iconView.contentTintColor = isSelected ? Theme.accent : Theme.textMuted
+        iconView.imageScaling = .scaleProportionallyDown
         addSubview(iconView)
 
         titleLabel.stringValue = title
-        titleLabel.font = .systemFont(ofSize: 12, weight: isSelected ? .medium : .regular)
+        titleLabel.font = .systemFont(ofSize: 12.5, weight: isSelected ? .medium : .regular)
         titleLabel.textColor = isSelected ? Theme.textPrimary : Theme.textSecondary
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.maximumNumberOfLines = 1
@@ -195,9 +239,14 @@ private final class SidebarTabRow: NSView {
     override func layout() {
         super.layout()
         let h = bounds.height
-        iconView.frame = NSRect(x: 8, y: (h - 16) / 2, width: 16, height: 16)
-        titleLabel.frame = NSRect(x: 30, y: (h - 16) / 2, width: bounds.width - 54, height: 16)
-        closeButton.frame = NSRect(x: bounds.width - 22, y: (h - 14) / 2, width: 14, height: 14)
+
+        // Selection indicator — thin accent bar on left
+        selectionIndicator.frame = NSRect(x: 3, y: (h - 14) / 2, width: 3, height: 14)
+
+        let iconX: CGFloat = isSelected ? 14 : 10
+        iconView.frame = NSRect(x: iconX, y: (h - 16) / 2, width: 16, height: 16)
+        titleLabel.frame = NSRect(x: iconX + 22, y: (h - 16) / 2, width: bounds.width - iconX - 46, height: 16)
+        closeButton.frame = NSRect(x: bounds.width - 24, y: (h - 16) / 2, width: 16, height: 16)
     }
 
     override func updateTrackingAreas() {
@@ -229,7 +278,6 @@ private final class SidebarTabRow: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        // Check if click is on close button area
         let loc = convert(event.locationInWindow, from: nil)
         if closeButton.frame.contains(loc) {
             onClose?()
@@ -244,9 +292,9 @@ private final class SidebarTabRow: NSView {
 
     private func updateAppearance() {
         if isSelected {
-            layer?.backgroundColor = Theme.accentSubtle.cgColor
+            layer?.backgroundColor = NSColor(white: 1.0, alpha: 0.06).cgColor
         } else if isHovered {
-            layer?.backgroundColor = NSColor(white: 1, alpha: 0.04).cgColor
+            layer?.backgroundColor = NSColor(white: 1.0, alpha: 0.04).cgColor
         } else {
             layer?.backgroundColor = .clear
         }

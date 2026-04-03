@@ -2,7 +2,7 @@ import AppKit
 import GhosttyKit
 
 @main
-struct RecminalApp {
+struct BellithApp {
     static func main() {
         let app = NSApplication.shared
         app.setActivationPolicy(.regular)
@@ -45,6 +45,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.handleAction(target: target, action: action) ?? false
         }
 
+        // Restore saved theme
+        ThemeManager.shared.apply(BellithSettings.shared.resolvedTheme)
+
         let appearance = NSApp.effectiveAppearance
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         app.setColorScheme(isDark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
@@ -82,12 +85,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // App menu
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "About Recminal", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: "About Bellith", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Quit Recminal", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let prefsItem = NSMenuItem(title: "Preferences…", action: #selector(handlePreferences), keyEquivalent: ",")
+        appMenu.addItem(prefsItem)
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Quit Bellith", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let appMenuItem = NSMenuItem()
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
+
+        // Edit menu
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Copy", action: #selector(handleCopy), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(handlePaste), keyEquivalent: "v")
+        let editMenuItem = NSMenuItem()
+        editMenuItem.submenu = editMenu
+        mainMenu.addItem(editMenuItem)
 
         // Tab menu
         let tabMenu = NSMenu(title: "Tab")
@@ -112,6 +126,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let paletteItem = NSMenuItem(title: "Command Palette", action: #selector(handleTogglePalette), keyEquivalent: "k")
         paletteItem.keyEquivalentModifierMask = .command
         viewMenu.addItem(paletteItem)
+        viewMenu.addItem(.separator())
+
+        // Theme submenu
+        let themeSubmenu = NSMenu(title: "Theme")
+        for theme in ThemeColors.allThemes {
+            let item = NSMenuItem(title: theme.name, action: #selector(handleThemeSelection(_:)), keyEquivalent: "")
+            item.representedObject = theme
+            themeSubmenu.addItem(item)
+        }
+        let themeItem = NSMenuItem(title: "Theme", action: nil, keyEquivalent: "")
+        themeItem.submenu = themeSubmenu
+        viewMenu.addItem(themeItem)
+
         let viewMenuItem = NSMenuItem()
         viewMenuItem.submenu = viewMenu
         mainMenu.addItem(viewMenuItem)
@@ -121,6 +148,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Menu Actions
 
+    @objc private func handleCopy() { container?.copySelection() }
+    @objc private func handlePaste() { container?.pasteClipboard() }
     @objc private func handleNewTab() { container?.createTab() }
     @objc private func handleCloseTab() { container?.closeCurrentTab() }
     @objc private func handleNextTab() {
@@ -135,6 +164,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc private func handleToggleSidebar() { container?.sidebar.toggle() }
     @objc private func handleTogglePalette() { container?.toggleCommandPalette() }
+    @objc private func handlePreferences() { PreferencesWindowController.shared.showWindow() }
+    @objc private func handleThemeSelection(_ sender: NSMenuItem) {
+        guard let theme = sender.representedObject as? ThemeColors else { return }
+        BellithSettings.shared.themeName = theme.name
+        ThemeManager.shared.apply(theme)
+    }
 
     // MARK: - Ghostty Actions
 
@@ -148,6 +183,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                    let surfaceUD = ghostty_surface_userdata(target.target.surface) {
                     let surfaceView = Unmanaged<TerminalSurfaceView>.fromOpaque(surfaceUD).takeUnretainedValue()
                     container?.updateTabTitle(title, for: surfaceView)
+                }
+            }
+            return true
+
+        case GHOSTTY_ACTION_PWD:
+            if let pwdPtr = action.action.pwd.pwd {
+                let pwd = String(cString: pwdPtr)
+                if target.tag == GHOSTTY_TARGET_SURFACE,
+                   let surfaceUD = ghostty_surface_userdata(target.target.surface) {
+                    let surfaceView = Unmanaged<TerminalSurfaceView>.fromOpaque(surfaceUD).takeUnretainedValue()
+                    container?.updateTabCwd(pwd, for: surfaceView)
                 }
             }
             return true

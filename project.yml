@@ -1,4 +1,4 @@
-name: Recminal
+name: Bellith
 options:
   minimumXcodeGenVersion: "2.0"
   deploymentTarget:
@@ -12,19 +12,19 @@ settings:
     MACOSX_DEPLOYMENT_TARGET: "14.0"
 
 targets:
-  Recminal:
+  Bellith:
     type: application
     platform: macOS
     sources:
-      - path: Recminal
+      - path: Bellith
         excludes:
           - "*.entitlements"
           - "Info.plist"
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.rec.recminal
-        INFOPLIST_FILE: Recminal/Info.plist
-        CODE_SIGN_ENTITLEMENTS: Recminal/Recminal.entitlements
+        PRODUCT_BUNDLE_IDENTIFIER: com.rec.bellith
+        INFOPLIST_FILE: Bellith/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Bellith/Bellith.entitlements
         CODE_SIGN_STYLE: Automatic
         SWIFT_OBJC_BRIDGING_HEADER: ""
         OTHER_LDFLAGS:

@@ -24,12 +24,14 @@ final class TerminalWindow: NSWindow {
         configure()
     }
 
+    private var themeObserver: NSObjectProtocol?
+
     private func configure() {
         titlebarAppearsTransparent = true
         titleVisibility = .hidden
         isMovableByWindowBackground = true
 
-        backgroundColor = NSColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1.0)
+        applyThemeBackground()
         isOpaque = true
         hasShadow = true
 
@@ -48,26 +50,24 @@ final class TerminalWindow: NSWindow {
 
         // Start the auto-hide timer
         scheduleTrafficLightHide()
+
+        themeObserver = NotificationCenter.default.addObserver(
+            forName: ThemeManager.didChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.applyThemeBackground() }
+    }
+
+    private func applyThemeBackground() {
+        backgroundColor = Theme.colors.frame
+    }
+
+    deinit {
+        if let themeObserver { NotificationCenter.default.removeObserver(themeObserver) }
     }
 
     // MARK: - Accent Glow Line
 
     func setupAccentLine() {
-        guard let contentView else { return }
-        contentView.wantsLayer = true
-
-        accentLine.backgroundColor = Theme.accent.cgColor
-        accentLine.opacity = 0.6
-        accentLine.frame = NSRect(x: 0, y: contentView.bounds.height - 1, width: contentView.bounds.width, height: 1)
-        accentLine.autoresizingMask = [.layerWidthSizable, .layerMinYMargin]
-
-        // Subtle glow via shadow
-        accentLine.shadowColor = Theme.accent.cgColor
-        accentLine.shadowOffset = CGSize(width: 0, height: -2)
-        accentLine.shadowRadius = 6
-        accentLine.shadowOpacity = 0.3
-
-        contentView.layer?.addSublayer(accentLine)
+        // Intentionally empty — Zen-style chrome has no accent line
     }
 
     // MARK: - Traffic Light Auto-Hide
