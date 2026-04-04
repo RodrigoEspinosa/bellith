@@ -29,7 +29,8 @@ final class SidebarView: NSView {
         layer?.backgroundColor = NSColor(red: 0.09, green: 0.09, blue: 0.10, alpha: 1.0).cgColor
         layer?.borderColor = NSColor(white: 1.0, alpha: 0.07).cgColor
         layer?.borderWidth = 0.5
-        alphaValue = 0
+        layer?.masksToBounds = true
+        alphaValue = 1
 
         // Header label — shows "Tabs" or could show workspace name
         headerLabel.stringValue = "Tabs"
@@ -128,13 +129,6 @@ final class SidebarView: NSView {
         isExpanded = true
         hideTimer?.invalidate()
         onExpandChanged?(true)
-
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = Theme.animMedium
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            self.animator().alphaValue = 1
-        }
-
         scheduleHide()
     }
 
@@ -143,12 +137,6 @@ final class SidebarView: NSView {
         isExpanded = false
         hideTimer?.invalidate()
         onExpandChanged?(false)
-
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = Theme.animMedium
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            self.animator().alphaValue = 0
-        }
     }
 
     private func scheduleHide() {

@@ -93,6 +93,13 @@ final class TerminalContainerView: NSView {
 
     // MARK: - Key Interception
 
+    private func matches(_ event: NSEvent, action actionId: String) -> Bool {
+        guard let shortcut = BellithSettings.shared.shortcut(for: actionId) else { return false }
+        let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let key = event.charactersIgnoringModifiers ?? ""
+        return mods == shortcut.modifierFlags && key == shortcut.key
+    }
+
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         guard event.type == .keyDown else { return super.performKeyEquivalent(with: event) }
         let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
@@ -100,16 +107,15 @@ final class TerminalContainerView: NSView {
 
         if mods == .command && key == "q" { return super.performKeyEquivalent(with: event) }
 
-        if mods == .command && key == "k" { toggleCommandPalette(); return true }
-        if mods == .command && key == "b" { sidebar.toggle(); return true }
-        if mods == .command && key == "t" { createTab(); return true }
-        if mods == .command && key == "w" { closeCurrentTab(); return true }
-
-        if mods == [.command, .shift] && key == "]" {
+        if matches(event, action: "commandPalette") { toggleCommandPalette(); return true }
+        if matches(event, action: "toggleSidebar") { sidebar.toggle(); return true }
+        if matches(event, action: "newTab") { createTab(); return true }
+        if matches(event, action: "closeTab") { closeCurrentTab(); return true }
+        if matches(event, action: "nextTab") {
             selectTab(selectedTabIndex + 1 < tabs.count ? selectedTabIndex + 1 : 0)
             return true
         }
-        if mods == [.command, .shift] && key == "[" {
+        if matches(event, action: "prevTab") {
             selectTab(selectedTabIndex > 0 ? selectedTabIndex - 1 : tabs.count - 1)
             return true
         }
@@ -119,42 +125,22 @@ final class TerminalContainerView: NSView {
             return true
         }
 
-        if mods == .command && key == "c" {
+        if matches(event, action: "copy") {
             if let surface = activeSurface?.surface, ghostty_surface_has_selection(surface) {
                 copySelection()
                 return true
             }
             return false
         }
-        if mods == .command && key == "v" { pasteClipboard(); return true }
+        if matches(event, action: "paste") { pasteClipboard(); return true }
 
         if mods == .command && key == "n" { return false }
 
-        if mods == .option && key == "s" { showHUD(); return true }
+        if matches(event, action: "showHUD") { showHUD(); return true }
 
-        // Split panes
-        if mods == .command && key == "d" {
-            splitPane(direction: .vertical)
-            return true
-        }
-        if mods == [.command, .shift] && key == "d" {
-            splitPane(direction: .horizontal)
-            return true
-        }
-
-        // Navigate between panes: Cmd+Option+Arrow
-        if mods == [.command, .option] && key == NSLeftArrowFunctionKey.description {
-            navigatePane(.left); return true
-        }
-        if mods == [.command, .option] && key == NSRightArrowFunctionKey.description {
-            navigatePane(.right); return true
-        }
-
-        // Close pane: Cmd+Shift+W
-        if mods == [.command, .shift] && key == "w" {
-            closePane()
-            return true
-        }
+        if matches(event, action: "splitRight") { splitPane(direction: .vertical); return true }
+        if matches(event, action: "splitDown") { splitPane(direction: .horizontal); return true }
+        if matches(event, action: "closePane") { closePane(); return true }
 
         return super.performKeyEquivalent(with: event)
     }
@@ -390,15 +376,15 @@ final class TerminalContainerView: NSView {
         super.layout()
         let p = contentPadding
 
-        // Sidebar
+        // Sidebar — width is 0 when collapsed, full when expanded
+        let sidebarWidth: CGFloat = sidebar.isExpanded ? SidebarView.expandedWidth : 0
         sidebar.frame = NSRect(
             x: p, y: p,
-            width: SidebarView.expandedWidth,
+            width: sidebarWidth,
             height: bounds.height - p * 2
         )
         sidebar.wantsLayer = true
         sidebar.layer?.cornerRadius = contentRadius
-        sidebar.layer?.masksToBounds = true
 
         // Tab bar (top area, after traffic lights)
         if !useSidebar {
@@ -424,12 +410,23 @@ final class TerminalContainerView: NSView {
     }
 
     private func animateContentLayout() {
+        let p = contentPadding
+        let sidebarWidth: CGFloat = sidebar.isExpanded ? SidebarView.expandedWidth : 0
+
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = Theme.animMedium
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            ctx.duration = Theme.animSlow
+            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
             ctx.allowsImplicitAnimation = true
+
+            // Animate sidebar frame width in sync with content
+            sidebar.animator().frame = NSRect(
+                x: p, y: p,
+                width: sidebarWidth,
+                height: bounds.height - p * 2
+            )
+
             if selectedTabIndex < tabs.count {
-                tabs[selectedTabIndex].splitRoot.frame = contentRect
+                tabs[selectedTabIndex].splitRoot.animator().frame = contentRect
             }
         }
     }
