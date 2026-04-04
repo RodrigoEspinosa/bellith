@@ -1,0 +1,28 @@
+excluded:
+  - .build
+  - Frameworks
+  - Bellith.xcodeproj
+  - BellithTests
+
+disabled_rules:
+  - line_length
+  - force_cast
+  - function_body_length
+  - type_body_length
+  - file_length
+  - identifier_name
+  - trailing_comma
+  - nesting
+
+opt_in_rules:
+  - empty_count
+  - closure_spacing
+  - contains_over_filter_count
+  - empty_string
+  - fatal_error_message
+  - first_where
+  - modifier_order
+  - redundant_nil_coalescing
+  - toggle_bool
+
+reporter: xcode

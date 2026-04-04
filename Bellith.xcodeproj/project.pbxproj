@@ -7,42 +7,113 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0331E3E2063625C041EBDC40 /* TerminalConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 254770B950E6ED2A7FF2ED56 /* TerminalConfigTests.swift */; };
+		06F9811AE726F42DEB32D418 /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C9D96FFF53397D45EA101F4 /* PreferencesWindowController.swift */; };
 		0FF0294C8F9B14B9DBB9051F /* SplitPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB50294EC30FB94671823CFA /* SplitPaneView.swift */; };
 		11073F73D52E0F9CEAFB4FB5 /* TerminalWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 973180A10E7387D33EBEA8DC /* TerminalWindow.swift */; };
 		114F10461A0D9F305FF71202 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */; };
+		16B68069486FB637AC3441D2 /* ProcessTreePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A3BDD2B74A3A4A8B0869659 /* ProcessTreePanel.swift */; };
+		1FE6195879EE4D4D65B24CC1 /* KeyShortcutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB945FE301FBB1B34329681 /* KeyShortcutTests.swift */; };
+		200E6504867615A7339BFBC6 /* QuickTerminalPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01AD6AF9F8A70A7E83B56C8C /* QuickTerminalPane.swift */; };
+		2428C55AF2B4DC0234E13B04 /* PerformancePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A192597C4552FB866CD46BC9 /* PerformancePanel.swift */; };
+		2D7878CD0D5FB019A68AAA07 /* SessionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B08540536C434953689D04D /* SessionStateTests.swift */; };
 		3A8626193F1471C659C10A4A /* BlurView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AF3103FA440F936419F4846 /* BlurView.swift */; };
+		3AA2DA3E813BBA3E1B8CF1B9 /* SessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90AD21D2101DAB69E92DFB59 /* SessionState.swift */; };
+		3F81E95CDC0FF4142056C98A /* EnvironmentPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD0B5E50A6BE76A1D3EDFE6D /* EnvironmentPanel.swift */; };
+		459FB063C7F788F4E0E549A5 /* TerminalPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89FDA87579791818D3A6718 /* TerminalPane.swift */; };
+		4C6D7ECB973811FC8DA4121C /* ProcessMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39A46EAB948FDDFB1C12E4B9 /* ProcessMonitor.swift */; };
 		5DD63722AB2EE526EB096050 /* GhosttyKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1E2025F109793353C35658F9 /* GhosttyKit.xcframework */; };
 		6D65D2902B34E20D77196A44 /* TerminalSurfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41878447E775AEA363F6EF96 /* TerminalSurfaceView.swift */; };
+		765D4B7FDA9B6F3ACD937BEF /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB0C524BC98C2F0D18E7B327 /* NetworkMonitor.swift */; };
+		7B41F3CE5DB2BA28D89D339C /* SmartPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469D41729D62F6520EB09E3B /* SmartPanelView.swift */; };
 		7F77B0D9CD2EBB86D801E76B /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21183D4A7A9CA0A0013ED67A /* Theme.swift */; };
+		807142202720783F0B3D8EA6 /* ThemeGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8917D92D4F8962901183EEA /* ThemeGridView.swift */; };
+		8229F53686989E6007E9C7E9 /* ThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1055D889FA5B87C7B010166B /* ThemeTests.swift */; };
+		84920B35B7A5167C2AAE9985 /* BellithSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD22E965C6F1A921DC3AFFA /* BellithSettingsTests.swift */; };
+		88DF13E98F4C5539EFBCF58F /* NetworkPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B73776D795BE3450D431B7B /* NetworkPanel.swift */; };
 		8D9DF7E5913F1219BCCB6C79 /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC37E4957DC183CD1B8074BA /* HUDView.swift */; };
+		941E77325C0B8A487B2CD650 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AF3EFCA4440E50031AF178C /* Logger.swift */; };
+		9BF5A978A5AACAB4DD91124B /* AboutPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C6683BF4D86DE5BB7318C3C /* AboutPane.swift */; };
+		A39350253246932A3A4CB068 /* KeybindingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26D1CA15561163656129EFFE /* KeybindingsPane.swift */; };
+		A4482FD8BE36A3CB5AB2CCC8 /* QuickTerminalController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C964FC62608F8FA41EE01B5 /* QuickTerminalController.swift */; };
 		A497CDCB9182E12C715A1A43 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7F6C0E62F0D6DFD08E3A8E5 /* AppDelegate.swift */; };
 		A58FC4DBB6D1A65B63DEEC49 /* InputHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 342FF523B6C2BC463C0BD849 /* InputHelpers.swift */; };
+		A86738D1AB23F41A78A329D6 /* StatusBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00EF9188ECCF6928DD41F54 /* StatusBarView.swift */; };
 		AAEC14C4379EFD86E0A0BCCE /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69849D6EC718E0BFF019C9D8 /* TabBarView.swift */; };
+		B80E5D2747AB50B714189BC4 /* ProcessMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8932FC29FCA31DEBC5C25A11 /* ProcessMonitorTests.swift */; };
+		BAF7DA9CF2672F1E616A7F17 /* TitleBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C5C94B09019221ED3984C56 /* TitleBarView.swift */; };
+		CE826D24B9117475F5BFB14B /* BellithSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B5E3E792593BBE98618983D /* BellithSettings.swift */; };
+		CF4A12A757D3355AEB4D159A /* AppearancePane.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDFFF00A8FCA7C5D765650BD /* AppearancePane.swift */; };
+		D455B1DABDBE119547D39CE1 /* PreferencesComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 185BCA9A77D1E03020788D4D /* PreferencesComponents.swift */; };
 		D9B06ED212407C4E58B58CE2 /* TerminalConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E054D89080718E9732C73F2 /* TerminalConfig.swift */; };
 		DAA8ECCB0288FD778CA430DD /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA87F2112E9FD1A9C106D8F2 /* SidebarView.swift */; };
 		DBFD98B2DDBABADA6AA755D7 /* TerminalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92B2F8E9E8CAEFBB81287640 /* TerminalApp.swift */; };
-		E6C4B16306D75CBAA4B92CBE /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D81E5A7EC571B5B7FE65052 /* PreferencesView.swift */; };
+		DDDD63014E36721A941C97E4 /* TerminalProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 772785F1920803E52A7235C8 /* TerminalProfile.swift */; };
 		F0688F637632B59A01825393 /* TerminalContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72367912169712669D03FD67 /* TerminalContainerView.swift */; };
+		F26474311EB82215B71E0CE0 /* SearchBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC69484808B270DA784451B1 /* SearchBarView.swift */; };
+		FA077AEA422D8D9128490402 /* FileActivityPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F223B58A0753766F0489D0B /* FileActivityPanel.swift */; };
+		FE9D5CEE859363C51ADCC2CF /* KeyBindings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D391C65B83BEE0FDBEAE9ACC /* KeyBindings.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		E0D5463039822BBFDCBC4DC6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D3BEACB9C7B8122AE78E354E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 778E92626B2B9935B9C85D15;
+			remoteInfo = Bellith;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		01AD6AF9F8A70A7E83B56C8C /* QuickTerminalPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickTerminalPane.swift; sourceTree = "<group>"; };
 		0E054D89080718E9732C73F2 /* TerminalConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalConfig.swift; sourceTree = "<group>"; };
+		1055D889FA5B87C7B010166B /* ThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeTests.swift; sourceTree = "<group>"; };
+		185BCA9A77D1E03020788D4D /* PreferencesComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesComponents.swift; sourceTree = "<group>"; };
+		1B08540536C434953689D04D /* SessionStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStateTests.swift; sourceTree = "<group>"; };
 		1E2025F109793353C35658F9 /* GhosttyKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = GhosttyKit.xcframework; path = Frameworks/GhosttyKit.xcframework; sourceTree = "<group>"; };
 		21183D4A7A9CA0A0013ED67A /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		254770B950E6ED2A7FF2ED56 /* TerminalConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalConfigTests.swift; sourceTree = "<group>"; };
+		26D1CA15561163656129EFFE /* KeybindingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeybindingsPane.swift; sourceTree = "<group>"; };
 		342FF523B6C2BC463C0BD849 /* InputHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputHelpers.swift; sourceTree = "<group>"; };
+		39A46EAB948FDDFB1C12E4B9 /* ProcessMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMonitor.swift; sourceTree = "<group>"; };
+		3C9D96FFF53397D45EA101F4 /* PreferencesWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindowController.swift; sourceTree = "<group>"; };
 		41878447E775AEA363F6EF96 /* TerminalSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSurfaceView.swift; sourceTree = "<group>"; };
+		469D41729D62F6520EB09E3B /* SmartPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPanelView.swift; sourceTree = "<group>"; };
+		4FD22E965C6F1A921DC3AFFA /* BellithSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithSettingsTests.swift; sourceTree = "<group>"; };
 		52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
-		5D81E5A7EC571B5B7FE65052 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		69849D6EC718E0BFF019C9D8 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
+		6A3BDD2B74A3A4A8B0869659 /* ProcessTreePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessTreePanel.swift; sourceTree = "<group>"; };
+		6C6683BF4D86DE5BB7318C3C /* AboutPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutPane.swift; sourceTree = "<group>"; };
 		72367912169712669D03FD67 /* TerminalContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalContainerView.swift; sourceTree = "<group>"; };
+		772785F1920803E52A7235C8 /* TerminalProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalProfile.swift; sourceTree = "<group>"; };
+		7AF3EFCA4440E50031AF178C /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
+		7B73776D795BE3450D431B7B /* NetworkPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPanel.swift; sourceTree = "<group>"; };
+		8932FC29FCA31DEBC5C25A11 /* ProcessMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMonitorTests.swift; sourceTree = "<group>"; };
 		8AF3103FA440F936419F4846 /* BlurView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlurView.swift; sourceTree = "<group>"; };
+		8B5E3E792593BBE98618983D /* BellithSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithSettings.swift; sourceTree = "<group>"; };
+		8C5C94B09019221ED3984C56 /* TitleBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TitleBarView.swift; sourceTree = "<group>"; };
 		8DCCD398564B84A07E66F1B1 /* Bellith.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Bellith.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8F223B58A0753766F0489D0B /* FileActivityPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileActivityPanel.swift; sourceTree = "<group>"; };
+		90AD21D2101DAB69E92DFB59 /* SessionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionState.swift; sourceTree = "<group>"; };
 		92B2F8E9E8CAEFBB81287640 /* TerminalApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalApp.swift; sourceTree = "<group>"; };
 		973180A10E7387D33EBEA8DC /* TerminalWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalWindow.swift; sourceTree = "<group>"; };
+		9C5308F1710991278921B4D4 /* BellithTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BellithTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9C964FC62608F8FA41EE01B5 /* QuickTerminalController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickTerminalController.swift; sourceTree = "<group>"; };
+		9CB945FE301FBB1B34329681 /* KeyShortcutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyShortcutTests.swift; sourceTree = "<group>"; };
+		A192597C4552FB866CD46BC9 /* PerformancePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformancePanel.swift; sourceTree = "<group>"; };
+		B8917D92D4F8962901183EEA /* ThemeGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeGridView.swift; sourceTree = "<group>"; };
 		BC37E4957DC183CD1B8074BA /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
 		CB50294EC30FB94671823CFA /* SplitPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitPaneView.swift; sourceTree = "<group>"; };
+		CD0B5E50A6BE76A1D3EDFE6D /* EnvironmentPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentPanel.swift; sourceTree = "<group>"; };
+		D391C65B83BEE0FDBEAE9ACC /* KeyBindings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyBindings.swift; sourceTree = "<group>"; };
 		D7F6C0E62F0D6DFD08E3A8E5 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		DB0C524BC98C2F0D18E7B327 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
+		DDFFF00A8FCA7C5D765650BD /* AppearancePane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearancePane.swift; sourceTree = "<group>"; };
+		E89FDA87579791818D3A6718 /* TerminalPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPane.swift; sourceTree = "<group>"; };
 		EA87F2112E9FD1A9C106D8F2 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		EC69484808B270DA784451B1 /* SearchBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchBarView.swift; sourceTree = "<group>"; };
+		F00EF9188ECCF6928DD41F54 /* StatusBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +133,9 @@
 			children = (
 				77DA8562D603F051F9AFAEE5 /* App */,
 				2DFA76A5A35BFC692A95E5A4 /* Bridge */,
+				C8083A37D985A7B13AA5B057 /* Models */,
+				B7C5F9564974A409DDCF64F2 /* Monitors */,
+				139A251116CDCE3E13D82D79 /* Utilities */,
 				2E5B61C6FBAE38CE1F2A2657 /* Views */,
 			);
 			path = Bellith;
@@ -71,8 +145,30 @@
 			isa = PBXGroup;
 			children = (
 				8DCCD398564B84A07E66F1B1 /* Bellith.app */,
+				9C5308F1710991278921B4D4 /* BellithTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		139A251116CDCE3E13D82D79 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				7AF3EFCA4440E50031AF178C /* Logger.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		2A82101F333FE7DBCA5D3C45 /* BellithTests */ = {
+			isa = PBXGroup;
+			children = (
+				4FD22E965C6F1A921DC3AFFA /* BellithSettingsTests.swift */,
+				9CB945FE301FBB1B34329681 /* KeyShortcutTests.swift */,
+				8932FC29FCA31DEBC5C25A11 /* ProcessMonitorTests.swift */,
+				1B08540536C434953689D04D /* SessionStateTests.swift */,
+				254770B950E6ED2A7FF2ED56 /* TerminalConfigTests.swift */,
+				1055D889FA5B87C7B010166B /* ThemeTests.swift */,
+			);
+			path = BellithTests;
 			sourceTree = "<group>";
 		};
 		2DFA76A5A35BFC692A95E5A4 /* Bridge */ = {
@@ -91,14 +187,19 @@
 				8AF3103FA440F936419F4846 /* BlurView.swift */,
 				52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */,
 				BC37E4957DC183CD1B8074BA /* HUDView.swift */,
-				5D81E5A7EC571B5B7FE65052 /* PreferencesView.swift */,
+				9C964FC62608F8FA41EE01B5 /* QuickTerminalController.swift */,
+				EC69484808B270DA784451B1 /* SearchBarView.swift */,
 				EA87F2112E9FD1A9C106D8F2 /* SidebarView.swift */,
 				CB50294EC30FB94671823CFA /* SplitPaneView.swift */,
+				F00EF9188ECCF6928DD41F54 /* StatusBarView.swift */,
 				69849D6EC718E0BFF019C9D8 /* TabBarView.swift */,
 				72367912169712669D03FD67 /* TerminalContainerView.swift */,
 				41878447E775AEA363F6EF96 /* TerminalSurfaceView.swift */,
 				973180A10E7387D33EBEA8DC /* TerminalWindow.swift */,
 				21183D4A7A9CA0A0013ED67A /* Theme.swift */,
+				8C5C94B09019221ED3984C56 /* TitleBarView.swift */,
+				C4D1B7F903B0FA0F371BC424 /* Preferences */,
+				E58C15B3E21D45C2DC32E21D /* SmartPanels */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -119,24 +220,92 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		B7C5F9564974A409DDCF64F2 /* Monitors */ = {
+			isa = PBXGroup;
+			children = (
+				DB0C524BC98C2F0D18E7B327 /* NetworkMonitor.swift */,
+				39A46EAB948FDDFB1C12E4B9 /* ProcessMonitor.swift */,
+			);
+			path = Monitors;
+			sourceTree = "<group>";
+		};
+		C4D1B7F903B0FA0F371BC424 /* Preferences */ = {
+			isa = PBXGroup;
+			children = (
+				6C6683BF4D86DE5BB7318C3C /* AboutPane.swift */,
+				DDFFF00A8FCA7C5D765650BD /* AppearancePane.swift */,
+				26D1CA15561163656129EFFE /* KeybindingsPane.swift */,
+				185BCA9A77D1E03020788D4D /* PreferencesComponents.swift */,
+				3C9D96FFF53397D45EA101F4 /* PreferencesWindowController.swift */,
+				01AD6AF9F8A70A7E83B56C8C /* QuickTerminalPane.swift */,
+				E89FDA87579791818D3A6718 /* TerminalPane.swift */,
+				B8917D92D4F8962901183EEA /* ThemeGridView.swift */,
+			);
+			path = Preferences;
+			sourceTree = "<group>";
+		};
+		C8083A37D985A7B13AA5B057 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				8B5E3E792593BBE98618983D /* BellithSettings.swift */,
+				D391C65B83BEE0FDBEAE9ACC /* KeyBindings.swift */,
+				90AD21D2101DAB69E92DFB59 /* SessionState.swift */,
+				772785F1920803E52A7235C8 /* TerminalProfile.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
 		E12192DE5116946EB1F3FA39 = {
 			isa = PBXGroup;
 			children = (
 				0A52C7DB9C0C4AA4E340A01B /* Bellith */,
+				2A82101F333FE7DBCA5D3C45 /* BellithTests */,
 				58546C94506ED9008079B4C7 /* Frameworks */,
 				0F21FF6DBBF3414B1DECFEF4 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
+		E58C15B3E21D45C2DC32E21D /* SmartPanels */ = {
+			isa = PBXGroup;
+			children = (
+				CD0B5E50A6BE76A1D3EDFE6D /* EnvironmentPanel.swift */,
+				8F223B58A0753766F0489D0B /* FileActivityPanel.swift */,
+				7B73776D795BE3450D431B7B /* NetworkPanel.swift */,
+				A192597C4552FB866CD46BC9 /* PerformancePanel.swift */,
+				6A3BDD2B74A3A4A8B0869659 /* ProcessTreePanel.swift */,
+				469D41729D62F6520EB09E3B /* SmartPanelView.swift */,
+			);
+			path = SmartPanels;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		29790158E8DEC817E97B2BF5 /* BellithTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 38B029DE1B01A395945E1886 /* Build configuration list for PBXNativeTarget "BellithTests" */;
+			buildPhases = (
+				28B3F4FE6D7F1A7A71E888BF /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				09B73FF37E1263C9884CB502 /* PBXTargetDependency */,
+			);
+			name = BellithTests;
+			packageProductDependencies = (
+			);
+			productName = BellithTests;
+			productReference = 9C5308F1710991278921B4D4 /* BellithTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		778E92626B2B9935B9C85D15 /* Bellith */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 755E27ED870B57D657A02182 /* Build configuration list for PBXNativeTarget "Bellith" */;
 			buildPhases = (
 				4A48D59B697B4F213297631E /* Sources */,
 				EA08AA80D81307CF5B4BAF8F /* Frameworks */,
+				204543A95711977EF5010CA0 /* SwiftLint */,
 			);
 			buildRules = (
 			);
@@ -178,34 +347,102 @@
 			projectRoot = "";
 			targets = (
 				778E92626B2B9935B9C85D15 /* Bellith */,
+				29790158E8DEC817E97B2BF5 /* BellithTests */,
 			);
 		};
 /* End PBXProject section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		204543A95711977EF5010CA0 /* SwiftLint */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = SwiftLint;
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if command -v swiftlint >/dev/null 2>&1; then\n  swiftlint lint --config \"$SRCROOT/.swiftlint.yml\" 2>/dev/null || true\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
+		28B3F4FE6D7F1A7A71E888BF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				84920B35B7A5167C2AAE9985 /* BellithSettingsTests.swift in Sources */,
+				1FE6195879EE4D4D65B24CC1 /* KeyShortcutTests.swift in Sources */,
+				B80E5D2747AB50B714189BC4 /* ProcessMonitorTests.swift in Sources */,
+				2D7878CD0D5FB019A68AAA07 /* SessionStateTests.swift in Sources */,
+				0331E3E2063625C041EBDC40 /* TerminalConfigTests.swift in Sources */,
+				8229F53686989E6007E9C7E9 /* ThemeTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4A48D59B697B4F213297631E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9BF5A978A5AACAB4DD91124B /* AboutPane.swift in Sources */,
 				A497CDCB9182E12C715A1A43 /* AppDelegate.swift in Sources */,
+				CF4A12A757D3355AEB4D159A /* AppearancePane.swift in Sources */,
+				CE826D24B9117475F5BFB14B /* BellithSettings.swift in Sources */,
 				3A8626193F1471C659C10A4A /* BlurView.swift in Sources */,
 				114F10461A0D9F305FF71202 /* CommandPaletteView.swift in Sources */,
+				3F81E95CDC0FF4142056C98A /* EnvironmentPanel.swift in Sources */,
+				FA077AEA422D8D9128490402 /* FileActivityPanel.swift in Sources */,
 				8D9DF7E5913F1219BCCB6C79 /* HUDView.swift in Sources */,
 				A58FC4DBB6D1A65B63DEEC49 /* InputHelpers.swift in Sources */,
-				E6C4B16306D75CBAA4B92CBE /* PreferencesView.swift in Sources */,
+				FE9D5CEE859363C51ADCC2CF /* KeyBindings.swift in Sources */,
+				A39350253246932A3A4CB068 /* KeybindingsPane.swift in Sources */,
+				941E77325C0B8A487B2CD650 /* Logger.swift in Sources */,
+				765D4B7FDA9B6F3ACD937BEF /* NetworkMonitor.swift in Sources */,
+				88DF13E98F4C5539EFBCF58F /* NetworkPanel.swift in Sources */,
+				2428C55AF2B4DC0234E13B04 /* PerformancePanel.swift in Sources */,
+				D455B1DABDBE119547D39CE1 /* PreferencesComponents.swift in Sources */,
+				06F9811AE726F42DEB32D418 /* PreferencesWindowController.swift in Sources */,
+				4C6D7ECB973811FC8DA4121C /* ProcessMonitor.swift in Sources */,
+				16B68069486FB637AC3441D2 /* ProcessTreePanel.swift in Sources */,
+				A4482FD8BE36A3CB5AB2CCC8 /* QuickTerminalController.swift in Sources */,
+				200E6504867615A7339BFBC6 /* QuickTerminalPane.swift in Sources */,
+				F26474311EB82215B71E0CE0 /* SearchBarView.swift in Sources */,
+				3AA2DA3E813BBA3E1B8CF1B9 /* SessionState.swift in Sources */,
 				DAA8ECCB0288FD778CA430DD /* SidebarView.swift in Sources */,
+				7B41F3CE5DB2BA28D89D339C /* SmartPanelView.swift in Sources */,
 				0FF0294C8F9B14B9DBB9051F /* SplitPaneView.swift in Sources */,
+				A86738D1AB23F41A78A329D6 /* StatusBarView.swift in Sources */,
 				AAEC14C4379EFD86E0A0BCCE /* TabBarView.swift in Sources */,
 				DBFD98B2DDBABADA6AA755D7 /* TerminalApp.swift in Sources */,
 				D9B06ED212407C4E58B58CE2 /* TerminalConfig.swift in Sources */,
 				F0688F637632B59A01825393 /* TerminalContainerView.swift in Sources */,
+				459FB063C7F788F4E0E549A5 /* TerminalPane.swift in Sources */,
+				DDDD63014E36721A941C97E4 /* TerminalProfile.swift in Sources */,
 				6D65D2902B34E20D77196A44 /* TerminalSurfaceView.swift in Sources */,
 				11073F73D52E0F9CEAFB4FB5 /* TerminalWindow.swift in Sources */,
 				7F77B0D9CD2EBB86D801E76B /* Theme.swift in Sources */,
+				807142202720783F0B3D8EA6 /* ThemeGridView.swift in Sources */,
+				BAF7DA9CF2672F1E616A7F17 /* TitleBarView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		09B73FF37E1263C9884CB502 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 778E92626B2B9935B9C85D15 /* Bellith */;
+			targetProxy = E0D5463039822BBFDCBC4DC6 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		6EE652C867DE42BB603BEB98 /* Debug */ = {
@@ -389,9 +626,48 @@
 			};
 			name = Release;
 		};
+		D6D63F780CC484691BFD3ADA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Bellith.app/Contents/MacOS/Bellith";
+			};
+			name = Release;
+		};
+		EBB1147608DDB3F0CF9E2038 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Bellith.app/Contents/MacOS/Bellith";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		38B029DE1B01A395945E1886 /* Build configuration list for PBXNativeTarget "BellithTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EBB1147608DDB3F0CF9E2038 /* Debug */,
+				D6D63F780CC484691BFD3ADA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		755E27ED870B57D657A02182 /* Build configuration list for PBXNativeTarget "Bellith" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

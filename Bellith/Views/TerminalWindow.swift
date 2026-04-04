@@ -7,7 +7,6 @@ final class TerminalWindow: NSWindow {
     private var trafficLightTrackingArea: NSTrackingArea?
     private var trafficLightHideTimer: Timer?
     private var trafficLightsVisible = true
-    private let accentLine = CALayer()
 
     override init(
         contentRect: NSRect,
@@ -64,12 +63,6 @@ final class TerminalWindow: NSWindow {
         if let themeObserver { NotificationCenter.default.removeObserver(themeObserver) }
     }
 
-    // MARK: - Accent Glow Line
-
-    func setupAccentLine() {
-        // Intentionally empty — Zen-style chrome has no accent line
-    }
-
     // MARK: - Traffic Light Auto-Hide
 
     private func scheduleTrafficLightHide() {
@@ -79,71 +72,67 @@ final class TerminalWindow: NSWindow {
         }
     }
 
+    private var shouldAutoHideTrafficLights: Bool {
+        BellithSettings.shared.trafficLightAutoHide
+    }
+
+    private var shouldReduceMotion: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
     private func hideTrafficLights() {
-        guard trafficLightsVisible else { return }
+        guard trafficLightsVisible, shouldAutoHideTrafficLights else { return }
         trafficLightsVisible = false
 
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = Theme.animMedium
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        if shouldReduceMotion {
             for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-                standardWindowButton(type)?.animator().alphaValue = 0
+                standardWindowButton(type)?.alphaValue = 0
+            }
+        } else {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = Theme.animMedium
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+                    standardWindowButton(type)?.animator().alphaValue = 0
+                }
             }
         }
     }
 
     func showTrafficLights() {
         guard !trafficLightsVisible else {
-            scheduleTrafficLightHide()
+            if shouldAutoHideTrafficLights { scheduleTrafficLightHide() }
             return
         }
         trafficLightsVisible = true
 
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = Theme.animFast
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        if shouldReduceMotion {
             for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-                standardWindowButton(type)?.animator().alphaValue = 1
+                standardWindowButton(type)?.alphaValue = 1
+            }
+        } else {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = Theme.animFast
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+                    standardWindowButton(type)?.animator().alphaValue = 1
+                }
             }
         }
 
-        scheduleTrafficLightHide()
+        if shouldAutoHideTrafficLights { scheduleTrafficLightHide() }
     }
 
     // MARK: - Layout
 
     override func makeKeyAndOrderFront(_ sender: Any?) {
         super.makeKeyAndOrderFront(sender)
-        positionTrafficLights()
-        setupAccentLine()
         setupTrafficLightTracking()
-    }
-
-    override func layoutIfNeeded() {
-        super.layoutIfNeeded()
-        positionTrafficLights()
     }
 
     override func setFrame(_ frameRect: NSRect, display displayFlag: Bool) {
         super.setFrame(frameRect, display: displayFlag)
-        positionTrafficLights()
-    }
-
-    private func positionTrafficLights() {
-        let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
-        let xStart: CGFloat = 16
-        let spacing: CGFloat = 20
-        let yFromTop: CGFloat = 8
-
-        for (i, type) in buttons.enumerated() {
-            guard let button = standardWindowButton(type) else { continue }
-            guard let superview = button.superview else { continue }
-
-            button.setFrameOrigin(NSPoint(
-                x: xStart + CGFloat(i) * spacing,
-                y: superview.bounds.height - button.frame.height - yFromTop
-            ))
-        }
+        setupTrafficLightTracking()
     }
 
     // MARK: - Traffic Light Hover Tracking
@@ -155,11 +144,10 @@ final class TerminalWindow: NSWindow {
             contentView.removeTrackingArea(existing)
         }
 
-        // Tracking area covers the top-left corner where traffic lights live
-        let trackingRect = NSRect(x: 0, y: contentView.bounds.height - 40, width: 100, height: 40)
+        let trackingRect = NSRect(x: 0, y: contentView.bounds.height - 50, width: 100, height: 50)
         let area = NSTrackingArea(
             rect: trackingRect,
-            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            options: [.mouseEnteredAndExited, .activeAlways],
             owner: self,
             userInfo: ["zone": "trafficLights"]
         )

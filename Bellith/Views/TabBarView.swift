@@ -2,10 +2,12 @@ import AppKit
 
 /// Minimal Zen-style tab bar. Sits in the titlebar area, right of the traffic lights.
 /// Pill-shaped tabs, close button appears on hover only.
+/// Smart tabs show distinct icons and accent colors.
 final class TabBarView: NSView {
     struct Tab {
         let id: UUID
         var title: String
+        var kind: TerminalContainerView.TabKind = .terminal
     }
 
     private(set) var tabs: [Tab] = []
@@ -15,12 +17,18 @@ final class TabBarView: NSView {
     var onSelectTab: ((Int) -> Void)?
     var onCloseTab: ((Int) -> Void)?
     var onNewTab: (() -> Void)?
+    var onReorderTab: ((Int, Int) -> Void)?
+
+    private var dragSourceIndex: Int?
+    private var dragIndicatorLayer: CALayer?
 
     private let newTabButton = NSButton()
+    private let singleTabLabel = NSTextField(labelWithString: "")
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         setupNewTabButton()
+        setupSingleTabLabel()
     }
 
     @available(*, unavailable)
@@ -37,9 +45,27 @@ final class TabBarView: NSView {
         addSubview(newTabButton)
     }
 
+    private func setupSingleTabLabel() {
+        singleTabLabel.font = .systemFont(ofSize: 12.5, weight: .medium)
+        singleTabLabel.textColor = Theme.textMuted
+        singleTabLabel.isEditable = false
+        singleTabLabel.isSelectable = false
+        singleTabLabel.isBezeled = false
+        singleTabLabel.drawsBackground = false
+        singleTabLabel.lineBreakMode = .byTruncatingTail
+        singleTabLabel.maximumNumberOfLines = 1
+        singleTabLabel.isHidden = true
+        addSubview(singleTabLabel)
+    }
+
     func update(tabs: [Tab], selectedIndex: Int) {
         self.tabs = tabs
         self.selectedIndex = selectedIndex
+
+        if tabs.count == 1, let firstTab = tabs.first {
+            singleTabLabel.stringValue = firstTab.title
+        }
+
         rebuildTabViews()
     }
 
@@ -48,9 +74,12 @@ final class TabBarView: NSView {
         tabViews.removeAll()
 
         for (i, tab) in tabs.enumerated() {
-            let pill = TabPillView(title: tab.title, isSelected: i == selectedIndex)
+            let pill = TabPillView(title: tab.title, isSelected: i == selectedIndex, kind: tab.kind)
             pill.onSelect = { [weak self] in self?.onSelectTab?(i) }
             pill.onClose = { [weak self] in self?.onCloseTab?(i) }
+            pill.onDragBegan = { [weak self] in self?.beginDrag(fromIndex: i) }
+            pill.onDragMoved = { [weak self] loc in self?.updateDrag(location: loc) }
+            pill.onDragEnded = { [weak self] in self?.endDrag() }
             addSubview(pill)
             tabViews.append(pill)
         }
@@ -74,8 +103,70 @@ final class TabBarView: NSView {
 
         newTabButton.frame = NSRect(x: x + 4, y: (height - 24) / 2, width: 24, height: 24)
 
-        // Only show if more than 1 tab
-        isHidden = tabs.count <= 1
+        singleTabLabel.isHidden = true
+        // Only auto-show when there are multiple tabs.
+        // Never override a parent-set hidden=true (sidebar mode hides us).
+        if tabs.count <= 1 {
+            isHidden = true
+        }
+    }
+
+    // MARK: - Tab Reordering
+
+    private func beginDrag(fromIndex: Int) {
+        dragSourceIndex = fromIndex
+        if dragIndicatorLayer == nil {
+            let indicator = CALayer()
+            indicator.backgroundColor = Theme.accent.withAlphaComponent(0.5).cgColor
+            indicator.cornerRadius = 1
+            wantsLayer = true
+            layer?.addSublayer(indicator)
+            dragIndicatorLayer = indicator
+        }
+    }
+
+    private func updateDrag(location: NSPoint) {
+        guard let sourceIdx = dragSourceIndex else { return }
+        let loc = convert(location, from: nil)
+
+        var targetIdx: Int?
+        for (i, pill) in tabViews.enumerated() {
+            if loc.x >= pill.frame.minX && loc.x <= pill.frame.maxX {
+                targetIdx = i
+                break
+            }
+        }
+
+        if let target = targetIdx, target != sourceIdx {
+            let pill = tabViews[target]
+            let indicatorX = target < sourceIdx ? pill.frame.minX - 1 : pill.frame.maxX + 1
+            dragIndicatorLayer?.frame = NSRect(x: indicatorX, y: pill.frame.minY + 4, width: 2, height: pill.frame.height - 8)
+            dragIndicatorLayer?.isHidden = false
+        } else {
+            dragIndicatorLayer?.isHidden = true
+        }
+    }
+
+    private func endDrag() {
+        guard let sourceIdx = dragSourceIndex else { return }
+        dragIndicatorLayer?.removeFromSuperlayer()
+        dragIndicatorLayer = nil
+
+        var targetIdx = sourceIdx
+        if let window = window {
+            let loc = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+            for (i, pill) in tabViews.enumerated() {
+                if loc.x >= pill.frame.minX && loc.x <= pill.frame.maxX && i != sourceIdx {
+                    targetIdx = i
+                    break
+                }
+            }
+        }
+
+        dragSourceIndex = nil
+        if targetIdx != sourceIdx {
+            onReorderTab?(sourceIdx, targetIdx)
+        }
     }
 
     @objc private func handleNewTab() {
@@ -85,25 +176,47 @@ final class TabBarView: NSView {
 
 // MARK: - Tab Pill View
 
-private final class TabPillView: NSView {
+fileprivate final class TabPillView: NSView {
     var onSelect: (() -> Void)?
     var onClose: (() -> Void)?
+    var onDragBegan: (() -> Void)?
+    var onDragMoved: ((NSPoint) -> Void)?
+    var onDragEnded: (() -> Void)?
+    private var isDragging = false
+    private var mouseDownLocation: NSPoint?
 
+    private let iconView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
     private let closeButton = NSButton()
     private let isSelected: Bool
+    private let kind: TerminalContainerView.TabKind
     private var trackingArea: NSTrackingArea?
     private var isHovered = false
 
     var idealWidth: CGFloat {
-        titleLabel.attributedStringValue.size().width + 40
+        let iconWidth: CGFloat = isSmartTab ? 22 : 0
+        return titleLabel.attributedStringValue.size().width + 40 + iconWidth
     }
 
-    init(title: String, isSelected: Bool) {
+    private var isSmartTab: Bool {
+        if case .smart = kind { return true }
+        return false
+    }
+
+    init(title: String, isSelected: Bool, kind: TerminalContainerView.TabKind) {
         self.isSelected = isSelected
+        self.kind = kind
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = Theme.radiusElement
+
+        // Icon for smart tabs
+        if case .smart(let panelKind) = kind {
+            iconView.image = NSImage(systemSymbolName: panelKind.iconName, accessibilityDescription: nil)
+            iconView.contentTintColor = isSelected ? Theme.accent : Theme.textMuted
+            iconView.imageScaling = .scaleProportionallyDown
+            addSubview(iconView)
+        }
 
         titleLabel.stringValue = title
         titleLabel.font = .systemFont(ofSize: 12, weight: isSelected ? .medium : .regular)
@@ -130,19 +243,27 @@ private final class TabPillView: NSView {
 
     override func layout() {
         super.layout()
-        titleLabel.frame = NSRect(x: 10, y: (bounds.height - 16) / 2, width: bounds.width - 32, height: 16)
+        var labelX: CGFloat = 10
+
+        if isSmartTab {
+            iconView.frame = NSRect(x: 8, y: (bounds.height - 12) / 2, width: 12, height: 12)
+            labelX = 24
+        }
+
+        titleLabel.frame = NSRect(x: labelX, y: (bounds.height - 16) / 2, width: bounds.width - labelX - 22, height: 16)
         closeButton.frame = NSRect(x: bounds.width - 22, y: (bounds.height - 16) / 2, width: 16, height: 16)
     }
 
     override func updateTrackingAreas() {
         if let area = trackingArea { removeTrackingArea(area) }
-        trackingArea = NSTrackingArea(
+        let area = NSTrackingArea(
             rect: bounds,
             options: [.mouseEnteredAndExited, .activeAlways],
             owner: self,
             userInfo: nil
         )
-        addTrackingArea(trackingArea!)
+        trackingArea = area
+        addTrackingArea(area)
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -164,7 +285,34 @@ private final class TabPillView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        mouseDownLocation = event.locationInWindow
+        isDragging = false
         onSelect?()
+    }
+
+    override func otherMouseDown(with event: NSEvent) {
+        // Middle-click to close tab
+        if event.buttonNumber == 2 {
+            onClose?()
+        }
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let start = mouseDownLocation else { return }
+        let loc = event.locationInWindow
+        if !isDragging && hypot(loc.x - start.x, loc.y - start.y) > 4 {
+            isDragging = true
+            onDragBegan?()
+        }
+        if isDragging {
+            onDragMoved?(event.locationInWindow)
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        if isDragging { onDragEnded?() }
+        isDragging = false
+        mouseDownLocation = nil
     }
 
     @objc private func handleClose() {
@@ -173,9 +321,13 @@ private final class TabPillView: NSView {
 
     private func updateAppearance() {
         if isSelected {
-            layer?.backgroundColor = Theme.accentSubtle.cgColor
+            if isSmartTab {
+                layer?.backgroundColor = Theme.accent.withAlphaComponent(0.12).cgColor
+            } else {
+                layer?.backgroundColor = Theme.accentSubtle.cgColor
+            }
         } else if isHovered {
-            layer?.backgroundColor = NSColor(white: 1, alpha: 0.04).cgColor
+            layer?.backgroundColor = Theme.borderSubtle.cgColor
         } else {
             layer?.backgroundColor = .clear
         }

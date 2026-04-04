@@ -15,6 +15,8 @@ final class SplitPaneView: NSView {
     private var divider: SplitDividerView?
     private var ratio: CGFloat = 0.5
 
+    var currentRatio: CGFloat { ratio }
+
     /// Called when focus moves to a leaf's content view.
     var onFocusChanged: ((NSView) -> Void)?
 
@@ -120,8 +122,6 @@ final class SplitPaneView: NSView {
 
     // MARK: - Focus Tracking
 
-    private weak var _focusedLeaf: SplitPaneView?
-
     var focusedLeaf: SplitPaneView? {
         get {
             if isLeaf { return self }
@@ -131,7 +131,7 @@ final class SplitPaneView: NSView {
 
     var deepestLeaf: SplitPaneView {
         if isLeaf { return self }
-        return first?.deepestLeaf ?? self
+        return first?.deepestLeaf ?? second?.deepestLeaf ?? self
     }
 
     /// Collect all leaf content views.
@@ -152,10 +152,167 @@ final class SplitPaneView: NSView {
         return first?.parent(of: child) ?? second?.parent(of: child)
     }
 
+    // MARK: - Directional Navigation
+
+    enum Direction { case up, down, left, right }
+
+    /// Find the spatially adjacent leaf in the given direction from the leaf containing `view`.
+    func adjacentLeaf(from view: NSView, direction: Direction) -> NSView? {
+        guard let leaf = leaf(containing: view) else { return nil }
+        return adjacentLeafNode(from: leaf, direction: direction)?.contentView
+    }
+
+    private func adjacentLeafNode(from leaf: SplitPaneView, direction: Direction) -> SplitPaneView? {
+        // Walk up from `leaf` to find a branch whose orientation matches the direction axis
+        // and where the leaf is on the side that has a neighbor in that direction.
+        var current = leaf
+        while let par = parent(of: current) {
+            let axisMatches: Bool
+            let canNavigate: Bool
+
+            switch direction {
+            case .left, .right:
+                axisMatches = par.orientation == .vertical
+                canNavigate = (direction == .right && current === par.first)
+                           || (direction == .left && current === par.second)
+            case .up, .down:
+                axisMatches = par.orientation == .horizontal
+                // AppKit coords: first = bottom, second = top
+                canNavigate = (direction == .up && current === par.first)
+                           || (direction == .down && current === par.second)
+            }
+
+            if axisMatches && canNavigate {
+                // Walk into the other child's nearest edge
+                let other = (current === par.first) ? par.second : par.first
+                return nearestLeaf(in: other, edge: direction)
+            }
+            current = par
+        }
+        return nil
+    }
+
+    /// Find the nearest leaf on the specified edge of a subtree.
+    private func nearestLeaf(in node: SplitPaneView?, edge: Direction) -> SplitPaneView? {
+        guard let node else { return nil }
+        if node.isLeaf { return node }
+
+        switch edge {
+        case .left:
+            // Want the leftmost leaf: if vertical split, go first; otherwise either child
+            if node.orientation == .vertical { return nearestLeaf(in: node.first, edge: edge) }
+            return nearestLeaf(in: node.first, edge: edge) ?? nearestLeaf(in: node.second, edge: edge)
+        case .right:
+            if node.orientation == .vertical { return nearestLeaf(in: node.second, edge: edge) }
+            return nearestLeaf(in: node.first, edge: edge) ?? nearestLeaf(in: node.second, edge: edge)
+        case .down:
+            // AppKit: first = bottom, second = top. "Down" = go to first (bottom)
+            if node.orientation == .horizontal { return nearestLeaf(in: node.first, edge: edge) }
+            return nearestLeaf(in: node.first, edge: edge) ?? nearestLeaf(in: node.second, edge: edge)
+        case .up:
+            if node.orientation == .horizontal { return nearestLeaf(in: node.second, edge: edge) }
+            return nearestLeaf(in: node.first, edge: edge) ?? nearestLeaf(in: node.second, edge: edge)
+        }
+    }
+
+    // MARK: - Resize
+
+    /// Adjust the ratio of the nearest ancestor branch relevant to the given direction.
+    /// Returns true if a resize was performed.
+    @discardableResult
+    func resizeFromLeaf(containing view: NSView, direction: Direction, delta: CGFloat) -> Bool {
+        guard let leaf = leaf(containing: view) else { return false }
+
+        var current = leaf
+        while let par = parent(of: current) {
+            let axisMatches: Bool
+            switch direction {
+            case .left, .right: axisMatches = par.orientation == .vertical
+            case .up, .down: axisMatches = par.orientation == .horizontal
+            }
+
+            if axisMatches {
+                // Determine sign: growing toward second = positive ratio delta
+                let sign: CGFloat
+                switch direction {
+                case .right, .up:
+                    sign = (current === par.first) ? 1 : -1
+                case .left, .down:
+                    sign = (current === par.first) ? -1 : 1
+                }
+                par.adjustRatio(by: sign * delta)
+                return true
+            }
+            current = par
+        }
+        return false
+    }
+
+    func adjustRatio(by delta: CGFloat) {
+        ratio = min(0.85, max(0.15, ratio + delta))
+        needsLayout = true
+    }
+
+    /// Reset all split ratios to 0.5 recursively.
+    func equalizeAll() {
+        guard !isLeaf else { return }
+        ratio = 0.5
+        first?.equalizeAll()
+        second?.equalizeAll()
+        needsLayout = true
+    }
+
+    // MARK: - Serialization
+
+    /// Serialize the split tree to a `SplitNodeState` for session persistence.
+    func serialize(cwdLookup: (NSView) -> String?) -> SplitNodeState {
+        if isLeaf {
+            let cwd = contentView.flatMap { cwdLookup($0) }
+            return .leaf(cwd: cwd)
+        }
+        let ori = orientation == .horizontal ? "horizontal" : "vertical"
+        return .branch(
+            orientation: ori,
+            ratio: Double(ratio),
+            first: first?.serialize(cwdLookup: cwdLookup) ?? .leaf(cwd: nil),
+            second: second?.serialize(cwdLookup: cwdLookup) ?? .leaf(cwd: nil)
+        )
+    }
+
+    /// Create a branch node directly (for session restore).
+    static func makeBranch(
+        orientation: Orientation,
+        ratio: CGFloat,
+        first: SplitPaneView,
+        second: SplitPaneView,
+        onFocusChanged: ((NSView) -> Void)? = nil
+    ) -> SplitPaneView {
+        // Create a placeholder leaf and convert to branch
+        let node = SplitPaneView(content: NSView())
+        node.contentView?.removeFromSuperview()
+        node.contentView = nil
+        node.onFocusChanged = onFocusChanged
+        node.orientation = orientation
+        node.ratio = ratio
+        node.first = first
+        node.second = second
+        first.onFocusChanged = onFocusChanged
+        second.onFocusChanged = onFocusChanged
+        node.addSubview(first)
+        node.addSubview(second)
+
+        let div = SplitDividerView(orientation: orientation)
+        div.onDrag = { [weak node] delta in node?.handleDividerDrag(delta) }
+        node.divider = div
+        node.addSubview(div)
+
+        return node
+    }
+
     // MARK: - Layout
 
-    private let dividerThickness: CGFloat = 1
-    private let dividerHitArea: CGFloat = 6
+    private let dividerThickness: CGFloat = 2
+    private let dividerHitArea: CGFloat = 8
 
     override func layout() {
         super.layout()
@@ -209,37 +366,127 @@ final class SplitPaneView: NSView {
 
 // MARK: - Divider View
 
-private final class SplitDividerView: NSView {
+fileprivate final class SplitDividerView: NSView {
     let orientation: SplitPaneView.Orientation
     var onDrag: ((CGFloat) -> Void)?
     private var lastDragLocation: CGFloat = 0
+    private var isHovered = false
+    private var isDragging = false
+    private var trackingArea: NSTrackingArea?
 
     init(orientation: SplitPaneView.Orientation) {
         self.orientation = orientation
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.backgroundColor = NSColor(white: 1.0, alpha: 0.06).cgColor
+        layer?.backgroundColor = Theme.divider.cgColor
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    private func updateAppearance(animated: Bool = true) {
+        let color: NSColor
+        if isDragging {
+            color = Theme.dividerActive
+        } else if isHovered {
+            color = Theme.dividerHover
+        } else {
+            color = Theme.divider
+        }
+
+        // Scale transform: expand divider to 4px when hovered or dragging (base is 2px, so scale 2x)
+        let scale: CATransform3D
+        if isDragging || isHovered {
+            switch orientation {
+            case .vertical:
+                scale = CATransform3DMakeScale(2.0, 1.0, 1.0)
+            case .horizontal:
+                scale = CATransform3DMakeScale(1.0, 2.0, 1.0)
+            }
+        } else {
+            scale = CATransform3DIdentity
+        }
+
+        // Glow shadow when dragging
+        let shadowOpacity: Float = isDragging ? 0.6 : 0
+        let shadowColor = Theme.accent.cgColor
+        let shadowRadius: CGFloat = isDragging ? 4.0 : 0
+
+        if animated {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = Theme.animFast
+                ctx.allowsImplicitAnimation = true
+                self.layer?.backgroundColor = color.cgColor
+                self.layer?.transform = scale
+                self.layer?.shadowColor = shadowColor
+                self.layer?.shadowOpacity = shadowOpacity
+                self.layer?.shadowRadius = shadowRadius
+                self.layer?.shadowOffset = .zero
+            }
+        } else {
+            layer?.backgroundColor = color.cgColor
+            layer?.transform = scale
+            layer?.shadowColor = shadowColor
+            layer?.shadowOpacity = shadowOpacity
+            layer?.shadowRadius = shadowRadius
+            layer?.shadowOffset = .zero
+        }
+    }
+
+    override func updateTrackingAreas() {
+        if let area = trackingArea { removeTrackingArea(area) }
+        // Track on the expanded hit area
+        let expandedRect: NSRect
+        switch orientation {
+        case .vertical:
+            expandedRect = bounds.insetBy(dx: -4, dy: 0)
+        case .horizontal:
+            expandedRect = bounds.insetBy(dx: 0, dy: -4)
+        }
+        let area = NSTrackingArea(
+            rect: expandedRect,
+            options: [.mouseEnteredAndExited, .activeAlways],
+            owner: self,
+            userInfo: nil
+        )
+        trackingArea = area
+        addTrackingArea(area)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovered = true
+        updateAppearance()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovered = false
+        if !isDragging { updateAppearance() }
+    }
+
     override func resetCursorRects() {
         let cursor: NSCursor = orientation == .vertical ? .resizeLeftRight : .resizeUpDown
-        // Expand the hit area beyond the visible divider
         let hitRect: NSRect
         switch orientation {
         case .vertical:
-            hitRect = bounds.insetBy(dx: -3, dy: 0)
+            hitRect = bounds.insetBy(dx: -4, dy: 0)
         case .horizontal:
-            hitRect = bounds.insetBy(dx: 0, dy: -3)
+            hitRect = bounds.insetBy(dx: 0, dy: -4)
         }
         addCursorRect(hitRect, cursor: cursor)
     }
 
     override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2 {
+            // Double-click to equalize
+            if let splitPane = superview as? SplitPaneView {
+                splitPane.adjustRatio(by: 0.5 - splitPane.currentRatio)
+            }
+            return
+        }
         let loc = convert(event.locationInWindow, from: nil)
         lastDragLocation = orientation == .vertical ? loc.x : loc.y
+        isDragging = true
+        updateAppearance()
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -250,14 +497,18 @@ private final class SplitDividerView: NSView {
         onDrag?(delta)
     }
 
+    override func mouseUp(with event: NSEvent) {
+        isDragging = false
+        updateAppearance()
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
-        // Expand hit test area for easier grabbing
         let expanded: NSRect
         switch orientation {
         case .vertical:
-            expanded = frame.insetBy(dx: -3, dy: 0)
+            expanded = frame.insetBy(dx: -4, dy: 0)
         case .horizontal:
-            expanded = frame.insetBy(dx: 0, dy: -3)
+            expanded = frame.insetBy(dx: 0, dy: -4)
         }
         if expanded.contains(point) { return self }
         return nil

@@ -1,10 +1,13 @@
 import AppKit
 import GhosttyKit
+import os
 
 /// NSView subclass that hosts a single ghostty terminal surface.
 /// Handles Metal rendering internally via libghostty — we just forward events.
 final class TerminalSurfaceView: NSView, NSTextInputClient {
     private(set) var surface: ghostty_surface_t?
+    /// Whether the surface was successfully created and is ready for use.
+    var isReady: Bool { surface != nil }
     private weak var terminalApp: TerminalApp?
     private var markedText = NSMutableAttributedString()
     private var keyTextAccumulator: [String]?
@@ -13,6 +16,12 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
 
     /// Called when the shell process exits or the surface requests close.
     var onClose: ((Bool) -> Void)?
+
+    /// Current working directory of this surface, set via OSC 7.
+    var currentCwd: String?
+
+    /// Called after text is inserted, for broadcast mode.
+    var onTextInserted: ((String, TerminalSurfaceView) -> Void)?
 
     init(app: TerminalApp, baseConfig: ghostty_surface_config_s? = nil) {
         self.terminalApp = app
@@ -34,6 +43,10 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         config.scale_factor = Double(NSScreen.main?.backingScaleFactor ?? 2.0)
 
         surface = ghostty_surface_new(ghosttyApp, &config)
+        if surface == nil {
+            Logger.surface.error("Failed to create ghostty surface")
+            return
+        }
 
         // Monitor for key-up events that don't reach the responder chain
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyUp]) { [weak self] event in
@@ -225,9 +238,10 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         guard event.type == .keyDown, focused else { return false }
         guard let surface else { return false }
 
-        // Let Cmd+Q pass through to the system menu for quit
+        // Let Cmd+Q and Cmd+, pass through to the system menu
         let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        if mods == .command && (event.charactersIgnoringModifiers ?? "") == "q" {
+        let key = event.charactersIgnoringModifiers ?? ""
+        if mods == .command && (key == "q" || key == ",") {
             return false
         }
 
@@ -394,12 +408,14 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         if var acc = keyTextAccumulator {
             acc.append(chars)
             keyTextAccumulator = acc
+            onTextInserted?(chars, self)
         } else {
             // Direct text input (outside keyDown flow)
             if let surface {
                 chars.withCString { ptr in
                     ghostty_surface_text(surface, ptr, UInt(chars.utf8.count))
                 }
+                onTextInserted?(chars, self)
             }
         }
     }

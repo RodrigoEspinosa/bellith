@@ -22,8 +22,7 @@ final class TerminalApp {
                 DispatchQueue.main.async { app.tick() }
             },
             action_cb: { appPtr, target, action in
-                guard let appPtr else { return false }
-                let ud = ghostty_app_userdata(appPtr)!
+                guard let appPtr, let ud = ghostty_app_userdata(appPtr) else { return false }
                 let termApp = Unmanaged<TerminalApp>.fromOpaque(ud).takeUnretainedValue()
                 return termApp.onAction?(target, action) ?? false
             },

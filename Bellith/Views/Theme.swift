@@ -15,15 +15,22 @@ struct ThemeColors {
     let borderSubtle: NSColor
     /// Ghostty theme name (from ghostty's built-in themes)
     let ghosttyTheme: String
+    /// Whether this is a light theme (affects window appearance)
+    var isLight: Bool {
+        let rgb = base.usingColorSpace(.sRGB) ?? base
+        let luminance = 0.299 * rgb.redComponent + 0.587 * rgb.greenComponent + 0.114 * rgb.blueComponent
+        return luminance > 0.5
+    }
 
     var accentSubtle: NSColor { accent.withAlphaComponent(0.08) }
     var accentGlow: NSColor { accent.withAlphaComponent(0.03) }
     /// Window frame / gap color — slightly darker than base
     var frame: NSColor {
-        NSColor(red: base.redComponent * 0.7,
-                green: base.greenComponent * 0.7,
-                blue: base.blueComponent * 0.7,
-                alpha: 1.0)
+        let rgb = base.usingColorSpace(.sRGB) ?? base
+        return NSColor(red: rgb.redComponent * 0.7,
+                       green: rgb.greenComponent * 0.7,
+                       blue: rgb.blueComponent * 0.7,
+                       alpha: 1.0)
     }
 }
 
@@ -114,9 +121,195 @@ extension ThemeColors {
         ghosttyTheme: "Solarized Dark"
     )
 
-    static let allThemes: [ThemeColors] = [
-        .tokyonight, .catppuccinMocha, .gruvboxDark, .rosePine, .nord, .solarizedDark,
+    static let dracula = ThemeColors(
+        name: "Dracula",
+        base: NSColor(red: 0.157, green: 0.165, blue: 0.212, alpha: 1.0),
+        surface: NSColor(red: 0.176, green: 0.184, blue: 0.239, alpha: 1.0),
+        overlay: NSColor(red: 0.204, green: 0.216, blue: 0.275, alpha: 1.0),
+        accent: NSColor(red: 0.741, green: 0.576, blue: 0.976, alpha: 1.0),
+        textPrimary: NSColor(red: 0.973, green: 0.973, blue: 0.949, alpha: 1.0),
+        textSecondary: NSColor(red: 0.384, green: 0.447, blue: 0.643, alpha: 1.0),
+        textMuted: NSColor(red: 0.267, green: 0.278, blue: 0.353, alpha: 1.0),
+        border: NSColor(white: 1.0, alpha: 0.06),
+        borderSubtle: NSColor(white: 1.0, alpha: 0.03),
+        ghosttyTheme: "Dracula"
+    )
+
+    static let kanagawaWave = ThemeColors(
+        name: "Kanagawa Wave",
+        base: NSColor(red: 0.122, green: 0.122, blue: 0.157, alpha: 1.0),
+        surface: NSColor(red: 0.165, green: 0.165, blue: 0.216, alpha: 1.0),
+        overlay: NSColor(red: 0.212, green: 0.212, blue: 0.275, alpha: 1.0),
+        accent: NSColor(red: 0.494, green: 0.612, blue: 0.847, alpha: 1.0),
+        textPrimary: NSColor(red: 0.863, green: 0.843, blue: 0.729, alpha: 1.0),
+        textSecondary: NSColor(red: 0.447, green: 0.443, blue: 0.412, alpha: 1.0),
+        textMuted: NSColor(red: 0.329, green: 0.329, blue: 0.427, alpha: 1.0),
+        border: NSColor(white: 1.0, alpha: 0.06),
+        borderSubtle: NSColor(white: 1.0, alpha: 0.03),
+        ghosttyTheme: "kanagawa-wave"
+    )
+
+    // MARK: - Light Themes
+
+    static let tokyonightLight = ThemeColors(
+        name: "Tokyo Night Light",
+        base: NSColor(red: 0.965, green: 0.969, blue: 0.976, alpha: 1.0),
+        surface: NSColor(red: 0.941, green: 0.945, blue: 0.957, alpha: 1.0),
+        overlay: NSColor(red: 0.910, green: 0.914, blue: 0.933, alpha: 1.0),
+        accent: NSColor(red: 0.204, green: 0.369, blue: 0.839, alpha: 1.0),
+        textPrimary: NSColor(red: 0.208, green: 0.220, blue: 0.282, alpha: 1.0),
+        textSecondary: NSColor(red: 0.384, green: 0.400, blue: 0.482, alpha: 1.0),
+        textMuted: NSColor(red: 0.596, green: 0.608, blue: 0.667, alpha: 1.0),
+        border: NSColor(white: 0.0, alpha: 0.08),
+        borderSubtle: NSColor(white: 0.0, alpha: 0.04),
+        ghosttyTheme: "tokyonight_day"
+    )
+
+    static let catppuccinLatte = ThemeColors(
+        name: "Catppuccin Latte",
+        base: NSColor(red: 0.937, green: 0.925, blue: 0.957, alpha: 1.0),
+        surface: NSColor(red: 0.906, green: 0.894, blue: 0.933, alpha: 1.0),
+        overlay: NSColor(red: 0.875, green: 0.863, blue: 0.910, alpha: 1.0),
+        accent: NSColor(red: 0.455, green: 0.322, blue: 0.839, alpha: 1.0),
+        textPrimary: NSColor(red: 0.298, green: 0.282, blue: 0.376, alpha: 1.0),
+        textSecondary: NSColor(red: 0.435, green: 0.412, blue: 0.529, alpha: 1.0),
+        textMuted: NSColor(red: 0.604, green: 0.580, blue: 0.682, alpha: 1.0),
+        border: NSColor(white: 0.0, alpha: 0.08),
+        borderSubtle: NSColor(white: 0.0, alpha: 0.04),
+        ghosttyTheme: "catppuccin-latte"
+    )
+
+    static let solarizedLight = ThemeColors(
+        name: "Solarized Light",
+        base: NSColor(red: 0.992, green: 0.965, blue: 0.890, alpha: 1.0),
+        surface: NSColor(red: 0.933, green: 0.910, blue: 0.835, alpha: 1.0),
+        overlay: NSColor(red: 0.882, green: 0.859, blue: 0.784, alpha: 1.0),
+        accent: NSColor(red: 0.149, green: 0.545, blue: 0.824, alpha: 1.0),
+        textPrimary: NSColor(red: 0.396, green: 0.482, blue: 0.514, alpha: 1.0),
+        textSecondary: NSColor(red: 0.514, green: 0.580, blue: 0.588, alpha: 1.0),
+        textMuted: NSColor(red: 0.659, green: 0.706, blue: 0.718, alpha: 1.0),
+        border: NSColor(white: 0.0, alpha: 0.08),
+        borderSubtle: NSColor(white: 0.0, alpha: 0.04),
+        ghosttyTheme: "Solarized Light"
+    )
+
+    static let oneLight = ThemeColors(
+        name: "One Light",
+        base: NSColor(red: 0.980, green: 0.980, blue: 0.980, alpha: 1.0),
+        surface: NSColor(red: 0.945, green: 0.949, blue: 0.957, alpha: 1.0),
+        overlay: NSColor(red: 0.906, green: 0.910, blue: 0.918, alpha: 1.0),
+        accent: NSColor(red: 0.251, green: 0.400, blue: 0.878, alpha: 1.0),
+        textPrimary: NSColor(red: 0.220, green: 0.231, blue: 0.259, alpha: 1.0),
+        textSecondary: NSColor(red: 0.392, green: 0.408, blue: 0.455, alpha: 1.0),
+        textMuted: NSColor(red: 0.616, green: 0.631, blue: 0.667, alpha: 1.0),
+        border: NSColor(white: 0.0, alpha: 0.08),
+        borderSubtle: NSColor(white: 0.0, alpha: 0.04),
+        ghosttyTheme: "One Light"
+    )
+
+    static let builtInThemes: [ThemeColors] = [
+        .tokyonight, .catppuccinMocha, .gruvboxDark, .rosePine, .nord, .solarizedDark, .dracula, .kanagawaWave,
+        .tokyonightLight, .catppuccinLatte, .solarizedLight, .oneLight,
     ]
+
+    static var allThemes: [ThemeColors] {
+        builtInThemes + CustomThemeLoader.shared.themes
+    }
+}
+
+// MARK: - Custom Theme Loading
+
+/// Loads user-defined themes from JSON files in ~/Library/Application Support/com.rec.bellith/themes/
+final class CustomThemeLoader {
+    static let shared = CustomThemeLoader()
+
+    private(set) var themes: [ThemeColors] = []
+
+    private init() { reload() }
+
+    func reload() {
+        themes = []
+        guard let dir = themesDirectory else { return }
+
+        // Create directory if it doesn't exist
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+        guard let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
+
+        for file in files where file.pathExtension == "json" {
+            if let data = try? Data(contentsOf: file),
+               let custom = try? JSONDecoder().decode(CustomThemeDef.self, from: data) {
+                themes.append(custom.toThemeColors())
+            }
+        }
+    }
+
+    var themesDirectory: URL? {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("com.rec.bellith/themes", isDirectory: true)
+    }
+}
+
+/// JSON-serializable theme definition.
+/// Example file:
+/// ```json
+/// {
+///   "name": "My Theme",
+///   "ghosttyTheme": "custom-theme-name",
+///   "base": "#1a1b26",
+///   "surface": "#1e1f2b",
+///   "overlay": "#24253a",
+///   "accent": "#7aa2f7",
+///   "textPrimary": "#c0caf5",
+///   "textSecondary": "#565f89",
+///   "textMuted": "#3b4261"
+/// }
+/// ```
+struct CustomThemeDef: Codable {
+    let name: String
+    let ghosttyTheme: String
+    let base: String
+    let surface: String
+    let overlay: String
+    let accent: String
+    let textPrimary: String
+    let textSecondary: String
+    let textMuted: String
+    var border: String?
+    var borderSubtle: String?
+
+    func toThemeColors() -> ThemeColors {
+        ThemeColors(
+            name: name,
+            base: NSColor(hex: base),
+            surface: NSColor(hex: surface),
+            overlay: NSColor(hex: overlay),
+            accent: NSColor(hex: accent),
+            textPrimary: NSColor(hex: textPrimary),
+            textSecondary: NSColor(hex: textSecondary),
+            textMuted: NSColor(hex: textMuted),
+            border: border.map { NSColor(hex: $0) } ?? NSColor(white: 1.0, alpha: 0.06),
+            borderSubtle: borderSubtle.map { NSColor(hex: $0) } ?? NSColor(white: 1.0, alpha: 0.03),
+            ghosttyTheme: ghosttyTheme
+        )
+    }
+}
+
+private extension NSColor {
+    convenience init(hex: String) {
+        var h = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if h.hasPrefix("#") { h.removeFirst() }
+        guard h.count == 6, let val = UInt64(h, radix: 16) else {
+            self.init(white: 0.5, alpha: 1.0)
+            return
+        }
+        self.init(
+            red: CGFloat((val >> 16) & 0xFF) / 255.0,
+            green: CGFloat((val >> 8) & 0xFF) / 255.0,
+            blue: CGFloat(val & 0xFF) / 255.0,
+            alpha: 1.0
+        )
+    }
 }
 
 // MARK: - Theme Manager (Observable)
@@ -176,4 +369,14 @@ enum Theme {
     static let animFast: TimeInterval = 0.15
     static let animMedium: TimeInterval = 0.25
     static let animSlow: TimeInterval = 0.4
+
+    // Semantic colors
+    static var success: NSColor { NSColor(red: 0.298, green: 0.686, blue: 0.314, alpha: 1.0) }
+    static var warning: NSColor { NSColor(red: 1.0, green: 0.757, blue: 0.027, alpha: 1.0) }
+    static var destructive: NSColor { NSColor(red: 0.937, green: 0.325, blue: 0.314, alpha: 1.0) }
+
+    // Divider
+    static var divider: NSColor { colors.border }
+    static var dividerHover: NSColor { accent.withAlphaComponent(0.4) }
+    static var dividerActive: NSColor { accent.withAlphaComponent(0.7) }
 }
