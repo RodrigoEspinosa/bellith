@@ -290,15 +290,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         viewMenuItem.submenu = viewMenu
         mainMenu.addItem(viewMenuItem)
 
-        // Tools menu — smart inspector tabs
+        // Tools menu — built-in smart panel plugins
         let toolsMenu = NSMenu(title: "Tools")
-        let processItem = NSMenuItem(title: "Process Tree", action: #selector(handleSmartProcesses), keyEquivalent: "")
-        toolsMenu.addItem(processItem)
-        let networkItem = NSMenuItem(title: "Network Inspector", action: #selector(handleSmartNetwork), keyEquivalent: "")
-        toolsMenu.addItem(networkItem)
-        toolsMenu.addItem(withTitle: "Environment", action: #selector(handleSmartEnvironment), keyEquivalent: "")
-        toolsMenu.addItem(withTitle: "File Activity", action: #selector(handleSmartFiles), keyEquivalent: "")
-        toolsMenu.addItem(withTitle: "Performance", action: #selector(handleSmartPerformance), keyEquivalent: "")
+        for plugin in SmartPanelRegistry.shared.allPlugins {
+            let item = NSMenuItem(title: plugin.title, action: #selector(handleSmartToolMenuItem(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = plugin.id
+            toolsMenu.addItem(item)
+        }
         let toolsMenuItem = NSMenuItem()
         toolsMenuItem.submenu = toolsMenu
         mainMenu.addItem(toolsMenuItem)
@@ -372,12 +371,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // Smart tab actions
-    @objc private func handleSmartProcesses() { activeEntry?.container.createSmartTab(kind: .processTree) }
-    @objc private func handleSmartNetwork() { activeEntry?.container.createSmartTab(kind: .network) }
-    @objc private func handleSmartEnvironment() { activeEntry?.container.createSmartTab(kind: .environment) }
-    @objc private func handleSmartFiles() { activeEntry?.container.createSmartTab(kind: .fileActivity) }
-    @objc private func handleSmartPerformance() { activeEntry?.container.createSmartTab(kind: .performance) }
+    // Smart panel plugin actions
+    @objc private func handleSmartToolMenuItem(_ sender: NSMenuItem) {
+        guard let pluginID = sender.representedObject as? String else { return }
+        activeEntry?.container.createSmartTab(pluginID: pluginID)
+    }
     @objc private func handleThemeSelection(_ sender: NSMenuItem) {
         guard let theme = sender.representedObject as? ThemeColors else { return }
         BellithSettings.shared.themeName = theme.name

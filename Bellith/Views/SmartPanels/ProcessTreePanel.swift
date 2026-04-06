@@ -2,11 +2,21 @@ import AppKit
 
 /// Smart panel that displays the process tree rooted at the shell PID.
 final class ProcessTreePanel: SmartPanelView {
+    static let plugin = SmartPanelPlugin(
+        id: "processTree",
+        title: "Processes",
+        iconName: "list.bullet.indent",
+        commandDescription: "Inspect running processes",
+        commandAliases: ["processes", "process tree", "procs", "ps"]
+    ) {
+        ProcessTreePanel()
+    }
+
     private var rows: [ProcessRow] = []
     private var flatProcesses: [(info: TerminalProcessInfo, depth: Int)] = []
 
     init() {
-        super.init(kind: .processTree)
+        super.init(plugin: Self.plugin)
     }
 
     override func refresh() {

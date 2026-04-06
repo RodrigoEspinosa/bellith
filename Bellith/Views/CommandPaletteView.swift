@@ -20,41 +20,13 @@ final class CommandPaletteView: NSView {
     var onSubmit: ((String) -> Void)?
     var onDismiss: (() -> Void)?
 
-    /// Available commands for autocomplete
-    static let commands: [(id: String, label: String, description: String, icon: String, shortcutId: String?)] = [
-        ("newTab", "New Tab", "Open a new terminal tab", "plus.square", "newTab"),
-        ("closeTab", "Close Tab", "Close the current tab", "xmark.square", "closeTab"),
-        ("reopenTab", "Reopen Closed Tab", "Restore last closed tab", "arrow.uturn.left", "reopenTab"),
-        ("splitRight", "Split Right", "Split pane to the right", "rectangle.split.1x2", "splitRight"),
-        ("splitDown", "Split Down", "Split pane downward", "rectangle.split.2x1", "splitDown"),
-        ("closePane", "Close Pane", "Close the current pane", "xmark.rectangle", "closePane"),
-        ("zoomPane", "Zoom Pane", "Toggle pane zoom", "arrow.up.left.and.arrow.down.right", "zoomPane"),
-        ("equalizePanes", "Equalize Panes", "Reset all pane sizes", "equal.square", "equalizePanes"),
-        ("navLeft", "Focus Left Pane", "Move focus left", "arrow.left.square", "navLeft"),
-        ("navRight", "Focus Right Pane", "Move focus right", "arrow.right.square", "navRight"),
-        ("navUp", "Focus Up Pane", "Move focus up", "arrow.up.square", "navUp"),
-        ("navDown", "Focus Down Pane", "Move focus down", "arrow.down.square", "navDown"),
-        ("toggleSidebar", "Toggle Sidebar", "Show or hide the sidebar", "sidebar.left", "toggleSidebar"),
-        ("toggleBroadcast", "Broadcast Mode", "Send input to all panes", "antenna.radiowaves.left.and.right", "broadcastInput"),
+    typealias CommandItem = (id: String, label: String, description: String, icon: String, shortcutId: String?)
 
-        ("find", "Find", "Search in terminal", "magnifyingglass", "search"),
-        ("preferences", "Settings", "Open preferences window", "gear", nil),
-        ("reloadConfig", "Reload Config", "Reload terminal configuration", "arrow.clockwise", "reloadConfig"),
-        ("increaseFontSize", "Increase Font Size", "Make text larger", "textformat.size.larger", "fontSizeUp"),
-        ("decreaseFontSize", "Decrease Font Size", "Make text smaller", "textformat.size.smaller", "fontSizeDown"),
-        ("resetFontSize", "Reset Font Size", "Reset to default size", "textformat.size", "fontSizeReset"),
-        ("clearBuffer", "Clear Buffer", "Clear terminal output", "trash", "clearBuffer"),
-        ("processTree", "Process Tree", "Inspect running processes", "list.bullet.indent", nil),
-        ("network", "Network", "View network connections", "network", nil),
-        ("environment", "Environment", "View environment variables", "text.alignleft", nil),
-        ("fileActivity", "File Activity", "View open files", "doc.text.magnifyingglass", nil),
-        ("performance", "Performance", "View resource usage", "chart.xyaxis.line", nil),
-        ("fullscreen", "Toggle Fullscreen", "Enter or exit fullscreen", "arrow.up.backward.and.arrow.down.forward", "toggleFullscreen"),
-        ("copySelection", "Copy", "Copy selected text", "doc.on.doc", "copy"),
-        ("pasteClipboard", "Paste", "Paste from clipboard", "doc.on.clipboard", "paste"),
-        ("newWindow", "New Window", "Open a new window", "macwindow.badge.plus", "newWindow"),
-        ("selectAll", "Select All", "Select all text", "selection.pin.in.out", "selectAll"),
-    ]
+    static var commands: [CommandItem] {
+        CommandRegistry.shared.allCommands.map { command in
+            (command.id, command.title, command.description, command.iconName, command.shortcutID)
+        }
+    }
 
     private var themeObserver: NSObjectProtocol?
 
@@ -246,11 +218,11 @@ final class CommandPaletteView: NSView {
     }
 
     /// Shared filtering logic — returns commands ranked by fuzzy relevance.
-    private static func filteredCommands(for query: String, limit: Int) -> [(id: String, label: String, description: String, icon: String, shortcutId: String?)] {
+    private static func filteredCommands(for query: String, limit: Int) -> [CommandItem] {
         if query.isEmpty {
             return Array(commands.prefix(limit))
         }
-        var scored: [(cmd: (id: String, label: String, description: String, icon: String, shortcutId: String?), score: Int)] = []
+        var scored: [(cmd: CommandItem, score: Int)] = []
         for cmd in commands {
             if let labelScore = fuzzyScore(query: query, target: cmd.label) {
                 scored.append((cmd, labelScore + 10)) // Boost label matches

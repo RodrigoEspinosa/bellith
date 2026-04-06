@@ -1,38 +1,93 @@
 import AppKit
 
-/// The kind of smart panel — used for tab identification and icon selection.
-enum SmartPanelKind: String, CaseIterable {
-    case processTree
-    case network
-    case environment
-    case fileActivity
-    case performance
+struct SmartPanelPlugin {
+    typealias PanelFactory = () -> SmartPanelView
 
-    var displayName: String {
-        switch self {
-        case .processTree:  return "Processes"
-        case .network:      return "Network"
-        case .environment:  return "Environment"
-        case .fileActivity: return "Files"
-        case .performance:  return "Performance"
-        }
+    let id: String
+    let title: String
+    let iconName: String
+    let commandDescription: String
+    let commandAliases: [String]
+    let sidebarEnabledByDefault: Bool
+    let makePanel: PanelFactory
+
+    init(
+        id: String,
+        title: String,
+        iconName: String,
+        commandDescription: String,
+        commandAliases: [String] = [],
+        sidebarEnabledByDefault: Bool = true,
+        makePanel: @escaping PanelFactory
+    ) {
+        self.id = id
+        self.title = title
+        self.iconName = iconName
+        self.commandDescription = commandDescription
+        self.commandAliases = commandAliases
+        self.sidebarEnabledByDefault = sidebarEnabledByDefault
+        self.makePanel = makePanel
     }
 
-    var iconName: String {
-        switch self {
-        case .processTree:  return "list.bullet.indent"
-        case .network:      return "network"
-        case .environment:  return "text.alignleft"
-        case .fileActivity: return "doc.text.magnifyingglass"
-        case .performance:  return "chart.xyaxis.line"
-        }
+    fileprivate func matchesCommand(_ normalizedCommand: String) -> Bool {
+        if SmartPanelRegistry.normalizeCommand(id) == normalizedCommand { return true }
+        if SmartPanelRegistry.normalizeCommand(title) == normalizedCommand { return true }
+        return commandAliases.contains { SmartPanelRegistry.normalizeCommand($0) == normalizedCommand }
+    }
+}
+
+final class SmartPanelRegistry {
+    static let shared = SmartPanelRegistry()
+
+    private var orderedPluginIDs: [String] = []
+    private var pluginsByID: [String: SmartPanelPlugin] = [:]
+
+    private init() {
+        register(ProcessTreePanel.plugin)
+        register(NetworkPanel.plugin)
+        register(EnvironmentPanel.plugin)
+        register(FileActivityPanel.plugin)
+        register(PerformancePanel.plugin)
+    }
+
+    func register(_ plugin: SmartPanelPlugin) {
+        guard pluginsByID[plugin.id] == nil else { return }
+        orderedPluginIDs.append(plugin.id)
+        pluginsByID[plugin.id] = plugin
+    }
+
+    var allPlugins: [SmartPanelPlugin] {
+        orderedPluginIDs.compactMap { pluginsByID[$0] }
+    }
+
+    func plugin(for id: String) -> SmartPanelPlugin? {
+        pluginsByID[id]
+    }
+
+    func makePanel(id: String) -> SmartPanelView? {
+        plugin(for: id)?.makePanel()
+    }
+
+    func plugin(matchingCommand text: String) -> SmartPanelPlugin? {
+        let normalized = Self.normalizeCommand(text)
+        return allPlugins.first { $0.matchesCommand(normalized) }
+    }
+
+    static func normalizeCommand(_ text: String) -> String {
+        text
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .joined()
     }
 }
 
 /// Base class for smart (non-terminal) tab panels.
 /// Provides a frosted header bar, scrollable content area, and a refresh timer.
 class SmartPanelView: NSView {
-    let kind: SmartPanelKind
+    let pluginID: String
+    let panelTitle: String
+    let panelIconName: String
 
     /// The shell PID to scope inspection to. Set by the container when creating the tab.
     var shellPID: pid_t? {
@@ -56,8 +111,10 @@ class SmartPanelView: NSView {
     private var refreshTimer: DispatchSourceTimer?
     private var isActive = false
 
-    init(kind: SmartPanelKind) {
-        self.kind = kind
+    init(plugin: SmartPanelPlugin) {
+        self.pluginID = plugin.id
+        self.panelTitle = plugin.title
+        self.panelIconName = plugin.iconName
         super.init(frame: .zero)
         wantsLayer = true
         layer?.backgroundColor = Theme.base.cgColor
@@ -85,12 +142,12 @@ class SmartPanelView: NSView {
         border.frame = CGRect(x: 0, y: 0, width: 10000, height: 0.5)
         headerView.layer?.addSublayer(border)
 
-        headerIcon.image = NSImage(systemSymbolName: kind.iconName, accessibilityDescription: nil)
+        headerIcon.image = NSImage(systemSymbolName: panelIconName, accessibilityDescription: nil)
         headerIcon.contentTintColor = Theme.accent
         headerIcon.imageScaling = .scaleProportionallyDown
         headerView.addSubview(headerIcon)
 
-        headerLabel.stringValue = kind.displayName
+        headerLabel.stringValue = panelTitle
         headerLabel.font = .systemFont(ofSize: 12, weight: .semibold)
         headerLabel.textColor = Theme.textPrimary
         headerView.addSubview(headerLabel)
@@ -158,18 +215,7 @@ class SmartPanelView: NSView {
 
     // MARK: - Factory
 
-    static func create(kind: SmartPanelKind) -> SmartPanelView {
-        switch kind {
-        case .processTree:
-            return ProcessTreePanel()
-        case .network:
-            return NetworkPanel()
-        case .environment:
-            return EnvironmentPanel()
-        case .fileActivity:
-            return FileActivityPanel()
-        case .performance:
-            return PerformancePanel()
-        }
+    static func create(pluginID: String) -> SmartPanelView? {
+        SmartPanelRegistry.shared.makePanel(id: pluginID)
     }
 }

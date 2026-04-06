@@ -4,6 +4,16 @@ import QuartzCore
 /// Smart panel that displays resource usage for the shell process tree.
 /// Shows aggregate stats, CPU/memory sparklines, and per-process breakdown.
 final class PerformancePanel: SmartPanelView {
+    static let plugin = SmartPanelPlugin(
+        id: "performance",
+        title: "Performance",
+        iconName: "chart.xyaxis.line",
+        commandDescription: "View resource usage",
+        commandAliases: ["perf", "performance"]
+    ) {
+        PerformancePanel()
+    }
+
     // MARK: - History
 
     static let maxSamples = 60
@@ -36,7 +46,7 @@ final class PerformancePanel: SmartPanelView {
     private let emptyLabel = NSTextField(labelWithString: "")
 
     init() {
-        super.init(kind: .performance)
+        super.init(plugin: Self.plugin)
 
         for card in [cpuCard, memoryCard, processCountCard, uptimeCard] {
             contentView.addSubview(card)

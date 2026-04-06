@@ -16,7 +16,7 @@ final class SidebarPane: NSView {
     private let toolsCard = SettingsCard(title: "Quick Tools", subtitle: "Show tool shortcuts in the sidebar")
     private let showToolsLabel = CardRowLabel("Show tools section")
     private var showToolsToggle: PrefToggle!
-    private var toolToggles: [(kind: SmartPanelKind, label: CardRowLabel, toggle: PrefToggle)] = []
+    private var toolToggles: [(plugin: SmartPanelPlugin, label: CardRowLabel, toggle: PrefToggle)] = []
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -48,15 +48,15 @@ final class SidebarPane: NSView {
         toolsCard.addSubview(showToolsToggle)
 
         let enabledTools = settings.sidebarTools
-        for kind in SmartPanelKind.allCases {
-            let label = CardRowLabel(kind.displayName)
-            let isEnabled = enabledTools.contains(kind.rawValue)
+        for plugin in SmartPanelRegistry.shared.allPlugins {
+            let label = CardRowLabel(plugin.title)
+            let isEnabled = enabledTools.contains(plugin.id)
             let toggle = PrefToggle(isOn: isEnabled) { [weak self] v in
-                self?.handleToolToggle(kind: kind, enabled: v)
+                self?.handleToolToggle(plugin: plugin, enabled: v)
             }
             toolsCard.addSubview(label)
             toolsCard.addSubview(toggle)
-            toolToggles.append((kind: kind, label: label, toggle: toggle))
+            toolToggles.append((plugin: plugin, label: label, toggle: toggle))
         }
 
         updateToolToggleStates()
@@ -64,14 +64,14 @@ final class SidebarPane: NSView {
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
-    private func handleToolToggle(kind: SmartPanelKind, enabled: Bool) {
+    private func handleToolToggle(plugin: SmartPanelPlugin, enabled: Bool) {
         var tools = settings.sidebarTools
         if enabled {
-            if !tools.contains(kind.rawValue) {
-                tools.append(kind.rawValue)
+            if !tools.contains(plugin.id) {
+                tools.append(plugin.id)
             }
         } else {
-            tools.removeAll { $0 == kind.rawValue }
+            tools.removeAll { $0 == plugin.id }
         }
         settings.sidebarTools = tools
     }
@@ -111,7 +111,7 @@ final class SidebarPane: NSView {
 
         // Tools card
         let showTools = settings.sidebarShowTools
-        let toolRowCount = showTools ? SmartPanelKind.allCases.count : 0
+        let toolRowCount = showTools ? toolToggles.count : 0
         let toolsCardH = toolsCard.headerHeight
             + PreferencesLayout.rowH  // show tools toggle row
             + (showTools ? PreferencesLayout.rowGap + 8 : 0)

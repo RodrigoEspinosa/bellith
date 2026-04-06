@@ -4,9 +4,16 @@ import QuartzCore
 /// Custom window with Zen-inspired minimal chrome.
 /// Traffic lights auto-hide after a delay and reappear on hover.
 final class TerminalWindow: NSWindow {
+    enum TrafficLightDisplayMode {
+        case automatic
+        case forcedVisible
+        case forcedHidden
+    }
+
     private var trafficLightTrackingArea: NSTrackingArea?
     private var trafficLightHideTimer: Timer?
     private var trafficLightsVisible = true
+    private var trafficLightDisplayMode: TrafficLightDisplayMode = .automatic
 
     override init(
         contentRect: NSRect,
@@ -78,6 +85,7 @@ final class TerminalWindow: NSWindow {
     // MARK: - Traffic Light Auto-Hide
 
     private func scheduleTrafficLightHide() {
+        guard trafficLightDisplayMode == .automatic, shouldAutoHideTrafficLights else { return }
         trafficLightHideTimer?.invalidate()
         trafficLightHideTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
             self?.hideTrafficLights()
@@ -92,47 +100,55 @@ final class TerminalWindow: NSWindow {
         NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
 
-    private func hideTrafficLights() {
-        guard trafficLightsVisible, shouldAutoHideTrafficLights else { return }
-        trafficLightsVisible = false
+    private func setTrafficLightsVisible(_ visible: Bool, animated: Bool) {
+        trafficLightsVisible = visible
+        let targetAlpha: CGFloat = visible ? 1 : 0
 
-        if shouldReduceMotion {
+        if !animated || shouldReduceMotion {
             for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-                standardWindowButton(type)?.alphaValue = 0
+                standardWindowButton(type)?.alphaValue = targetAlpha
             }
-        } else {
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = Theme.animSlow
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
-                for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-                    standardWindowButton(type)?.animator().alphaValue = 0
-                }
+            return
+        }
+
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = visible ? Theme.animFast : Theme.animSlow
+            ctx.timingFunction = CAMediaTimingFunction(name: visible ? .easeOut : .easeIn)
+            for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+                standardWindowButton(type)?.animator().alphaValue = targetAlpha
             }
         }
     }
 
+    private func hideTrafficLights() {
+        guard trafficLightDisplayMode == .automatic, trafficLightsVisible, shouldAutoHideTrafficLights else { return }
+        setTrafficLightsVisible(false, animated: true)
+    }
+
     func showTrafficLights() {
+        guard trafficLightDisplayMode != .forcedHidden else { return }
         guard !trafficLightsVisible else {
-            if shouldAutoHideTrafficLights { scheduleTrafficLightHide() }
+            scheduleTrafficLightHide()
             return
         }
-        trafficLightsVisible = true
+        setTrafficLightsVisible(true, animated: true)
+        scheduleTrafficLightHide()
+    }
 
-        if shouldReduceMotion {
-            for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-                standardWindowButton(type)?.alphaValue = 1
-            }
-        } else {
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = Theme.animFast
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-                    standardWindowButton(type)?.animator().alphaValue = 1
-                }
-            }
+    func setTrafficLightDisplayMode(_ mode: TrafficLightDisplayMode) {
+        guard trafficLightDisplayMode != mode else { return }
+        trafficLightDisplayMode = mode
+        trafficLightHideTimer?.invalidate()
+
+        switch mode {
+        case .automatic:
+            setTrafficLightsVisible(!shouldAutoHideTrafficLights, animated: true)
+            scheduleTrafficLightHide()
+        case .forcedVisible:
+            setTrafficLightsVisible(true, animated: true)
+        case .forcedHidden:
+            setTrafficLightsVisible(false, animated: true)
         }
-
-        if shouldAutoHideTrafficLights { scheduleTrafficLightHide() }
     }
 
     // MARK: - Layout
@@ -170,7 +186,9 @@ final class TerminalWindow: NSWindow {
             contentView.removeTrackingArea(existing)
         }
 
-        let trackingRect = NSRect(x: 0, y: contentView.bounds.height - 60, width: 120, height: 60)
+        let trackingOriginX: CGFloat = trafficLightDisplayMode == .automatic ? 0 : 8
+        let trackingWidth: CGFloat = trafficLightDisplayMode == .automatic ? 120 : 136
+        let trackingRect = NSRect(x: trackingOriginX, y: contentView.bounds.height - 60, width: trackingWidth, height: 60)
         let area = NSTrackingArea(
             rect: trackingRect,
             options: [.mouseEnteredAndExited, .activeAlways],
@@ -189,8 +207,9 @@ final class TerminalWindow: NSWindow {
 
         let buttons = [close, mini, zoom]
         let buttonHeight = close.frame.height
-        let originY = round((container.bounds.height - buttonHeight) / 2) - 1
-        let originX: CGFloat = 14
+        let usesSidebarPlacement = trafficLightDisplayMode != .automatic
+        let originY = round((container.bounds.height - buttonHeight) / 2) + (usesSidebarPlacement ? 0 : -1)
+        let originX: CGFloat = usesSidebarPlacement ? 20 : 14
         let spacing: CGFloat = 6
         var x = originX
 
@@ -198,7 +217,14 @@ final class TerminalWindow: NSWindow {
             var frame = button.frame
             frame.origin = NSPoint(x: x, y: originY)
             button.setFrameOrigin(frame.origin)
-            button.alphaValue = trafficLightsVisible || !shouldAutoHideTrafficLights ? 1 : 0
+            switch trafficLightDisplayMode {
+            case .automatic:
+                button.alphaValue = trafficLightsVisible || !shouldAutoHideTrafficLights ? 1 : 0
+            case .forcedVisible:
+                button.alphaValue = 1
+            case .forcedHidden:
+                button.alphaValue = 0
+            }
             x += frame.width + spacing
         }
     }

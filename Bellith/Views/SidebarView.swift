@@ -18,10 +18,10 @@ final class SidebarView: NSView {
     private let toolsSeparator = CALayer()
     private let toolsHeaderLabel = NSTextField(labelWithString: "Tools")
     private var toolRows: [SidebarToolRow] = []
-    private var enabledTools: [SmartPanelKind] = []
+    private var enabledTools: [SmartPanelPlugin] = []
 
-    /// Which tool kind is currently open in the main content area (for highlight state).
-    private var activeToolKind: SmartPanelKind?
+    /// Which tool plugin is currently open in the main content area (for highlight state).
+    private var activeToolID: String?
 
     private(set) var isExpanded = false
     private var hideTimer: Timer?
@@ -38,7 +38,7 @@ final class SidebarView: NSView {
     var onTabContextMenu: ((Int, NSPoint) -> Void)?
 
     /// Called when a tool is clicked in the sidebar. The container opens it in the main content area.
-    var onSelectTool: ((SmartPanelKind) -> Void)?
+    var onSelectTool: ((String) -> Void)?
 
     private var newTabTrackingArea: NSTrackingArea?
     private var dragSourceIndex: Int?
@@ -177,10 +177,12 @@ final class SidebarView: NSView {
         let settings = BellithSettings.shared
         let showTools = settings.sidebarShowTools
         let enabledRawValues = settings.sidebarTools
-        let newTools = showTools ? SmartPanelKind.allCases.filter { enabledRawValues.contains($0.rawValue) } : []
+        let newTools = showTools
+            ? SmartPanelRegistry.shared.allPlugins.filter { enabledRawValues.contains($0.id) }
+            : []
 
         // Skip rebuild if nothing changed
-        if newTools == enabledTools && showTools == !toolsHeaderLabel.isHidden {
+        if newTools.map(\.id) == enabledTools.map(\.id) && showTools == !toolsHeaderLabel.isHidden {
             return
         }
 
@@ -190,17 +192,17 @@ final class SidebarView: NSView {
         toolsHeaderLabel.isHidden = !showTools
         toolsSeparator.isHidden = !showTools
 
-        // Clear active highlight if its kind was removed
-        if let active = activeToolKind, !newTools.contains(active) {
-            activeToolKind = nil
+        // Clear active highlight if its plugin was removed
+        if let active = activeToolID, !newTools.contains(where: { $0.id == active }) {
+            activeToolID = nil
         }
 
         enabledTools = newTools
 
-        for kind in enabledTools {
-            let isActive = kind == activeToolKind
-            let row = SidebarToolRow(kind: kind, isActive: isActive)
-            row.onSelect = { [weak self] in self?.handleToolSelected(kind) }
+        for plugin in enabledTools {
+            let isActive = plugin.id == activeToolID
+            let row = SidebarToolRow(plugin: plugin, isActive: isActive)
+            row.onSelect = { [weak self] in self?.handleToolSelected(plugin.id) }
             addSubview(row)
             toolRows.append(row)
         }
@@ -216,21 +218,21 @@ final class SidebarView: NSView {
 
     // MARK: - Tool Selection
 
-    private func handleToolSelected(_ kind: SmartPanelKind) {
-        activeToolKind = kind
+    private func handleToolSelected(_ pluginID: String) {
+        activeToolID = pluginID
         updateToolRowStates()
-        onSelectTool?(kind)
+        onSelectTool?(pluginID)
     }
 
     /// Update the active tool highlight to match the currently selected tab.
-    func setActiveToolKind(_ kind: SmartPanelKind?) {
-        activeToolKind = kind
+    func setActiveToolID(_ pluginID: String?) {
+        activeToolID = pluginID
         updateToolRowStates()
     }
 
     private func updateToolRowStates() {
-        for (i, kind) in enabledTools.enumerated() where i < toolRows.count {
-            toolRows[i].setActive(kind == activeToolKind)
+        for (i, plugin) in enabledTools.enumerated() where i < toolRows.count {
+            toolRows[i].setActive(plugin.id == activeToolID)
         }
     }
 
@@ -524,8 +526,9 @@ fileprivate final class SidebarTabRow: NSView {
 
         // Icon
         let symbolName: String
-        if case .smart(let panelKind) = kind {
-            symbolName = panelKind.iconName
+        if case .smart(let pluginID) = kind,
+           let plugin = SmartPanelRegistry.shared.plugin(for: pluginID) {
+            symbolName = plugin.iconName
         } else {
             symbolName = isSelected ? "terminal.fill" : "terminal"
         }
@@ -651,32 +654,32 @@ fileprivate final class SidebarTabRow: NSView {
 
 fileprivate final class SidebarToolRow: NSView {
     var onSelect: (() -> Void)?
-    private let kind: SmartPanelKind
+    private let plugin: SmartPanelPlugin
     private let iconView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
     private var isHovered = false
     private var isActive = false
 
-    init(kind: SmartPanelKind, isActive: Bool = false) {
-        self.kind = kind
+    init(plugin: SmartPanelPlugin, isActive: Bool = false) {
+        self.plugin = plugin
         self.isActive = isActive
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = 7
         layer?.borderWidth = 0.5
 
-        iconView.image = NSImage(systemSymbolName: kind.iconName, accessibilityDescription: kind.displayName)
+        iconView.image = NSImage(systemSymbolName: plugin.iconName, accessibilityDescription: plugin.title)
         iconView.imageScaling = .scaleProportionallyDown
         addSubview(iconView)
 
-        titleLabel.stringValue = kind.displayName
+        titleLabel.stringValue = plugin.title
         titleLabel.font = .systemFont(ofSize: 12, weight: .medium)
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.maximumNumberOfLines = 1
         addSubview(titleLabel)
 
         setAccessibilityRole(.button)
-        setAccessibilityLabel(kind.displayName)
+        setAccessibilityLabel(plugin.title)
 
         applyStyle()
     }

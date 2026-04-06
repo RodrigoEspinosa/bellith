@@ -242,8 +242,9 @@ fileprivate final class TabPillView: NSView {
         setAccessibilityValue(isSelected ? "selected" : "")
 
         // Icon for smart tabs
-        if case .smart(let panelKind) = kind {
-            iconView.image = NSImage(systemSymbolName: panelKind.iconName, accessibilityDescription: nil)
+        if case .smart(let pluginID) = kind,
+           let plugin = SmartPanelRegistry.shared.plugin(for: pluginID) {
+            iconView.image = NSImage(systemSymbolName: plugin.iconName, accessibilityDescription: nil)
             iconView.contentTintColor = isSelected ? Theme.accent : Theme.textMuted
             iconView.imageScaling = .scaleProportionallyDown
             addSubview(iconView)

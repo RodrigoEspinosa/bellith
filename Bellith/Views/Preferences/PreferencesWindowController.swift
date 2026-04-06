@@ -68,16 +68,16 @@ final class PreferencesRootView: NSView {
         contentClip.wantsLayer = true
         addSubview(contentClip)
 
-        panes["appearance"] = AppearancePane()
-        panes["terminal"] = TerminalPane()
-        panes["sidebar"] = SidebarPane()
-        panes["keybindings"] = KeybindingsPane()
-        panes["quickterm"] = QuickTerminalPane()
-        panes["about"] = AboutPane()
+        for plugin in PreferencesPaneRegistry.shared.allPlugins {
+            let pane = plugin.makePane()
+            panes[plugin.id] = pane
+            contentClip.addSubview(pane)
+            pane.isHidden = true
+        }
 
-        for (_, pane) in panes { contentClip.addSubview(pane); pane.isHidden = true }
-
-        showPane("appearance")
+        if let initialPaneID = PreferencesPaneRegistry.shared.mainPlugins.first?.id {
+            showPane(initialPaneID)
+        }
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -86,15 +86,16 @@ final class PreferencesRootView: NSView {
         layer?.backgroundColor = Theme.base.cgColor
         window?.backgroundColor = Theme.base
         sidebar.refresh()
-        (panes["appearance"] as? AppearancePane)?.refresh()
-        (panes["about"] as? AboutPane)?.refresh()
+        for pane in panes.values {
+            (pane as? PreferencesPaneRefreshable)?.refreshPreferencesPane()
+        }
     }
 
     private func showPane(_ id: String) {
-        guard id != activePaneId else { return }
+        guard id != activePaneId, let nextPane = panes[id] else { return }
         let oldPane = activePane
 
-        activePane = panes[id]
+        activePane = nextPane
         activePane?.isHidden = false
         activePane?.alphaValue = 0
         activePane?.frame = contentClip.bounds
@@ -129,19 +130,12 @@ final class PreferencesRootView: NSView {
 
 final class PrefSidebar: NSView {
     var onSelect: ((String) -> Void)?
-    var selected: String = "appearance" { didSet { needsDisplay = true; updateItems() } }
+    var selected: String = PreferencesPaneRegistry.shared.mainPlugins.first?.id ?? "appearance" {
+        didSet { needsDisplay = true; updateItems() }
+    }
 
-    private struct Item { let id: String; let icon: String; let label: String }
-    private let mainItems: [Item] = [
-        Item(id: "appearance", icon: "paintbrush.pointed", label: "Appearance"),
-        Item(id: "terminal", icon: "terminal", label: "Terminal"),
-        Item(id: "sidebar", icon: "sidebar.left", label: "Sidebar"),
-        Item(id: "keybindings", icon: "keyboard", label: "Keybindings"),
-        Item(id: "quickterm", icon: "rectangle.bottomhalf.inset.filled", label: "Quick Terminal"),
-    ]
-    private let bottomItems: [Item] = [
-        Item(id: "about", icon: "info.circle", label: "About"),
-    ]
+    private let mainItems = PreferencesPaneRegistry.shared.mainPlugins
+    private let bottomItems = PreferencesPaneRegistry.shared.footerPlugins
     private var mainViews: [PrefSidebarItem] = []
     private var bottomViews: [PrefSidebarItem] = []
     private let brandLabel = NSTextField(labelWithString: "Bellith")
@@ -165,7 +159,7 @@ final class PrefSidebar: NSView {
         addSubview(versionLabel)
 
         for item in mainItems {
-            let view = PrefSidebarItem(icon: item.icon, label: item.label)
+            let view = PrefSidebarItem(icon: item.iconName, label: item.title)
             view.onClick = { [weak self] in self?.onSelect?(item.id) }
             addSubview(view)
             mainViews.append(view)
@@ -176,7 +170,7 @@ final class PrefSidebar: NSView {
         addSubview(separatorLine)
 
         for item in bottomItems {
-            let view = PrefSidebarItem(icon: item.icon, label: item.label)
+            let view = PrefSidebarItem(icon: item.iconName, label: item.title)
             view.onClick = { [weak self] in self?.onSelect?(item.id) }
             addSubview(view)
             bottomViews.append(view)

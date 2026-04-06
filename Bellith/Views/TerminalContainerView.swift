@@ -14,7 +14,7 @@ final class TerminalContainerView: NSView {
 
     enum TabKind: Equatable {
         case terminal
-        case smart(SmartPanelKind)
+        case smart(String)
     }
 
     struct TabEntry {
@@ -26,7 +26,7 @@ final class TerminalContainerView: NSView {
         var kind: TabKind {
             switch content {
             case .terminal: return .terminal
-            case .smart(let panel): return .smart(panel.kind)
+            case .smart(let panel): return .smart(panel.pluginID)
             }
         }
 
@@ -117,10 +117,13 @@ final class TerminalContainerView: NSView {
         }
         sidebar.onCloseTab = { [weak self] i in self?.closeTab(i) }
         sidebar.onNewTab = { [weak self] in self?.createTab() }
-        sidebar.onExpandChanged = { [weak self] _ in self?.animateContentLayout() }
+        sidebar.onExpandChanged = { [weak self] _ in
+            self?.animateContentLayout()
+            self?.syncTrafficLightDisplayMode()
+        }
         sidebar.onReorderTab = { [weak self] from, to in self?.reorderTab(from: from, to: to) }
         sidebar.onTabContextMenu = { [weak self] index, point in self?.showTabContextMenu(index: index, at: point) }
-        sidebar.onSelectTool = { [weak self] kind in self?.openOrSwitchToTool(kind) }
+        sidebar.onSelectTool = { [weak self] pluginID in self?.openOrSwitchToTool(pluginID) }
 
         // Tab bar
         addSubview(tabBar)
@@ -267,6 +270,7 @@ final class TerminalContainerView: NSView {
         let isSidebar = useSidebar
         sidebar.isHidden = !isSidebar
         tabBar.isHidden = isSidebar
+        syncTrafficLightDisplayMode()
         needsLayout = true
     }
 
@@ -389,15 +393,16 @@ final class TerminalContainerView: NSView {
 
     // MARK: - Smart Tab Management
 
-    func createSmartTab(kind: SmartPanelKind) {
-        let panel = SmartPanelView.create(kind: kind)
+    func createSmartTab(pluginID: String) {
+        guard let plugin = SmartPanelRegistry.shared.plugin(for: pluginID),
+              let panel = SmartPanelView.create(pluginID: pluginID) else { return }
 
         // Find the shell PID from the current terminal's CWD
         panel.shellPID = findShellPID()
 
         let id = UUID()
         tabs.append(TabEntry(
-            id: id, title: kind.displayName, cwd: nil,
+            id: id, title: plugin.title, cwd: nil,
             content: .smart(panel: panel)
         ))
         addSubview(panel, positioned: .below, relativeTo: sidebar)
@@ -406,18 +411,16 @@ final class TerminalContainerView: NSView {
         refreshTabUI()
     }
 
-    /// Open a tool panel, or switch to an existing one of the same kind.
-    func openOrSwitchToTool(_ kind: SmartPanelKind) {
-        // Check if there's already an open tab with this tool kind
+    /// Open a tool panel, or switch to an existing one with the same plugin identifier.
+    func openOrSwitchToTool(_ pluginID: String) {
         if let existingIndex = tabs.firstIndex(where: {
-            if case .smart(let panel) = $0.content, panel.kind == kind { return true }
+            if case .smart(let panel) = $0.content, panel.pluginID == pluginID { return true }
             return false
         }) {
             selectTab(existingIndex)
             return
         }
-        // Otherwise create a new one
-        createSmartTab(kind: kind)
+        createSmartTab(pluginID: pluginID)
     }
 
     func closeTab(_ index: Int) {
@@ -536,11 +539,11 @@ final class TerminalContainerView: NSView {
             if let cwd = entry.cwd {
                 refreshStatusBarAsync(cwd: cwd)
             }
-            sidebar.setActiveToolKind(nil)
+            sidebar.setActiveToolID(nil)
         case .smart(let panel):
             panel.startRefreshing()
             window?.makeFirstResponder(self)
-            sidebar.setActiveToolKind(panel.kind)
+            sidebar.setActiveToolID(panel.pluginID)
         }
 
         refreshTabUI()
@@ -1067,6 +1070,11 @@ final class TerminalContainerView: NSView {
         return contentRect(forSidebarWidth: sidebarWidth)
     }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        syncTrafficLightDisplayMode()
+    }
+
     override func layout() {
         super.layout()
         guard !isAnimatingLayout else { return }
@@ -1127,6 +1135,7 @@ final class TerminalContainerView: NSView {
         }
 
         setupEdgeTracking()
+        syncTrafficLightDisplayMode()
 
         // Position broadcast badge
         if let badge = broadcastBadge {
@@ -1234,6 +1243,17 @@ final class TerminalContainerView: NSView {
         needsDisplay = true
     }
 
+    private func syncTrafficLightDisplayMode() {
+        guard let window = window as? TerminalWindow else { return }
+
+        if useSidebar {
+            let mode: TerminalWindow.TrafficLightDisplayMode = sidebar.isExpanded ? .forcedVisible : .forcedHidden
+            window.setTrafficLightDisplayMode(mode)
+        } else {
+            window.setTrafficLightDisplayMode(.automatic)
+        }
+    }
+
     // MARK: - Edge Hover Detection
 
     private func setupEdgeTracking() {
@@ -1282,94 +1302,30 @@ final class TerminalContainerView: NSView {
     func hideCommandPalette() { commandPalette?.hide() }
 
     private func handleCommand(_ text: String) {
-        let cmd = text.lowercased().trimmingCharacters(in: .whitespaces)
+        let cmd = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        switch cmd {
-        case "new tab", "tab", "new":
-            createTab()
-        case "close tab", "close":
-            closeCurrentTab()
-        case "split", "split right", "vsplit":
-            splitPane(direction: .vertical)
-        case "split down", "hsplit":
-            splitPane(direction: .horizontal)
-        case "focus left":
-            navigatePane(.left)
-        case "focus right":
-            navigatePane(.right)
-        case "focus up":
-            navigatePane(.up)
-        case "focus down":
-            navigatePane(.down)
-        case "sidebar":
-            sidebar.toggle()
-        case "tab bar", "tabbar":
-            toggleTabMode()
-        case "zoom", "maximize":
-            toggleZoom()
-        case "equalize", "equal":
-            equalizePanes()
-        case "broadcast":
-            toggleBroadcast()
-        case "fullscreen":
-            window?.toggleFullScreen(nil)
-        case "reload", "reload config":
-            reloadConfig()
-        case "font+", "bigger":
-            adjustFontSize(delta: 1)
-        case "font-", "smaller":
-            adjustFontSize(delta: -1)
-        case "find", "search":
-            showSearch()
-        case "copy", "copyselection":
-            copySelection()
-        case "paste", "pasteclipboard":
-            pasteClipboard()
-        case "reopentab", "reopen":
-            reopenClosedTab()
-        case "clearbuffer", "clear":
-            clearBuffer()
-        case "close pane", "closepane":
-            closePane()
-        case "new window", "newwindow":
-            NotificationCenter.default.post(name: .init("BellithCreateNewWindow"), object: nil)
-        case "selectall", "select all":
-            if let surface = activeSurface?.surface {
-                let action = "select_all"
-                action.withCString { ptr in
-                    _ = ghostty_surface_binding_action(surface, ptr, UInt(action.utf8.count))
+        if let command = CommandRegistry.shared.command(matching: cmd) {
+            _ = command.perform(self, cmd)
+            return
+        }
+
+        if cmd.hasPrefix(">") {
+            let shellCmd = String(cmd.dropFirst()).trimmingCharacters(in: .whitespaces)
+            if !shellCmd.isEmpty, let surface = activeSurface?.surface {
+                let input = shellCmd + "\n"
+                input.withCString { ptr in
+                    ghostty_surface_text(surface, ptr, UInt(input.utf8.count))
                 }
             }
-        // Smart panel commands
-        case "processes", "process tree", "procs", "ps":
-            openOrSwitchToTool(.processTree)
-        case "network", "connections", "netstat":
-            openOrSwitchToTool(.network)
-        case "env", "environment":
-            openOrSwitchToTool(.environment)
-        case "files", "file activity":
-            openOrSwitchToTool(.fileActivity)
-        case "perf", "performance":
-            openOrSwitchToTool(.performance)
-        default:
-            if cmd.hasPrefix(">") {
-                let shellCmd = String(text.dropFirst()).trimmingCharacters(in: .whitespaces)
-                if !shellCmd.isEmpty, let surface = activeSurface?.surface {
-                    let input = shellCmd + "\n"
-                    input.withCString { ptr in
-                        ghostty_surface_text(surface, ptr, UInt(input.utf8.count))
-                    }
-                }
-            } else {
-                if let theme = ThemeColors.allThemes.first(where: {
-                    $0.name.lowercased() == cmd
-                }) {
-                    BellithSettings.shared.themeName = theme.name
-                    ThemeManager.shared.apply(theme)
-                } else {
-                    Logger.ui.warning("Unknown command: \(text)")
-                }
-            }
+            return
+        }
+
+        let normalizedThemeName = cmd.lowercased()
+        if let theme = ThemeColors.allThemes.first(where: { $0.name.lowercased() == normalizedThemeName }) {
+            BellithSettings.shared.themeName = theme.name
+            ThemeManager.shared.apply(theme)
+        } else {
+            Logger.ui.warning("Unknown command: \(text)")
         }
     }
 
@@ -1441,6 +1397,31 @@ final class TerminalContainerView: NSView {
     }
 
     // MARK: - Copy / Paste
+
+    func toggleSidebarVisibility() { sidebar.toggle() }
+
+    func focusPane(_ direction: SplitPaneView.Direction) { navigatePane(direction) }
+
+    func togglePaneZoom() { toggleZoom() }
+
+    func equalizeAllPanes() { equalizePanes() }
+
+    func toggleBroadcastMode() { toggleBroadcast() }
+
+    func toggleFullscreenMode() { window?.toggleFullScreen(nil) }
+
+    func openNewWindow() {
+        NotificationCenter.default.post(name: .init("BellithCreateNewWindow"), object: nil)
+    }
+
+    func selectAllText() {
+        if let surface = activeSurface?.surface {
+            let action = "select_all"
+            action.withCString { ptr in
+                _ = ghostty_surface_binding_action(surface, ptr, UInt(action.utf8.count))
+            }
+        }
+    }
 
     func copySelection() {
         guard let surface = activeSurface?.surface else { return }

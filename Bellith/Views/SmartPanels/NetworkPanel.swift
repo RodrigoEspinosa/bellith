@@ -3,6 +3,16 @@ import AppKit
 /// Smart panel that shows network connections for terminal processes.
 /// Similar to LittleSnitch but scoped to the shell's process tree.
 final class NetworkPanel: SmartPanelView {
+    static let plugin = SmartPanelPlugin(
+        id: "network",
+        title: "Network",
+        iconName: "network",
+        commandDescription: "View network connections",
+        commandAliases: ["network", "connections", "netstat"]
+    ) {
+        NetworkPanel()
+    }
+
     private var rows: [ConnectionRow] = []
     private var connections: [ConnectionInfo] = []
     private let headerRow = ConnectionHeaderRow()
@@ -10,7 +20,7 @@ final class NetworkPanel: SmartPanelView {
     private var resolvedHosts: [String: String] = [:]
 
     init() {
-        super.init(kind: .network)
+        super.init(plugin: Self.plugin)
 
         contentView.addSubview(headerRow)
 

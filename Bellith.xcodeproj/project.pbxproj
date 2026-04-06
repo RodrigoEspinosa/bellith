@@ -34,11 +34,13 @@
 		941E77325C0B8A487B2CD650 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AF3EFCA4440E50031AF178C /* Logger.swift */; };
 		9BF5A978A5AACAB4DD91124B /* AboutPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C6683BF4D86DE5BB7318C3C /* AboutPane.swift */; };
 		9EECDE6BE4882D41C3F53B22 /* SidebarPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = A33E81DDDC25CA709CD563AE /* SidebarPane.swift */; };
+		A0CFB54241CAA6006E58472C /* CommandRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B8A3CDE542974BFD639F6F0 /* CommandRegistry.swift */; };
 		A39350253246932A3A4CB068 /* KeybindingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26D1CA15561163656129EFFE /* KeybindingsPane.swift */; };
 		A4482FD8BE36A3CB5AB2CCC8 /* QuickTerminalController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C964FC62608F8FA41EE01B5 /* QuickTerminalController.swift */; };
 		A497CDCB9182E12C715A1A43 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7F6C0E62F0D6DFD08E3A8E5 /* AppDelegate.swift */; };
 		A58FC4DBB6D1A65B63DEEC49 /* InputHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 342FF523B6C2BC463C0BD849 /* InputHelpers.swift */; };
 		A86738D1AB23F41A78A329D6 /* StatusBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00EF9188ECCF6928DD41F54 /* StatusBarView.swift */; };
+		AA291915F73F4338FC1407C7 /* PreferencesPaneRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = D65ED0D10E5739FCA342E50A /* PreferencesPaneRegistry.swift */; };
 		AAEC14C4379EFD86E0A0BCCE /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69849D6EC718E0BFF019C9D8 /* TabBarView.swift */; };
 		B80E5D2747AB50B714189BC4 /* ProcessMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8932FC29FCA31DEBC5C25A11 /* ProcessMonitorTests.swift */; };
 		BAF7DA9CF2672F1E616A7F17 /* TitleBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C5C94B09019221ED3984C56 /* TitleBarView.swift */; };
@@ -67,6 +69,7 @@
 
 /* Begin PBXFileReference section */
 		01AD6AF9F8A70A7E83B56C8C /* QuickTerminalPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickTerminalPane.swift; sourceTree = "<group>"; };
+		0B8A3CDE542974BFD639F6F0 /* CommandRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandRegistry.swift; sourceTree = "<group>"; };
 		0E054D89080718E9732C73F2 /* TerminalConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalConfig.swift; sourceTree = "<group>"; };
 		1055D889FA5B87C7B010166B /* ThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeTests.swift; sourceTree = "<group>"; };
 		185BCA9A77D1E03020788D4D /* PreferencesComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesComponents.swift; sourceTree = "<group>"; };
@@ -107,6 +110,7 @@
 		CB50294EC30FB94671823CFA /* SplitPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitPaneView.swift; sourceTree = "<group>"; };
 		CD0B5E50A6BE76A1D3EDFE6D /* EnvironmentPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentPanel.swift; sourceTree = "<group>"; };
 		D391C65B83BEE0FDBEAE9ACC /* KeyBindings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyBindings.swift; sourceTree = "<group>"; };
+		D65ED0D10E5739FCA342E50A /* PreferencesPaneRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesPaneRegistry.swift; sourceTree = "<group>"; };
 		D7F6C0E62F0D6DFD08E3A8E5 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		DB0C524BC98C2F0D18E7B327 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		DDFFF00A8FCA7C5D765650BD /* AppearancePane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearancePane.swift; sourceTree = "<group>"; };
@@ -235,6 +239,7 @@
 				DDFFF00A8FCA7C5D765650BD /* AppearancePane.swift */,
 				26D1CA15561163656129EFFE /* KeybindingsPane.swift */,
 				185BCA9A77D1E03020788D4D /* PreferencesComponents.swift */,
+				D65ED0D10E5739FCA342E50A /* PreferencesPaneRegistry.swift */,
 				3C9D96FFF53397D45EA101F4 /* PreferencesWindowController.swift */,
 				01AD6AF9F8A70A7E83B56C8C /* QuickTerminalPane.swift */,
 				A33E81DDDC25CA709CD563AE /* SidebarPane.swift */,
@@ -248,6 +253,7 @@
 			isa = PBXGroup;
 			children = (
 				8B5E3E792593BBE98618983D /* BellithSettings.swift */,
+				0B8A3CDE542974BFD639F6F0 /* CommandRegistry.swift */,
 				D391C65B83BEE0FDBEAE9ACC /* KeyBindings.swift */,
 				90AD21D2101DAB69E92DFB59 /* SessionState.swift */,
 				772785F1920803E52A7235C8 /* TerminalProfile.swift */,
@@ -398,6 +404,7 @@
 				CE826D24B9117475F5BFB14B /* BellithSettings.swift in Sources */,
 				3A8626193F1471C659C10A4A /* BlurView.swift in Sources */,
 				114F10461A0D9F305FF71202 /* CommandPaletteView.swift in Sources */,
+				A0CFB54241CAA6006E58472C /* CommandRegistry.swift in Sources */,
 				3F81E95CDC0FF4142056C98A /* EnvironmentPanel.swift in Sources */,
 				FA077AEA422D8D9128490402 /* FileActivityPanel.swift in Sources */,
 				A58FC4DBB6D1A65B63DEEC49 /* InputHelpers.swift in Sources */,
@@ -408,6 +415,7 @@
 				88DF13E98F4C5539EFBCF58F /* NetworkPanel.swift in Sources */,
 				2428C55AF2B4DC0234E13B04 /* PerformancePanel.swift in Sources */,
 				D455B1DABDBE119547D39CE1 /* PreferencesComponents.swift in Sources */,
+				AA291915F73F4338FC1407C7 /* PreferencesPaneRegistry.swift in Sources */,
 				06F9811AE726F42DEB32D418 /* PreferencesWindowController.swift in Sources */,
 				4C6D7ECB973811FC8DA4121C /* ProcessMonitor.swift in Sources */,
 				16B68069486FB637AC3441D2 /* ProcessTreePanel.swift in Sources */,

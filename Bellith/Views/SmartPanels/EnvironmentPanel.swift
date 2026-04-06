@@ -3,6 +3,16 @@ import Darwin
 
 /// Smart panel that displays environment variables for the shell process.
 final class EnvironmentPanel: SmartPanelView {
+    static let plugin = SmartPanelPlugin(
+        id: "environment",
+        title: "Environment",
+        iconName: "text.alignleft",
+        commandDescription: "View environment variables",
+        commandAliases: ["env", "environment"]
+    ) {
+        EnvironmentPanel()
+    }
+
     private var rows: [EnvVarRow] = []
     private var envVars: [(key: String, value: String)] = []
     private var filteredVars: [(key: String, value: String)] = []
@@ -12,7 +22,7 @@ final class EnvironmentPanel: SmartPanelView {
     private var searchQuery: String = ""
 
     init() {
-        super.init(kind: .environment)
+        super.init(plugin: Self.plugin)
 
         setupSearchField()
 

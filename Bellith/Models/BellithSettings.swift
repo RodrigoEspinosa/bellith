@@ -101,12 +101,14 @@ final class BellithSettings {
     }
 
     /// Which tools to display in the sidebar quick-access section.
-    /// Stored as an array of SmartPanelKind raw values.
-    /// Defaults to all tools enabled.
+    /// Stored as an array of smart panel plugin identifiers.
+    /// Defaults to all built-in tool plugins enabled.
     var sidebarTools: [String] {
         get {
             if let arr = defaults.stringArray(forKey: "sidebarTools") { return arr }
-            return SmartPanelKind.allCases.map { $0.rawValue }
+            return SmartPanelRegistry.shared.allPlugins
+                .filter(\.sidebarEnabledByDefault)
+                .map(\.id)
         }
         set { defaults.set(newValue, forKey: "sidebarTools"); notify() }
     }

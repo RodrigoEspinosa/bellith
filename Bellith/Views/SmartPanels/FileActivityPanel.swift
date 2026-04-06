@@ -15,6 +15,16 @@ private struct FileDescriptorInfo {
 /// Skips socket FDs (handled by NetworkPanel). Uses proc_pidinfo / proc_pidfdinfo
 /// to enumerate vnode paths for each process.
 final class FileActivityPanel: SmartPanelView {
+    static let plugin = SmartPanelPlugin(
+        id: "fileActivity",
+        title: "Files",
+        iconName: "doc.text.magnifyingglass",
+        commandDescription: "View open files",
+        commandAliases: ["files", "file activity"]
+    ) {
+        FileActivityPanel()
+    }
+
     private var rows: [FileDescriptorRow] = []
     private var allEntries: [FileDescriptorInfo] = []
     private var filteredEntries: [FileDescriptorInfo] = []
@@ -23,7 +33,7 @@ final class FileActivityPanel: SmartPanelView {
     private let searchField = NSTextField()
 
     init() {
-        super.init(kind: .fileActivity)
+        super.init(plugin: Self.plugin)
 
         setupSearchField()
         contentView.addSubview(headerRow)
