@@ -243,8 +243,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // View menu
         let viewMenu = NSMenu(title: "View")
-        let sidebarItem = NSMenuItem(title: "Toggle Sidebar", action: #selector(handleToggleSidebar), keyEquivalent: "b")
-        sidebarItem.keyEquivalentModifierMask = .command
+        let sidebarItem = NSMenuItem(title: "Toggle Sidebar", action: #selector(handleToggleSidebar), keyEquivalent: "e")
+        sidebarItem.keyEquivalentModifierMask = [.command, .shift]
         viewMenu.addItem(sidebarItem)
         let paletteItem = NSMenuItem(title: "Command Palette", action: #selector(handleTogglePalette), keyEquivalent: "k")
         paletteItem.keyEquivalentModifierMask = .command

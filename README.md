@@ -63,7 +63,7 @@ make generate # Regenerate Xcode project from project.yml
 | `⌘⇧[` | Previous tab |
 | `⌘C` | Copy |
 | `⌘V` | Paste |
-| `⌘B` | Toggle sidebar |
+| `⌘⇧E` | Toggle sidebar |
 | `⌘K` | Command palette |
 | `⌘,` | Preferences |
 

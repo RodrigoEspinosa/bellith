@@ -269,7 +269,7 @@ final class BellithSettings {
                         shortcut: KeyShortcut(key: "i", command: true, shift: false, option: true, control: false)),
         // View
         KeyBindingEntry(id: "toggleSidebar", label: "Toggle Sidebar", category: "View",
-                        shortcut: KeyShortcut(key: "b", command: true, shift: false, option: false, control: false)),
+                        shortcut: KeyShortcut(key: "e", command: true, shift: true, option: false, control: false)),
         KeyBindingEntry(id: "commandPalette", label: "Command Palette", category: "View",
                         shortcut: KeyShortcut(key: "k", command: true, shift: false, option: false, control: false)),
 
