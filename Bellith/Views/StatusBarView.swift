@@ -4,7 +4,7 @@ import AppKit
 /// Shows cwd, git branch, foreground process, and terminal dimensions.
 /// Designed to be a clear, readable strip — like VS Code's status bar.
 final class StatusBarView: NSView {
-    static let height: CGFloat = 30
+    static let height: CGFloat = 32
 
     // Left items
     private let cwdIcon = NSImageView()
@@ -19,10 +19,17 @@ final class StatusBarView: NSView {
     // Right items
     private let sizeLabel = NSTextField(labelWithString: "")
 
+    private let topSeparator = CALayer()
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
         layer?.backgroundColor = Theme.surface.cgColor
+
+        // Subtle top edge separator
+        topSeparator.backgroundColor = Theme.border.cgColor
+        topSeparator.autoresizingMask = [.layerWidthSizable, .layerMinYMargin]
+        layer?.addSublayer(topSeparator)
 
         setupIcon(cwdIcon, symbol: "folder.fill", tint: Theme.accent)
         setupLabel(cwdLabel, size: 12, weight: .medium, color: Theme.textPrimary)
@@ -91,31 +98,55 @@ final class StatusBarView: NSView {
     }
 
     func updateGitBranch(_ branch: String?) {
-        if let branch, !branch.isEmpty {
-            gitLabel.stringValue = branch
+        let shouldShow = branch != nil && !(branch ?? "").isEmpty
+        if shouldShow { gitLabel.stringValue = branch! }
+
+        if shouldShow {
             gitIcon.isHidden = false
             gitLabel.isHidden = false
             separator1.isHidden = false
-        } else {
-            gitIcon.isHidden = true
-            gitLabel.isHidden = true
-            separator1.isHidden = true
         }
-        needsLayout = true
+
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = Theme.animFast
+            ctx.allowsImplicitAnimation = true
+            self.gitIcon.animator().alphaValue = shouldShow ? 1 : 0
+            self.gitLabel.animator().alphaValue = shouldShow ? 1 : 0
+            self.separator1.animator().alphaValue = shouldShow ? 1 : 0
+        } completionHandler: { [weak self] in
+            if !shouldShow {
+                self?.gitIcon.isHidden = true
+                self?.gitLabel.isHidden = true
+                self?.separator1.isHidden = true
+            }
+            self?.needsLayout = true
+        }
     }
 
     func updateProcess(_ name: String?) {
-        if let name, !name.isEmpty {
-            processLabel.stringValue = name
+        let shouldShow = name != nil && !(name ?? "").isEmpty
+        if shouldShow { processLabel.stringValue = name! }
+
+        if shouldShow {
             processIcon.isHidden = false
             processLabel.isHidden = false
-            separator2.isHidden = !gitIcon.isHidden // only show if git is also showing
-        } else {
-            processIcon.isHidden = true
-            processLabel.isHidden = true
-            separator2.isHidden = true
+            separator2.isHidden = gitIcon.isHidden
         }
-        needsLayout = true
+
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = Theme.animFast
+            ctx.allowsImplicitAnimation = true
+            self.processIcon.animator().alphaValue = shouldShow ? 1 : 0
+            self.processLabel.animator().alphaValue = shouldShow ? 1 : 0
+            self.separator2.animator().alphaValue = shouldShow ? 1 : 0
+        } completionHandler: { [weak self] in
+            if !shouldShow {
+                self?.processIcon.isHidden = true
+                self?.processLabel.isHidden = true
+                self?.separator2.isHidden = true
+            }
+            self?.needsLayout = true
+        }
     }
 
     func updateSize(cols: Int, rows: Int) {
@@ -127,6 +158,10 @@ final class StatusBarView: NSView {
     override func layout() {
         super.layout()
         let h = bounds.height
+
+        // Top separator line
+        topSeparator.frame = NSRect(x: 0, y: h - 0.5, width: bounds.width, height: 0.5)
+
         let iconSize: CGFloat = 14
         let iconY = (h - iconSize) / 2
         let labelH: CGFloat = 16
@@ -181,6 +216,7 @@ final class StatusBarView: NSView {
 
     func refreshTheme() {
         layer?.backgroundColor = Theme.surface.cgColor
+        topSeparator.backgroundColor = Theme.border.cgColor
         cwdIcon.contentTintColor = Theme.accent
         cwdLabel.textColor = Theme.textPrimary
         separator1.textColor = Theme.textMuted.withAlphaComponent(0.5)

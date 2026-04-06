@@ -36,7 +36,7 @@ final class CommandPaletteView: NSView {
         ("navDown", "Focus Down Pane", "Move focus down", "arrow.down.square", "navDown"),
         ("toggleSidebar", "Toggle Sidebar", "Show or hide the sidebar", "sidebar.left", "toggleSidebar"),
         ("toggleBroadcast", "Broadcast Mode", "Send input to all panes", "antenna.radiowaves.left.and.right", "broadcastInput"),
-        ("showHUD", "Show HUD", "Display terminal info overlay", "info.circle", "showHUD"),
+
         ("find", "Find", "Search in terminal", "magnifyingglass", "search"),
         ("preferences", "Settings", "Open preferences window", "gear", nil),
         ("reloadConfig", "Reload Config", "Reload terminal configuration", "arrow.clockwise", "reloadConfig"),
@@ -56,13 +56,40 @@ final class CommandPaletteView: NSView {
         ("selectAll", "Select All", "Select all text", "selection.pin.in.out", "selectAll"),
     ]
 
+    private var themeObserver: NSObjectProtocol?
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         setupViews()
+        themeObserver = NotificationCenter.default.addObserver(
+            forName: ThemeManager.didChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.refreshTheme() }
+    }
+
+    deinit {
+        if let themeObserver { NotificationCenter.default.removeObserver(themeObserver) }
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    func refreshTheme() {
+        borderLayer?.borderColor = Theme.border.cgColor
+        iconView.contentTintColor = Theme.accent
+        inputField.textColor = Theme.textPrimary
+        inputField.placeholderAttributedString = NSAttributedString(
+            string: "Search commands\u{2026}",
+            attributes: [
+                .foregroundColor: Theme.textMuted,
+                .font: NSFont.systemFont(ofSize: 15, weight: .regular),
+            ]
+        )
+        separatorLine.layer?.backgroundColor = Theme.border.cgColor
+        escHintPill.layer?.backgroundColor = Theme.overlay.cgColor
+        escHint.textColor = Theme.textMuted
+        backdrop.appearance = Theme.overlayAppearance
+        resultRows.forEach { $0.refreshTheme() }
+    }
 
     private func setupViews() {
         wantsLayer = true
@@ -86,7 +113,7 @@ final class CommandPaletteView: NSView {
         backdrop.wantsLayer = true
         backdrop.layer?.cornerRadius = Theme.radiusPanel
         backdrop.layer?.masksToBounds = true
-        backdrop.appearance = NSAppearance(named: .darkAqua)
+        backdrop.appearance = Theme.overlayAppearance
         addSubview(backdrop)
 
         let border = CALayer()
@@ -109,7 +136,7 @@ final class CommandPaletteView: NSView {
         inputField.font = .systemFont(ofSize: 15, weight: .regular)
         inputField.textColor = Theme.textPrimary
         inputField.placeholderAttributedString = NSAttributedString(
-            string: "Type a command\u{2026}",
+            string: "Search commands\u{2026}",
             attributes: [
                 .foregroundColor: Theme.textMuted,
                 .font: NSFont.systemFont(ofSize: 15, weight: .regular),
@@ -218,22 +245,24 @@ final class CommandPaletteView: NSView {
         return qi == queryChars.count ? score : nil
     }
 
-    private func updateResults(for query: String) {
-        let filtered: [(id: String, label: String, description: String, icon: String, shortcutId: String?)]
+    /// Shared filtering logic — returns commands ranked by fuzzy relevance.
+    private static func filteredCommands(for query: String, limit: Int) -> [(id: String, label: String, description: String, icon: String, shortcutId: String?)] {
         if query.isEmpty {
-            filtered = Array(Self.commands.prefix(maxVisibleResults))
-        } else {
-            // Fuzzy search with scoring
-            var scored: [(cmd: (id: String, label: String, description: String, icon: String, shortcutId: String?), score: Int)] = []
-            for cmd in Self.commands {
-                if let labelScore = Self.fuzzyScore(query: query, target: cmd.label) {
-                    scored.append((cmd, labelScore + 10)) // Boost label matches
-                } else if let idScore = Self.fuzzyScore(query: query, target: cmd.id) {
-                    scored.append((cmd, idScore))
-                }
-            }
-            filtered = scored.sorted { $0.score > $1.score }.map { $0.cmd }
+            return Array(commands.prefix(limit))
         }
+        var scored: [(cmd: (id: String, label: String, description: String, icon: String, shortcutId: String?), score: Int)] = []
+        for cmd in commands {
+            if let labelScore = fuzzyScore(query: query, target: cmd.label) {
+                scored.append((cmd, labelScore + 10)) // Boost label matches
+            } else if let idScore = fuzzyScore(query: query, target: cmd.id) {
+                scored.append((cmd, idScore))
+            }
+        }
+        return scored.sorted { $0.score > $1.score }.map { $0.cmd }
+    }
+
+    private func updateResults(for query: String) {
+        let filtered = Self.filteredCommands(for: query, limit: maxVisibleResults)
 
         // Remove old rows
         resultRows.forEach { $0.removeFromSuperview() }
@@ -260,8 +289,20 @@ final class CommandPaletteView: NSView {
             row.onSelect = { [weak self] in
                 self?.executeCommand(cmd.id)
             }
+            row.alphaValue = 0
             resultsContainer.addSubview(row)
             resultRows.append(row)
+        }
+
+        // Stagger row entry
+        for (i, row) in resultRows.enumerated() {
+            let delay = Double(i) * 0.02
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                NSAnimationContext.runAnimationGroup { ctx in
+                    ctx.duration = Theme.animFast
+                    row.animator().alphaValue = 1
+                }
+            }
         }
 
         // Animate height change
@@ -309,7 +350,7 @@ final class CommandPaletteView: NSView {
 
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = Theme.animMedium
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 1.0, 0.3, 1.0)
             self.animator().frame = NSRect(x: x, y: y, width: width, height: inputHeight)
             self.animator().alphaValue = 1
         } completionHandler: {
@@ -340,21 +381,7 @@ final class CommandPaletteView: NSView {
 
     @objc private func handleSubmit() {
         if selectedResultIndex >= 0 && selectedResultIndex < resultRows.count {
-            let query = inputField.stringValue
-            let filtered: [(id: String, label: String, description: String, icon: String, shortcutId: String?)]
-            if query.isEmpty {
-                filtered = Array(Self.commands.prefix(maxVisibleResults))
-            } else {
-                var scored: [(cmd: (id: String, label: String, description: String, icon: String, shortcutId: String?), score: Int)] = []
-                for cmd in Self.commands {
-                    if let labelScore = Self.fuzzyScore(query: query, target: cmd.label) {
-                        scored.append((cmd, labelScore + 10))
-                    } else if let idScore = Self.fuzzyScore(query: query, target: cmd.id) {
-                        scored.append((cmd, idScore))
-                    }
-                }
-                filtered = scored.sorted { $0.score > $1.score }.map { $0.cmd }
-            }
+            let filtered = Self.filteredCommands(for: inputField.stringValue, limit: maxVisibleResults)
             if selectedResultIndex < filtered.count {
                 executeCommand(filtered[selectedResultIndex].id)
                 return
@@ -407,11 +434,15 @@ private final class CommandRow: NSView {
     private let descField = NSTextField(labelWithString: "")
     private let shortcutField = NSTextField(labelWithString: "")
     private let accentBar = CALayer()
+    private let labelText: String
+    private let queryText: String
     private var isSelected = false
     private var isHovered = false
     private var trackingArea: NSTrackingArea?
 
     init(label: String, description: String, icon: String, query: String, isSelected: Bool, shortcut: String? = nil) {
+        self.labelText = label
+        self.queryText = query
         self.isSelected = isSelected
         super.init(frame: .zero)
         wantsLayer = true
@@ -431,22 +462,7 @@ private final class CommandRow: NSView {
         labelField.font = .systemFont(ofSize: 13, weight: .medium)
         labelField.textColor = Theme.textPrimary
         labelField.lineBreakMode = .byTruncatingTail
-
-        // Highlight matching text
-        if !query.isEmpty, let range = label.lowercased().range(of: query.lowercased()) {
-            let attr = NSMutableAttributedString(string: label, attributes: [
-                .font: NSFont.systemFont(ofSize: 13, weight: .medium),
-                .foregroundColor: Theme.textPrimary,
-            ])
-            let nsRange = NSRange(range, in: label)
-            attr.addAttributes([
-                .foregroundColor: Theme.accent,
-                .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
-            ], range: nsRange)
-            labelField.attributedStringValue = attr
-        } else {
-            labelField.stringValue = label
-        }
+        applyLabelText()
         addSubview(labelField)
 
         descField.stringValue = description
@@ -474,8 +490,19 @@ private final class CommandRow: NSView {
 
     func setSelected(_ selected: Bool) {
         isSelected = selected
-        iconView.contentTintColor = selected ? Theme.accent : Theme.textSecondary
+        Theme.animate { _ in
+            self.iconView.animator().contentTintColor = selected ? Theme.accent : Theme.textSecondary
+            self.layer?.backgroundColor = selected ? Theme.accent.withAlphaComponent(0.1).cgColor : NSColor.clear.cgColor
+        }
         accentBar.isHidden = !selected
+    }
+
+    func refreshTheme() {
+        accentBar.backgroundColor = Theme.accent.withAlphaComponent(0.6).cgColor
+        applyLabelText()
+        descField.textColor = Theme.textMuted
+        shortcutField.textColor = Theme.textMuted
+        iconView.contentTintColor = isSelected ? Theme.accent : Theme.textSecondary
         updateAppearance()
     }
 
@@ -483,9 +510,32 @@ private final class CommandRow: NSView {
         if isSelected {
             layer?.backgroundColor = Theme.accent.withAlphaComponent(0.1).cgColor
         } else if isHovered {
-            layer?.backgroundColor = NSColor(white: 1, alpha: 0.04).cgColor
+            layer?.backgroundColor = Theme.hoverOverlay.cgColor
         } else {
             layer?.backgroundColor = .clear
+        }
+    }
+
+    private func applyLabelText() {
+        if !queryText.isEmpty, let range = labelText.lowercased().range(of: queryText.lowercased()) {
+            let attr = NSMutableAttributedString(string: labelText, attributes: [
+                .font: NSFont.systemFont(ofSize: 13, weight: .medium),
+                .foregroundColor: Theme.textPrimary,
+            ])
+            let nsRange = NSRange(range, in: labelText)
+            attr.addAttributes([
+                .foregroundColor: Theme.accent,
+                .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+            ], range: nsRange)
+            labelField.attributedStringValue = attr
+        } else {
+            labelField.attributedStringValue = NSAttributedString(
+                string: labelText,
+                attributes: [
+                    .font: NSFont.systemFont(ofSize: 13, weight: .medium),
+                    .foregroundColor: Theme.textPrimary,
+                ]
+            )
         }
     }
 

@@ -31,10 +31,9 @@ final class TerminalWindow: NSWindow {
         isMovableByWindowBackground = true
 
         applyThemeBackground()
+        applyThemeAppearance()
         isOpaque = true
         hasShadow = true
-
-        appearance = NSAppearance(named: .darkAqua)
 
         // Clear titlebar backgrounds
         if let titlebarContainer = standardWindowButton(.closeButton)?.superview?.superview {
@@ -52,11 +51,18 @@ final class TerminalWindow: NSWindow {
 
         themeObserver = NotificationCenter.default.addObserver(
             forName: ThemeManager.didChangeNotification, object: nil, queue: .main
-        ) { [weak self] _ in self?.applyThemeBackground() }
+        ) { [weak self] _ in
+            self?.applyThemeBackground()
+            self?.applyThemeAppearance()
+        }
     }
 
     private func applyThemeBackground() {
         backgroundColor = Theme.colors.frame
+    }
+
+    private func applyThemeAppearance() {
+        appearance = Theme.overlayAppearance
     }
 
     deinit {
@@ -67,7 +73,7 @@ final class TerminalWindow: NSWindow {
 
     private func scheduleTrafficLightHide() {
         trafficLightHideTimer?.invalidate()
-        trafficLightHideTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { [weak self] _ in
+        trafficLightHideTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
             self?.hideTrafficLights()
         }
     }
@@ -90,8 +96,8 @@ final class TerminalWindow: NSWindow {
             }
         } else {
             NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = Theme.animMedium
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                ctx.duration = Theme.animSlow
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
                 for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
                     standardWindowButton(type)?.animator().alphaValue = 0
                 }
@@ -130,9 +136,16 @@ final class TerminalWindow: NSWindow {
         setupTrafficLightTracking()
     }
 
+    private var lastTrackingHeight: CGFloat = 0
+
     override func setFrame(_ frameRect: NSRect, display displayFlag: Bool) {
         super.setFrame(frameRect, display: displayFlag)
-        setupTrafficLightTracking()
+        // Only rebuild tracking area when the content height changes (avoids churn during resize)
+        let currentHeight = contentView?.bounds.height ?? 0
+        if abs(currentHeight - lastTrackingHeight) > 1 {
+            lastTrackingHeight = currentHeight
+            setupTrafficLightTracking()
+        }
     }
 
     // MARK: - Traffic Light Hover Tracking
@@ -144,7 +157,7 @@ final class TerminalWindow: NSWindow {
             contentView.removeTrackingArea(existing)
         }
 
-        let trackingRect = NSRect(x: 0, y: contentView.bounds.height - 50, width: 100, height: 50)
+        let trackingRect = NSRect(x: 0, y: contentView.bounds.height - 60, width: 120, height: 60)
         let area = NSTrackingArea(
             rect: trackingRect,
             options: [.mouseEnteredAndExited, .activeAlways],

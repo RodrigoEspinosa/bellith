@@ -1,7 +1,7 @@
 import AppKit
 
 /// The kind of smart panel — used for tab identification and icon selection.
-enum SmartPanelKind: String {
+enum SmartPanelKind: String, CaseIterable {
     case processTree
     case network
     case environment
@@ -42,6 +42,15 @@ class SmartPanelView: NSView {
     private let headerView = NSView()
     private let headerLabel = NSTextField(labelWithString: "")
     private let headerIcon = NSImageView()
+
+    /// When false, hides the built-in header bar (useful when embedded in the sidebar
+    /// where the tool row already serves as the label).
+    var showsHeader: Bool = true {
+        didSet {
+            headerView.isHidden = !showsHeader
+            needsLayout = true
+        }
+    }
     let scrollView = NSScrollView()
     let contentView = NSView()
     private var refreshTimer: DispatchSourceTimer?
@@ -106,11 +115,14 @@ class SmartPanelView: NSView {
 
     override func layout() {
         super.layout()
-        headerView.frame = NSRect(x: 0, y: bounds.height - headerHeight, width: bounds.width, height: headerHeight)
-        headerIcon.frame = NSRect(x: 12, y: (headerHeight - 14) / 2, width: 14, height: 14)
-        headerLabel.frame = NSRect(x: 32, y: (headerHeight - 16) / 2, width: bounds.width - 44, height: 16)
-
-        scrollView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height - headerHeight)
+        if showsHeader {
+            headerView.frame = NSRect(x: 0, y: bounds.height - headerHeight, width: bounds.width, height: headerHeight)
+            headerIcon.frame = NSRect(x: 12, y: (headerHeight - 14) / 2, width: 14, height: 14)
+            headerLabel.frame = NSRect(x: 32, y: (headerHeight - 16) / 2, width: bounds.width - 44, height: 16)
+            scrollView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height - headerHeight)
+        } else {
+            scrollView.frame = bounds
+        }
         layoutContent()
     }
 

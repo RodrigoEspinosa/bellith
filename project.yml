@@ -56,5 +56,6 @@ targets:
       - target: Bellith
     settings:
       base:
+        GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Bellith.app/Contents/MacOS/Bellith"
         BUNDLE_LOADER: "$(TEST_HOST)"

@@ -88,10 +88,11 @@ final class TerminalContainerView: NSView {
     let titleBar = TitleBarView()
     private var commandPalette: CommandPaletteView?
     private var searchBar: SearchBarView?
-    private var hud: HUDView?
+
     private(set) var isPaletteVisible = false
     private var isSearchVisible = false
     private var isClosingTab = false
+    private var isClosingPane = false
     private var edgeTrackingArea: NSTrackingArea?
     private var themeObserver: NSObjectProtocol?
     private var isAnimatingLayout = false
@@ -119,6 +120,7 @@ final class TerminalContainerView: NSView {
         sidebar.onExpandChanged = { [weak self] _ in self?.animateContentLayout() }
         sidebar.onReorderTab = { [weak self] from, to in self?.reorderTab(from: from, to: to) }
         sidebar.onTabContextMenu = { [weak self] index, point in self?.showTabContextMenu(index: index, at: point) }
+        sidebar.onSelectTool = { [weak self] kind in self?.openOrSwitchToTool(kind) }
 
         // Tab bar
         addSubview(tabBar)
@@ -193,9 +195,6 @@ final class TerminalContainerView: NSView {
             if let root = entry.splitRoot, let leaf = root.leaf(containing: surface) {
                 leaf.wantsLayer = true
 
-                // Remove any existing focus indicator sublayer
-                leaf.layer?.sublayers?.removeAll { $0.name == "focusIndicator" }
-
                 // Reset border properties (used only for broadcast mode)
                 leaf.layer?.borderColor = nil
                 leaf.layer?.borderWidth = 0
@@ -206,21 +205,55 @@ final class TerminalContainerView: NSView {
                     leaf.layer?.borderColor = Theme.accent.withAlphaComponent(0.6).cgColor
                     leaf.layer?.borderWidth = 1.5
                     leaf.layer?.cornerRadius = 4
-                } else if hasSplits && surface === activeSurface {
-                    // Focused pane: thin accent line at the top edge
-                    let indicator = CALayer()
-                    indicator.name = "focusIndicator"
-                    indicator.backgroundColor = Theme.accent.withAlphaComponent(0.6).cgColor
-                    indicator.cornerRadius = 1
-                    let margin: CGFloat = 8
-                    indicator.frame = CGRect(
+                }
+
+                let existingIndicator = leaf.layer?.sublayers?.first { $0.name == "focusIndicator" }
+                let shouldShow = hasSplits && surface === activeSurface && !isBroadcasting
+
+                if shouldShow {
+                    let margin: CGFloat = 6
+                    let targetFrame = CGRect(
                         x: margin,
-                        y: leaf.bounds.height - 2,
+                        y: leaf.bounds.height - 2.5,
                         width: leaf.bounds.width - margin * 2,
-                        height: 2
+                        height: 2.5
                     )
-                    indicator.autoresizingMask = [.layerWidthSizable, .layerMinYMargin]
-                    leaf.layer?.addSublayer(indicator)
+                    if let existing = existingIndicator {
+                        // Update position of existing indicator
+                        existing.frame = targetFrame
+                    } else {
+                        // Add new indicator with fade-in
+                        let indicator = CALayer()
+                        indicator.name = "focusIndicator"
+                        indicator.backgroundColor = Theme.accent.withAlphaComponent(0.7).cgColor
+                        indicator.cornerRadius = 1.25
+                        indicator.frame = targetFrame
+                        indicator.autoresizingMask = [.layerWidthSizable, .layerMinYMargin]
+                        indicator.opacity = 0
+                        leaf.layer?.addSublayer(indicator)
+
+                        let fadeIn = CABasicAnimation(keyPath: "opacity")
+                        fadeIn.fromValue = 0
+                        fadeIn.toValue = 1
+                        fadeIn.duration = Theme.animFast
+                        fadeIn.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                        indicator.add(fadeIn, forKey: "fadeIn")
+                        indicator.opacity = 1
+                    }
+                } else if let existing = existingIndicator {
+                    // Fade out and remove
+                    let fadeOut = CABasicAnimation(keyPath: "opacity")
+                    fadeOut.fromValue = existing.presentation()?.opacity ?? 1
+                    fadeOut.toValue = 0
+                    fadeOut.duration = Theme.animFast
+                    fadeOut.timingFunction = CAMediaTimingFunction(name: .easeIn)
+                    fadeOut.isRemovedOnCompletion = false
+                    fadeOut.fillMode = .forwards
+                    existing.add(fadeOut, forKey: "fadeOut")
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Theme.animFast) {
+                        existing.removeFromSuperlayer()
+                    }
                 }
             }
         }
@@ -287,8 +320,6 @@ final class TerminalContainerView: NSView {
         if matches(event, action: "paste") { pasteClipboard(); return true }
 
         if mods == .command && key == "n" { return false }
-
-        if matches(event, action: "showHUD") { showHUD(); return true }
 
         if matches(event, action: "splitRight") { splitPane(direction: .vertical); return true }
         if matches(event, action: "splitDown") { splitPane(direction: .horizontal); return true }
@@ -375,12 +406,26 @@ final class TerminalContainerView: NSView {
         refreshTabUI()
     }
 
+    /// Open a tool panel, or switch to an existing one of the same kind.
+    func openOrSwitchToTool(_ kind: SmartPanelKind) {
+        // Check if there's already an open tab with this tool kind
+        if let existingIndex = tabs.firstIndex(where: {
+            if case .smart(let panel) = $0.content, panel.kind == kind { return true }
+            return false
+        }) {
+            selectTab(existingIndex)
+            return
+        }
+        // Otherwise create a new one
+        createSmartTab(kind: kind)
+    }
+
     func closeTab(_ index: Int) {
         guard index < tabs.count, !isClosingTab else { return }
         isClosingTab = true
-        defer { isClosingTab = false }
 
         let entry = tabs[index]
+        let tabId = entry.id
 
         // Track for reopen
         if entry.isTerminal {
@@ -394,17 +439,37 @@ final class TerminalContainerView: NSView {
             panel.stopRefreshing()
         }
         for s in entry.surfaces { s.onClose = nil }
-        entry.rootView.removeFromSuperview()
-        tabs.remove(at: index)
 
-        if tabs.isEmpty {
-            DispatchQueue.main.async { [weak self] in self?.window?.close() }
-            return
-        }
+        // Fade out + subtle scale-down when closing a tab
+        let rootView = entry.rootView
+        rootView.wantsLayer = true
+        Theme.animate(duration: Theme.animFast, timing: CAMediaTimingFunction(name: .easeIn), { _ in
+            rootView.animator().alphaValue = 0
+            if !Theme.prefersReducedMotion {
+                rootView.layer?.setAffineTransform(CGAffineTransform(scaleX: 0.98, y: 0.98))
+            }
+        }, completion: { [weak self] in
+            guard let self else { return }
+            rootView.removeFromSuperview()
+            rootView.alphaValue = 1
+            rootView.layer?.setAffineTransform(.identity)
+            self.isClosingTab = false
 
-        if selectedTabIndex >= tabs.count { selectedTabIndex = tabs.count - 1 }
-        selectTab(selectedTabIndex)
-        refreshTabUI()
+            // Re-resolve index by tab ID in case array changed during animation
+            guard let resolvedIndex = self.tabs.firstIndex(where: { $0.id == tabId }) else { return }
+            self.tabs.remove(at: resolvedIndex)
+
+            if self.tabs.isEmpty {
+                DispatchQueue.main.async { [weak self] in self?.window?.close() }
+                return
+            }
+
+            if self.selectedTabIndex >= self.tabs.count {
+                self.selectedTabIndex = self.tabs.count - 1
+            }
+            self.selectTab(self.selectedTabIndex)
+            self.refreshTabUI()
+        })
     }
 
     func closeCurrentTab() { closeTab(selectedTabIndex) }
@@ -431,11 +496,13 @@ final class TerminalContainerView: NSView {
     func selectTab(_ index: Int) {
         guard index >= 0 && index < tabs.count else { return }
 
-        if selectedTabIndex < tabs.count {
-            if case .smart(let panel) = tabs[selectedTabIndex].content {
+        let previousIndex = selectedTabIndex
+
+        if previousIndex < tabs.count {
+            if case .smart(let panel) = tabs[previousIndex].content {
                 panel.stopRefreshing()
             }
-            tabs[selectedTabIndex].rootView.isHidden = true
+            tabs[previousIndex].rootView.isHidden = true
         }
 
         selectedTabIndex = index
@@ -450,6 +517,14 @@ final class TerminalContainerView: NSView {
         root.layer?.masksToBounds = true
         root.layer?.borderWidth = 0
 
+        // Subtle fade-in when switching between tabs
+        if previousIndex != index && previousIndex < tabs.count {
+            root.alphaValue = 0
+            Theme.animate(duration: Theme.animFast) { _ in
+                root.animator().alphaValue = 1
+            }
+        }
+
         switch entry.content {
         case .terminal:
             let focusSurface = entry.focusedSurface ?? entry.surfaces.first
@@ -462,10 +537,12 @@ final class TerminalContainerView: NSView {
                 refreshStatusBarAsync(cwd: cwd)
             }
             statusBar.isHidden = false
+            sidebar.setActiveToolKind(nil)
         case .smart(let panel):
             panel.startRefreshing()
             window?.makeFirstResponder(self)
             statusBar.isHidden = true
+            sidebar.setActiveToolKind(panel.kind)
         }
 
         refreshTabUI()
@@ -567,21 +644,33 @@ final class TerminalContainerView: NSView {
 
         guard let root = tabs[selectedTabIndex].splitRoot else { return }
 
+        let newLeaf: SplitPaneView
         if let focused = activeSurface, let leaf = root.leaf(containing: focused) {
-            leaf.split(orientation: direction, newContent: surface)
+            newLeaf = leaf.split(orientation: direction, newContent: surface)
         } else {
-            root.split(orientation: direction, newContent: surface)
+            newLeaf = root.split(orientation: direction, newContent: surface)
         }
 
         tabs[selectedTabIndex].addSurface(surface)
         window?.makeFirstResponder(surface)
+
+        // Fade in the new pane while animating the split layout
+        newLeaf.alphaValue = 0
         needsLayout = true
+        layoutSubtreeIfNeeded()
+        root.animateLayout(duration: Theme.animMedium)
+
+        Theme.animate(duration: Theme.animMedium) { _ in
+            newLeaf.animator().alphaValue = 1
+        }
+
         updateFocusIndicator()
     }
 
     func closePane() {
-        guard selectedTabIndex < tabs.count, tabs[selectedTabIndex].isTerminal else { return }
+        guard !isClosingPane, selectedTabIndex < tabs.count, tabs[selectedTabIndex].isTerminal else { return }
         let entry = tabs[selectedTabIndex]
+        let tabId = entry.id
 
         guard entry.surfaces.count > 1, let focused = activeSurface else {
             closeCurrentTab()
@@ -593,13 +682,29 @@ final class TerminalContainerView: NSView {
         if let leaf = root.leaf(containing: focused),
            let parent = root.parent(of: leaf) {
             focused.onClose = nil
-            parent.removeChild(leaf)
+            isClosingPane = true
 
-            tabs[selectedTabIndex].removeSurface(focused)
-            let newFocus = tabs[selectedTabIndex].focusedSurface
-            window?.makeFirstResponder(newFocus)
-            needsLayout = true
-            updateFocusIndicator()
+            // Fade out the closing pane, then collapse the tree
+            Theme.animate(duration: Theme.animFast, timing: CAMediaTimingFunction(name: .easeIn), { _ in
+                leaf.animator().alphaValue = 0
+            }, completion: { [weak self] in
+                guard let self else { return }
+                self.isClosingPane = false
+                leaf.alphaValue = 1
+
+                // Re-resolve the tab index in case tabs changed during animation
+                guard let idx = self.tabs.firstIndex(where: { $0.id == tabId }),
+                      idx == self.selectedTabIndex else { return }
+
+                parent.removeChild(leaf)
+                self.tabs[idx].removeSurface(focused)
+                let newFocus = self.tabs[idx].focusedSurface
+                self.window?.makeFirstResponder(newFocus)
+
+                // Animate the remaining pane expanding into the freed space
+                root.animateLayout(duration: Theme.animMedium)
+                self.updateFocusIndicator()
+            })
         } else if entry.surfaces.count == 1 {
             closeCurrentTab()
         }
@@ -619,7 +724,7 @@ final class TerminalContainerView: NSView {
     private func resizePane(_ direction: SplitPaneView.Direction) {
         guard selectedTabIndex < tabs.count, let current = activeSurface else { return }
         guard let root = tabs[selectedTabIndex].splitRoot else { return }
-        root.resizeFromLeaf(containing: current, direction: direction, delta: 0.05)
+        root.resizeFromLeaf(containing: current, direction: direction, delta: 0.05, animated: true)
     }
 
     // MARK: - Zoom
@@ -630,22 +735,50 @@ final class TerminalContainerView: NSView {
         guard entry.surfaces.count > 1 else { return }
 
         if isZoomed {
+            // Unzoom: fade out the zoomed surface, show split tree
+            let tabId = entry.id
             if let surface = zoomedSurface {
-                surface.removeFromSuperview()
+                NSAnimationContext.runAnimationGroup({ ctx in
+                    ctx.duration = Theme.animFast
+                    ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+                    surface.animator().alphaValue = 0
+                }, completionHandler: { [weak self] in
+                    guard let self else { return }
+                    surface.removeFromSuperview()
+                    surface.alphaValue = 1
+
+                    // Verify the tab still exists before manipulating its split root
+                    guard let idx = self.tabs.firstIndex(where: { $0.id == tabId }),
+                          let splitRoot = self.tabs[idx].splitRoot else { return }
+                    splitRoot.isHidden = false
+                    splitRoot.alphaValue = 0
+                    NSAnimationContext.runAnimationGroup { ctx in
+                        ctx.duration = Theme.animFast
+                        ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                        splitRoot.animator().alphaValue = 1
+                    }
+                    self.needsLayout = true
+                    self.updateFocusIndicator()
+                })
             }
-            entry.splitRoot?.isHidden = false
             isZoomed = false
             zoomedSurface = nil
-            needsLayout = true
-            updateFocusIndicator()
             updateZoomBadge()
         } else {
             guard let focused = activeSurface else { return }
             isZoomed = true
             zoomedSurface = focused
+
+            // Zoom in: cross-fade from split tree to zoomed surface
             entry.splitRoot?.isHidden = true
             addSubview(focused, positioned: .below, relativeTo: commandPalette ?? searchBar)
             focused.frame = contentRect
+            focused.alphaValue = 0
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = Theme.animFast
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                focused.animator().alphaValue = 1
+            }
             window?.makeFirstResponder(focused)
             updateZoomBadge()
         }
@@ -875,12 +1008,26 @@ final class TerminalContainerView: NSView {
             if let leaf = root.leaf(containing: surface),
                let parent = root.parent(of: leaf) {
                 surface.onClose = nil
-                parent.removeChild(leaf)
-                tabs[tabIdx].removeSurface(surface)
-                if tabIdx == selectedTabIndex {
-                    window?.makeFirstResponder(tabs[tabIdx].focusedSurface)
-                    updateFocusIndicator()
-                }
+
+                // Fade out the closing pane, then collapse
+                NSAnimationContext.runAnimationGroup({ ctx in
+                    ctx.duration = Theme.animFast
+                    ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+                    leaf.animator().alphaValue = 0
+                }, completionHandler: { [weak self] in
+                    guard let self else { return }
+                    leaf.alphaValue = 1
+
+                    // Re-resolve tab index by ID in case tabs changed during animation
+                    guard let currentIdx = self.tabs.firstIndex(where: { $0.id == id }) else { return }
+                    parent.removeChild(leaf)
+                    self.tabs[currentIdx].removeSurface(surface)
+                    if currentIdx == self.selectedTabIndex {
+                        self.window?.makeFirstResponder(self.tabs[currentIdx].focusedSurface)
+                        root.animateLayout(duration: Theme.animMedium)
+                        self.updateFocusIndicator()
+                    }
+                })
             }
         }
     }
@@ -990,6 +1137,11 @@ final class TerminalContainerView: NSView {
             root.layer?.masksToBounds = true
         }
 
+        // Keep zoomed surface in sync with content rect
+        if isZoomed, let surface = zoomedSurface {
+            surface.frame = rect
+        }
+
         setupEdgeTracking()
 
         // Position broadcast badge
@@ -1023,20 +1175,23 @@ final class TerminalContainerView: NSView {
         let targetSidebarWidth: CGFloat = sidebar.isExpanded ? SidebarView.expandedWidth : 0
         let targetContentRect = contentRect(forSidebarWidth: targetSidebarWidth)
 
-        let targetStatusBarX: CGFloat
-        let targetStatusBarW: CGFloat
+        // Calculate target positions for all elements that shift with the sidebar
+        let targetContentLeft: CGFloat
         if useSidebar && targetSidebarWidth > 0 {
-            targetStatusBarX = p + targetSidebarWidth + sidebarGap
-            targetStatusBarW = bounds.width - targetStatusBarX - p
+            targetContentLeft = p + targetSidebarWidth + sidebarGap
         } else {
-            targetStatusBarX = p
-            targetStatusBarW = bounds.width - p * 2
+            targetContentLeft = p
         }
 
+        let targetStatusBarX = targetContentLeft
+        let targetStatusBarW = bounds.width - targetStatusBarX - p
+
+        let targetTitleBarX = targetContentLeft + 12
+        let targetTitleBarW = bounds.width - targetContentLeft - p - 12
+
         isAnimatingLayout = true
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = Theme.animSlow
-            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
+        let springTiming = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
+        Theme.animate(duration: Theme.animSlow, timing: springTiming, { ctx in
             ctx.allowsImplicitAnimation = true
 
             sidebar.animator().frame = NSRect(
@@ -1051,11 +1206,25 @@ final class TerminalContainerView: NSView {
                 height: statusBarHeight
             )
 
+            titleBar.animator().frame = NSRect(
+                x: targetTitleBarX,
+                y: bounds.height - p - titleBarHeight,
+                width: targetTitleBarW,
+                height: titleBarHeight
+            )
+
             if selectedTabIndex < tabs.count {
-                tabs[selectedTabIndex].rootView.animator().frame = targetContentRect
+                let root = tabs[selectedTabIndex].rootView
+                root.animator().frame = targetContentRect
             }
-        }, completionHandler: { [weak self] in
+
+            // Also animate zoomed surface if active
+            if isZoomed, let surface = zoomedSurface {
+                surface.animator().frame = targetContentRect
+            }
+        }, completion: { [weak self] in
             self?.isAnimatingLayout = false
+            self?.needsLayout = true
         })
     }
 
@@ -1067,9 +1236,17 @@ final class TerminalContainerView: NSView {
 
     private func handleThemeChange() {
         applyFrameColor()
-        sidebar.layer?.backgroundColor = Theme.surface.cgColor
+        sidebar.refreshTheme()
+        tabBar.refreshTheme()
         statusBar.refreshTheme()
         titleBar.refreshTheme()
+        commandPalette?.refreshTheme()
+        searchBar?.refreshTheme()
+        for tab in tabs {
+            tab.splitRoot?.refreshTheme()
+        }
+        (zoomBadge as? ZoomBadge)?.refreshTheme()
+        (broadcastBadge as? BroadcastBadge)?.refreshTheme()
         needsDisplay = true
     }
 
@@ -1144,8 +1321,6 @@ final class TerminalContainerView: NSView {
             sidebar.toggle()
         case "tab bar", "tabbar":
             toggleTabMode()
-        case "hud", "status":
-            showHUD()
         case "zoom", "maximize":
             toggleZoom()
         case "equalize", "equal":
@@ -1183,15 +1358,15 @@ final class TerminalContainerView: NSView {
             }
         // Smart panel commands
         case "processes", "process tree", "procs", "ps":
-            createSmartTab(kind: .processTree)
+            openOrSwitchToTool(.processTree)
         case "network", "connections", "netstat":
-            createSmartTab(kind: .network)
+            openOrSwitchToTool(.network)
         case "env", "environment":
-            createSmartTab(kind: .environment)
+            openOrSwitchToTool(.environment)
         case "files", "file activity":
-            createSmartTab(kind: .fileActivity)
+            openOrSwitchToTool(.fileActivity)
         case "perf", "performance":
-            createSmartTab(kind: .performance)
+            openOrSwitchToTool(.performance)
         default:
             if cmd.hasPrefix(">") {
                 let shellCmd = String(text.dropFirst()).trimmingCharacters(in: .whitespaces)
@@ -1347,20 +1522,6 @@ final class TerminalContainerView: NSView {
         // TODO: implement scrollbar overlay
     }
 
-    // MARK: - HUD
-
-    func showHUD() {
-        if let existing = hud, existing.superview != nil {
-            existing.scheduleHide(after: 0)
-            return
-        }
-        let h = HUDView()
-        h.currentCwd = activeCwd
-        hud = h
-        h.show(in: self)
-        h.scheduleHide(after: 3.0)
-    }
-
     // MARK: - Session Save / Restore
 
     func saveSession() -> SessionState {
@@ -1509,21 +1670,19 @@ private final class ZoomBadge: NSView {
         super.init(frame: frame)
         wantsLayer = true
         layer?.cornerRadius = 12
-        layer?.backgroundColor = Theme.accent.withAlphaComponent(0.15).cgColor
-        layer?.borderColor = Theme.accent.withAlphaComponent(0.3).cgColor
         layer?.borderWidth = 0.5
 
         iconView.image = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "Zoomed")
-        iconView.contentTintColor = Theme.accent
         iconView.imageScaling = .scaleProportionallyDown
         addSubview(iconView)
 
         label.font = .systemFont(ofSize: 10, weight: .bold)
-        label.textColor = Theme.accent
         label.isEditable = false
         label.isBezeled = false
         label.drawsBackground = false
         addSubview(label)
+
+        refreshTheme()
     }
 
     @available(*, unavailable)
@@ -1535,6 +1694,13 @@ private final class ZoomBadge: NSView {
         iconView.frame = NSRect(x: 8, y: (h - 10) / 2, width: 10, height: 10)
         label.frame = NSRect(x: 22, y: (h - 12) / 2, width: bounds.width - 28, height: 12)
     }
+
+    func refreshTheme() {
+        layer?.backgroundColor = Theme.accent.withAlphaComponent(0.15).cgColor
+        layer?.borderColor = Theme.accent.withAlphaComponent(0.3).cgColor
+        iconView.contentTintColor = Theme.accent
+        label.textColor = Theme.accent
+    }
 }
 
 private final class BroadcastBadge: NSView {
@@ -1545,17 +1711,13 @@ private final class BroadcastBadge: NSView {
         super.init(frame: frame)
         wantsLayer = true
         layer?.cornerRadius = 13
-        layer?.backgroundColor = Theme.warning.withAlphaComponent(0.15).cgColor
-        layer?.borderColor = Theme.warning.withAlphaComponent(0.3).cgColor
         layer?.borderWidth = 0.5
 
         dotView.wantsLayer = true
         dotView.layer?.cornerRadius = 3
-        dotView.layer?.backgroundColor = Theme.warning.cgColor
         addSubview(dotView)
 
         label.font = .systemFont(ofSize: 10, weight: .bold)
-        label.textColor = Theme.warning
         label.isEditable = false
         label.isBezeled = false
         label.drawsBackground = false
@@ -1563,6 +1725,7 @@ private final class BroadcastBadge: NSView {
 
         // Pulse the dot
         startPulse()
+        refreshTheme()
     }
 
     @available(*, unavailable)
@@ -1584,5 +1747,12 @@ private final class BroadcastBadge: NSView {
         pulse.repeatCount = .infinity
         pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
         dotView.layer?.add(pulse, forKey: "pulse")
+    }
+
+    func refreshTheme() {
+        layer?.backgroundColor = Theme.warning.withAlphaComponent(0.15).cgColor
+        layer?.borderColor = Theme.warning.withAlphaComponent(0.3).cgColor
+        dotView.layer?.backgroundColor = Theme.warning.cgColor
+        label.textColor = Theme.warning
     }
 }

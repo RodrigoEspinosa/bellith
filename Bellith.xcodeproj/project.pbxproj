@@ -31,9 +31,9 @@
 		8229F53686989E6007E9C7E9 /* ThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1055D889FA5B87C7B010166B /* ThemeTests.swift */; };
 		84920B35B7A5167C2AAE9985 /* BellithSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD22E965C6F1A921DC3AFFA /* BellithSettingsTests.swift */; };
 		88DF13E98F4C5539EFBCF58F /* NetworkPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B73776D795BE3450D431B7B /* NetworkPanel.swift */; };
-		8D9DF7E5913F1219BCCB6C79 /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC37E4957DC183CD1B8074BA /* HUDView.swift */; };
 		941E77325C0B8A487B2CD650 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AF3EFCA4440E50031AF178C /* Logger.swift */; };
 		9BF5A978A5AACAB4DD91124B /* AboutPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C6683BF4D86DE5BB7318C3C /* AboutPane.swift */; };
+		9EECDE6BE4882D41C3F53B22 /* SidebarPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = A33E81DDDC25CA709CD563AE /* SidebarPane.swift */; };
 		A39350253246932A3A4CB068 /* KeybindingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26D1CA15561163656129EFFE /* KeybindingsPane.swift */; };
 		A4482FD8BE36A3CB5AB2CCC8 /* QuickTerminalController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C964FC62608F8FA41EE01B5 /* QuickTerminalController.swift */; };
 		A497CDCB9182E12C715A1A43 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7F6C0E62F0D6DFD08E3A8E5 /* AppDelegate.swift */; };
@@ -102,8 +102,8 @@
 		9C964FC62608F8FA41EE01B5 /* QuickTerminalController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickTerminalController.swift; sourceTree = "<group>"; };
 		9CB945FE301FBB1B34329681 /* KeyShortcutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyShortcutTests.swift; sourceTree = "<group>"; };
 		A192597C4552FB866CD46BC9 /* PerformancePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformancePanel.swift; sourceTree = "<group>"; };
+		A33E81DDDC25CA709CD563AE /* SidebarPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarPane.swift; sourceTree = "<group>"; };
 		B8917D92D4F8962901183EEA /* ThemeGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeGridView.swift; sourceTree = "<group>"; };
-		BC37E4957DC183CD1B8074BA /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
 		CB50294EC30FB94671823CFA /* SplitPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitPaneView.swift; sourceTree = "<group>"; };
 		CD0B5E50A6BE76A1D3EDFE6D /* EnvironmentPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentPanel.swift; sourceTree = "<group>"; };
 		D391C65B83BEE0FDBEAE9ACC /* KeyBindings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyBindings.swift; sourceTree = "<group>"; };
@@ -186,7 +186,6 @@
 			children = (
 				8AF3103FA440F936419F4846 /* BlurView.swift */,
 				52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */,
-				BC37E4957DC183CD1B8074BA /* HUDView.swift */,
 				9C964FC62608F8FA41EE01B5 /* QuickTerminalController.swift */,
 				EC69484808B270DA784451B1 /* SearchBarView.swift */,
 				EA87F2112E9FD1A9C106D8F2 /* SidebarView.swift */,
@@ -238,6 +237,7 @@
 				185BCA9A77D1E03020788D4D /* PreferencesComponents.swift */,
 				3C9D96FFF53397D45EA101F4 /* PreferencesWindowController.swift */,
 				01AD6AF9F8A70A7E83B56C8C /* QuickTerminalPane.swift */,
+				A33E81DDDC25CA709CD563AE /* SidebarPane.swift */,
 				E89FDA87579791818D3A6718 /* TerminalPane.swift */,
 				B8917D92D4F8962901183EEA /* ThemeGridView.swift */,
 			);
@@ -400,7 +400,6 @@
 				114F10461A0D9F305FF71202 /* CommandPaletteView.swift in Sources */,
 				3F81E95CDC0FF4142056C98A /* EnvironmentPanel.swift in Sources */,
 				FA077AEA422D8D9128490402 /* FileActivityPanel.swift in Sources */,
-				8D9DF7E5913F1219BCCB6C79 /* HUDView.swift in Sources */,
 				A58FC4DBB6D1A65B63DEEC49 /* InputHelpers.swift in Sources */,
 				FE9D5CEE859363C51ADCC2CF /* KeyBindings.swift in Sources */,
 				A39350253246932A3A4CB068 /* KeybindingsPane.swift in Sources */,
@@ -416,6 +415,7 @@
 				200E6504867615A7339BFBC6 /* QuickTerminalPane.swift in Sources */,
 				F26474311EB82215B71E0CE0 /* SearchBarView.swift in Sources */,
 				3AA2DA3E813BBA3E1B8CF1B9 /* SessionState.swift in Sources */,
+				9EECDE6BE4882D41C3F53B22 /* SidebarPane.swift in Sources */,
 				DAA8ECCB0288FD778CA430DD /* SidebarView.swift in Sources */,
 				7B41F3CE5DB2BA28D89D339C /* SmartPanelView.swift in Sources */,
 				0FF0294C8F9B14B9DBB9051F /* SplitPaneView.swift in Sources */,
@@ -631,6 +631,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -646,6 +647,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

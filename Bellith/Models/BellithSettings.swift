@@ -100,6 +100,28 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "sidebarPinned"); notify() }
     }
 
+    /// Which tools to display in the sidebar quick-access section.
+    /// Stored as an array of SmartPanelKind raw values.
+    /// Defaults to all tools enabled.
+    var sidebarTools: [String] {
+        get {
+            if let arr = defaults.stringArray(forKey: "sidebarTools") { return arr }
+            return SmartPanelKind.allCases.map { $0.rawValue }
+        }
+        set { defaults.set(newValue, forKey: "sidebarTools"); notify() }
+    }
+
+    /// Whether to show the tools section in the sidebar at all.
+    var sidebarShowTools: Bool {
+        get {
+            if defaults.object(forKey: "sidebarShowTools") != nil {
+                return defaults.bool(forKey: "sidebarShowTools")
+            }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "sidebarShowTools"); notify() }
+    }
+
     // Appearance mode: "dark", "light", "system"
     var appearanceMode: String {
         get { defaults.string(forKey: "appearanceMode") ?? "dark" }
@@ -250,8 +272,7 @@ final class BellithSettings {
                         shortcut: KeyShortcut(key: "b", command: true, shift: false, option: false, control: false)),
         KeyBindingEntry(id: "commandPalette", label: "Command Palette", category: "View",
                         shortcut: KeyShortcut(key: "k", command: true, shift: false, option: false, control: false)),
-        KeyBindingEntry(id: "showHUD", label: "Show HUD", category: "View",
-                        shortcut: KeyShortcut(key: "s", command: false, shift: false, option: true, control: false)),
+
         // Edit
         KeyBindingEntry(id: "copy", label: "Copy", category: "Edit",
                         shortcut: KeyShortcut(key: "c", command: true, shift: false, option: false, control: false)),

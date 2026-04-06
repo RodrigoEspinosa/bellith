@@ -70,6 +70,7 @@ final class PreferencesRootView: NSView {
 
         panes["appearance"] = AppearancePane()
         panes["terminal"] = TerminalPane()
+        panes["sidebar"] = SidebarPane()
         panes["keybindings"] = KeybindingsPane()
         panes["quickterm"] = QuickTerminalPane()
         panes["about"] = AboutPane()
@@ -134,6 +135,7 @@ final class PrefSidebar: NSView {
     private let mainItems: [Item] = [
         Item(id: "appearance", icon: "paintbrush.pointed", label: "Appearance"),
         Item(id: "terminal", icon: "terminal", label: "Terminal"),
+        Item(id: "sidebar", icon: "sidebar.left", label: "Sidebar"),
         Item(id: "keybindings", icon: "keyboard", label: "Keybindings"),
         Item(id: "quickterm", icon: "rectangle.bottomhalf.inset.filled", label: "Quick Terminal"),
     ]

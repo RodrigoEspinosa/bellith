@@ -24,12 +24,14 @@ struct ThemeColors {
 
     var accentSubtle: NSColor { accent.withAlphaComponent(0.08) }
     var accentGlow: NSColor { accent.withAlphaComponent(0.03) }
-    /// Window frame / gap color — slightly darker than base
+    /// Window frame / gap color — slightly offset from base for visual separation.
+    /// Dark themes darken, light themes darken less to avoid jarring contrast.
     var frame: NSColor {
         let rgb = base.usingColorSpace(.sRGB) ?? base
-        return NSColor(red: rgb.redComponent * 0.7,
-                       green: rgb.greenComponent * 0.7,
-                       blue: rgb.blueComponent * 0.7,
+        let factor: CGFloat = isLight ? 0.88 : 0.7
+        return NSColor(red: rgb.redComponent * factor,
+                       green: rgb.greenComponent * factor,
+                       blue: rgb.blueComponent * factor,
                        alpha: 1.0)
     }
 }
@@ -354,6 +356,17 @@ enum Theme {
     static var border: NSColor { colors.border }
     static var borderSubtle: NSColor { colors.borderSubtle }
 
+    // Hover
+    static var hoverOverlay: NSColor { colors.isLight ? NSColor(white: 0, alpha: 0.04) : NSColor(white: 1, alpha: 0.04) }
+
+    // Focus
+    static var focusRing: NSColor { accent.withAlphaComponent(0.4) }
+
+    // Appearance
+    static var overlayAppearance: NSAppearance? {
+        NSAppearance(named: colors.isLight ? .aqua : .darkAqua)
+    }
+
     // Radii
     static let radiusWindow: CGFloat = 12
     static let radiusPanel: CGFloat = 10
@@ -370,10 +383,49 @@ enum Theme {
     static let animMedium: TimeInterval = 0.25
     static let animSlow: TimeInterval = 0.4
 
+    /// Whether the user prefers reduced motion. Check this before running non-essential animations.
+    static var prefersReducedMotion: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    /// Run an animation block, or apply changes instantly if the user prefers reduced motion.
+    static func animate(
+        duration: TimeInterval = animFast,
+        timing: CAMediaTimingFunction = CAMediaTimingFunction(name: .easeOut),
+        _ body: (NSAnimationContext) -> Void,
+        completion: (() -> Void)? = nil
+    ) {
+        if prefersReducedMotion {
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0
+                ctx.allowsImplicitAnimation = true
+                body(ctx)
+            }, completionHandler: completion)
+        } else {
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = duration
+                ctx.timingFunction = timing
+                body(ctx)
+            }, completionHandler: completion)
+        }
+    }
+
     // Semantic colors
-    static var success: NSColor { NSColor(red: 0.298, green: 0.686, blue: 0.314, alpha: 1.0) }
-    static var warning: NSColor { NSColor(red: 1.0, green: 0.757, blue: 0.027, alpha: 1.0) }
-    static var destructive: NSColor { NSColor(red: 0.937, green: 0.325, blue: 0.314, alpha: 1.0) }
+    static var success: NSColor {
+        colors.isLight
+            ? NSColor(red: 0.188, green: 0.557, blue: 0.216, alpha: 1.0)
+            : NSColor(red: 0.298, green: 0.686, blue: 0.314, alpha: 1.0)
+    }
+    static var warning: NSColor {
+        colors.isLight
+            ? NSColor(red: 0.776, green: 0.600, blue: 0.082, alpha: 1.0)
+            : NSColor(red: 1.0, green: 0.757, blue: 0.027, alpha: 1.0)
+    }
+    static var destructive: NSColor {
+        colors.isLight
+            ? NSColor(red: 0.827, green: 0.184, blue: 0.184, alpha: 1.0)
+            : NSColor(red: 0.937, green: 0.325, blue: 0.314, alpha: 1.0)
+    }
 
     // Divider
     static var divider: NSColor { colors.border }

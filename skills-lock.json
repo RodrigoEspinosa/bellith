@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "macos-app-design": {
+      "source": "petekp/agent-skills",
+      "sourceType": "github",
+      "computedHash": "5029321dfc7eb85d56175b1552c509b8be68ace721cd4aea6b09cc89153350c7"
+    }
+  }
+}

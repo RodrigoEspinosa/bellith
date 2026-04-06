@@ -220,7 +220,7 @@ final class SplitPaneView: NSView {
     /// Adjust the ratio of the nearest ancestor branch relevant to the given direction.
     /// Returns true if a resize was performed.
     @discardableResult
-    func resizeFromLeaf(containing view: NSView, direction: Direction, delta: CGFloat) -> Bool {
+    func resizeFromLeaf(containing view: NSView, direction: Direction, delta: CGFloat, animated: Bool = false) -> Bool {
         guard let leaf = leaf(containing: view) else { return false }
 
         var current = leaf
@@ -240,7 +240,7 @@ final class SplitPaneView: NSView {
                 case .left, .down:
                     sign = (current === par.first) ? -1 : 1
                 }
-                par.adjustRatio(by: sign * delta)
+                par.adjustRatio(by: sign * delta, animated: animated)
                 return true
             }
             current = par
@@ -248,18 +248,58 @@ final class SplitPaneView: NSView {
         return false
     }
 
-    func adjustRatio(by delta: CGFloat) {
+    func adjustRatio(by delta: CGFloat, animated: Bool = false) {
         ratio = min(0.85, max(0.15, ratio + delta))
-        needsLayout = true
+        if animated {
+            animateLayout(duration: Theme.animFast)
+        } else {
+            needsLayout = true
+        }
     }
 
     /// Reset all split ratios to 0.5 recursively.
     func equalizeAll() {
         guard !isLeaf else { return }
+        applyEqualRatios()
+        animateLayout()
+    }
+
+    private func applyEqualRatios() {
         ratio = 0.5
-        first?.equalizeAll()
-        second?.equalizeAll()
-        needsLayout = true
+        first?.applyEqualRatios()
+        second?.applyEqualRatios()
+    }
+
+    /// Animate the split layout to reflect current ratios with smooth frame transitions.
+    func animateLayout(duration: TimeInterval = Theme.animMedium) {
+        guard !isLeaf else { return }
+        guard let orientation, let first, let second, let divider else { return }
+
+        let divThick = dividerThickness
+
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = duration
+            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
+
+            switch orientation {
+            case .vertical:
+                let firstW = (bounds.width - divThick) * ratio
+                first.animator().frame = NSRect(x: 0, y: 0, width: firstW, height: bounds.height)
+                divider.animator().frame = NSRect(x: firstW, y: 0, width: divThick, height: bounds.height)
+                second.animator().frame = NSRect(x: firstW + divThick, y: 0,
+                                                  width: bounds.width - firstW - divThick, height: bounds.height)
+            case .horizontal:
+                let firstH = (bounds.height - divThick) * ratio
+                first.animator().frame = NSRect(x: 0, y: 0, width: bounds.width, height: firstH)
+                divider.animator().frame = NSRect(x: 0, y: firstH, width: bounds.width, height: divThick)
+                second.animator().frame = NSRect(x: 0, y: firstH + divThick,
+                                                  width: bounds.width, height: bounds.height - firstH - divThick)
+            }
+        }
+
+        // Recursively animate nested splits
+        first.animateLayout(duration: duration)
+        second.animateLayout(duration: duration)
     }
 
     // MARK: - Serialization
@@ -307,6 +347,12 @@ final class SplitPaneView: NSView {
         node.addSubview(div)
 
         return node
+    }
+
+    func refreshTheme() {
+        divider?.refreshTheme()
+        first?.refreshTheme()
+        second?.refreshTheme()
     }
 
     // MARK: - Layout
@@ -373,16 +419,34 @@ fileprivate final class SplitDividerView: NSView {
     private var isHovered = false
     private var isDragging = false
     private var trackingArea: NSTrackingArea?
+    private var themeObserver: NSObjectProtocol?
 
     init(orientation: SplitPaneView.Orientation) {
         self.orientation = orientation
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.backgroundColor = Theme.divider.cgColor
+
+        // Accessibility
+        setAccessibilityRole(.splitter)
+        setAccessibilityLabel(orientation == .vertical ? "Vertical split divider" : "Horizontal split divider")
+        setAccessibilityHelp("Drag to resize panes. Double-click to equalize.")
+
+        themeObserver = NotificationCenter.default.addObserver(
+            forName: ThemeManager.didChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.refreshTheme()
+        }
+        refreshTheme()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    deinit {
+        if let themeObserver {
+            NotificationCenter.default.removeObserver(themeObserver)
+        }
+    }
 
     private func updateAppearance(animated: Bool = true) {
         let color: NSColor
@@ -418,6 +482,7 @@ fileprivate final class SplitDividerView: NSView {
                 ctx.allowsImplicitAnimation = true
                 self.layer?.backgroundColor = color.cgColor
                 self.layer?.transform = scale
+                self.layer?.opacity = (self.isDragging || self.isHovered) ? 1.0 : 0.8
                 self.layer?.shadowColor = shadowColor
                 self.layer?.shadowOpacity = shadowOpacity
                 self.layer?.shadowRadius = shadowRadius
@@ -426,6 +491,7 @@ fileprivate final class SplitDividerView: NSView {
         } else {
             layer?.backgroundColor = color.cgColor
             layer?.transform = scale
+            layer?.opacity = (isDragging || isHovered) ? 1.0 : 0.8
             layer?.shadowColor = shadowColor
             layer?.shadowOpacity = shadowOpacity
             layer?.shadowRadius = shadowRadius
@@ -477,9 +543,9 @@ fileprivate final class SplitDividerView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         if event.clickCount == 2 {
-            // Double-click to equalize
+            // Double-click to equalize with smooth animation
             if let splitPane = superview as? SplitPaneView {
-                splitPane.adjustRatio(by: 0.5 - splitPane.currentRatio)
+                splitPane.adjustRatio(by: 0.5 - splitPane.currentRatio, animated: true)
             }
             return
         }
@@ -506,11 +572,15 @@ fileprivate final class SplitDividerView: NSView {
         let expanded: NSRect
         switch orientation {
         case .vertical:
-            expanded = frame.insetBy(dx: -4, dy: 0)
+            expanded = bounds.insetBy(dx: -4, dy: 0)
         case .horizontal:
-            expanded = frame.insetBy(dx: 0, dy: -4)
+            expanded = bounds.insetBy(dx: 0, dy: -4)
         }
         if expanded.contains(point) { return self }
         return nil
+    }
+
+    func refreshTheme() {
+        updateAppearance(animated: false)
     }
 }

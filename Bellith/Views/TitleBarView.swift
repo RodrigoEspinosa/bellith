@@ -6,13 +6,15 @@ final class TitleBarView: NSView {
     private let folderIcon = NSImageView()
     private var breadcrumbViews: [NSView] = []
     private var currentPath: String = "~"
+    private var segmentTrackingAreas: [NSTrackingArea] = []
+    private var hoveredView: NSView?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
 
         folderIcon.image = NSImage(systemSymbolName: "folder.fill", accessibilityDescription: nil)
-        folderIcon.contentTintColor = Theme.textMuted.withAlphaComponent(0.5)
+        folderIcon.contentTintColor = Theme.textMuted.withAlphaComponent(0.7)
         folderIcon.imageScaling = .scaleProportionallyDown
         addSubview(folderIcon)
     }
@@ -55,7 +57,7 @@ final class TitleBarView: NSView {
             if i > 0 {
                 let chevron = NSImageView()
                 chevron.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
-                chevron.contentTintColor = Theme.textMuted.withAlphaComponent(0.3)
+                chevron.contentTintColor = Theme.textMuted.withAlphaComponent(0.5)
                 chevron.imageScaling = .scaleProportionallyDown
                 addSubview(chevron)
                 breadcrumbViews.append(chevron)
@@ -63,7 +65,7 @@ final class TitleBarView: NSView {
 
             let label = NSTextField(labelWithString: part)
             label.font = .systemFont(ofSize: 12.5, weight: isLast ? .medium : .regular)
-            label.textColor = isLast ? Theme.textSecondary : Theme.textMuted.withAlphaComponent(0.5)
+            label.textColor = isLast ? Theme.textSecondary : Theme.textMuted.withAlphaComponent(0.7)
             label.isEditable = false
             label.isBezeled = false
             label.drawsBackground = false
@@ -73,6 +75,23 @@ final class TitleBarView: NSView {
         }
 
         needsLayout = true
+    }
+
+    private func updateSegmentTracking() {
+        segmentTrackingAreas.forEach { removeTrackingArea($0) }
+        segmentTrackingAreas.removeAll()
+
+        for view in breadcrumbViews {
+            guard view is NSTextField else { continue }
+            let area = NSTrackingArea(
+                rect: view.frame,
+                options: [.mouseEnteredAndExited, .activeAlways],
+                owner: self,
+                userInfo: ["view": view]
+            )
+            addTrackingArea(area)
+            segmentTrackingAreas.append(area)
+        }
     }
 
     override func layout() {
@@ -91,15 +110,40 @@ final class TitleBarView: NSView {
                 imageView.frame = NSRect(x: x, y: (h - size) / 2, width: size, height: size)
                 x += size + gap
             } else if let label = view as? NSTextField {
-                let textW = min(150, label.attributedStringValue.size().width + 4)
+                let textW = min(120, label.attributedStringValue.size().width + 4)
                 label.frame = NSRect(x: x, y: (h - 15) / 2, width: textW, height: 15)
                 x += textW + gap
             }
         }
+
+        updateSegmentTracking()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        guard let info = event.trackingArea?.userInfo,
+              let view = info["view"] as? NSTextField else { return }
+        hoveredView = view
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = Theme.animFast
+            view.animator().textColor = Theme.textPrimary
+        }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        guard let info = event.trackingArea?.userInfo,
+              let view = info["view"] as? NSTextField else { return }
+        if hoveredView === view { hoveredView = nil }
+        // Determine if this is the last segment
+        let isLast = view === breadcrumbViews.last
+        let color = isLast ? Theme.textSecondary : Theme.textMuted.withAlphaComponent(0.7)
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = Theme.animFast
+            view.animator().textColor = color
+        }
     }
 
     func refreshTheme() {
-        folderIcon.contentTintColor = Theme.textMuted.withAlphaComponent(0.5)
+        folderIcon.contentTintColor = Theme.textMuted.withAlphaComponent(0.7)
         rebuildBreadcrumbs()
     }
 }

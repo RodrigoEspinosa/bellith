@@ -24,11 +24,23 @@ final class TabBarView: NSView {
 
     private let newTabButton = NSButton()
     private let singleTabLabel = NSTextField(labelWithString: "")
+    private var themeObserver: NSObjectProtocol?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         setupNewTabButton()
         setupSingleTabLabel()
+        themeObserver = NotificationCenter.default.addObserver(
+            forName: ThemeManager.didChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.refreshTheme()
+        }
+    }
+
+    deinit {
+        if let themeObserver {
+            NotificationCenter.default.removeObserver(themeObserver)
+        }
     }
 
     @available(*, unavailable)
@@ -43,11 +55,13 @@ final class TabBarView: NSView {
         newTabButton.action = #selector(handleNewTab)
         newTabButton.setFrameSize(NSSize(width: 24, height: 24))
         addSubview(newTabButton)
+        newTabButton.wantsLayer = true
+        newTabButton.layer?.cornerRadius = 6
     }
 
     private func setupSingleTabLabel() {
         singleTabLabel.font = .systemFont(ofSize: 12.5, weight: .medium)
-        singleTabLabel.textColor = Theme.textMuted
+        singleTabLabel.textColor = Theme.textSecondary
         singleTabLabel.isEditable = false
         singleTabLabel.isSelectable = false
         singleTabLabel.isBezeled = false
@@ -66,6 +80,13 @@ final class TabBarView: NSView {
             singleTabLabel.stringValue = firstTab.title
         }
 
+        rebuildTabViews()
+    }
+
+    func refreshTheme() {
+        newTabButton.contentTintColor = Theme.textMuted
+        singleTabLabel.textColor = Theme.textSecondary
+        dragIndicatorLayer?.backgroundColor = Theme.accent.withAlphaComponent(0.5).cgColor
         rebuildTabViews()
     }
 
@@ -98,16 +119,20 @@ final class TabBarView: NSView {
         for pill in tabViews {
             let width: CGFloat = min(160, max(80, pill.idealWidth))
             pill.frame = NSRect(x: x, y: y, width: width, height: tabHeight)
-            x += width + 2
+            x += width + 4
         }
 
         newTabButton.frame = NSRect(x: x + 4, y: (height - 24) / 2, width: 24, height: 24)
 
-        singleTabLabel.isHidden = true
-        // Only auto-show when there are multiple tabs.
-        // Never override a parent-set hidden=true (sidebar mode hides us).
+        // Single tab: show just the label and new tab button, hide pills
         if tabs.count <= 1 {
-            isHidden = true
+            singleTabLabel.isHidden = false
+            singleTabLabel.frame = NSRect(x: 0, y: (height - 16) / 2, width: min(200, singleTabLabel.attributedStringValue.size().width + 8), height: 16)
+            newTabButton.frame = NSRect(x: singleTabLabel.frame.maxX + 8, y: (height - 24) / 2, width: 24, height: 24)
+            tabViews.forEach { $0.isHidden = true }
+        } else {
+            singleTabLabel.isHidden = true
+            tabViews.forEach { $0.isHidden = false }
         }
     }
 
@@ -209,6 +234,11 @@ fileprivate final class TabPillView: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = Theme.radiusElement
+
+        // Accessibility
+        setAccessibilityRole(.button)
+        setAccessibilityLabel("Tab: \(title)")
+        setAccessibilityValue(isSelected ? "selected" : "")
 
         // Icon for smart tabs
         if case .smart(let panelKind) = kind {
@@ -320,16 +350,21 @@ fileprivate final class TabPillView: NSView {
     }
 
     private func updateAppearance() {
+        let bgColor: CGColor
         if isSelected {
-            if isSmartTab {
-                layer?.backgroundColor = Theme.accent.withAlphaComponent(0.12).cgColor
-            } else {
-                layer?.backgroundColor = Theme.accentSubtle.cgColor
-            }
+            bgColor = isSmartTab
+                ? Theme.accent.withAlphaComponent(0.12).cgColor
+                : Theme.accentSubtle.cgColor
         } else if isHovered {
-            layer?.backgroundColor = Theme.borderSubtle.cgColor
+            bgColor = Theme.borderSubtle.cgColor
         } else {
-            layer?.backgroundColor = .clear
+            bgColor = NSColor.clear.cgColor
+        }
+
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = Theme.animFast
+            ctx.allowsImplicitAnimation = true
+            self.layer?.backgroundColor = bgColor
         }
     }
 }

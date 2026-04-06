@@ -249,8 +249,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let paletteItem = NSMenuItem(title: "Command Palette", action: #selector(handleTogglePalette), keyEquivalent: "k")
         paletteItem.keyEquivalentModifierMask = .command
         viewMenu.addItem(paletteItem)
-        let hudItem = NSMenuItem(title: "Show HUD", action: #selector(handleShowHUD), keyEquivalent: "")
-        viewMenu.addItem(hudItem)
         viewMenu.addItem(.separator())
         let fontBiggerItem = NSMenuItem(title: "Increase Font Size", action: #selector(handleFontBigger), keyEquivalent: "=")
         viewMenu.addItem(fontBiggerItem)
@@ -360,7 +358,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc private func handleToggleSidebar() { activeEntry?.container.sidebar.toggle() }
     @objc private func handleTogglePalette() { activeEntry?.container.toggleCommandPalette() }
-    @objc private func handleShowHUD() { activeEntry?.container.showHUD() }
+
     @objc private func handleFontBigger() { activeEntry?.container.adjustFontSizePublic(delta: 1) }
     @objc private func handleFontSmaller() { activeEntry?.container.adjustFontSizePublic(delta: -1) }
     @objc private func handleFontReset() { activeEntry?.container.resetFontSizePublic() }

@@ -13,6 +13,7 @@ final class SearchBarView: NSView {
     private var borderLayer: CALayer?
     private let escBadge = NSView()
     private let escLabel = NSTextField(labelWithString: "esc")
+    private var themeObserver: NSObjectProtocol?
 
     var onSearch: ((String) -> Void)?
     var onNext: (() -> Void)?
@@ -27,10 +28,21 @@ final class SearchBarView: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         setupViews()
+        themeObserver = NotificationCenter.default.addObserver(
+            forName: ThemeManager.didChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.refreshTheme()
+        }
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    deinit {
+        if let themeObserver {
+            NotificationCenter.default.removeObserver(themeObserver)
+        }
+    }
 
     private func setupViews() {
         wantsLayer = true
@@ -54,7 +66,7 @@ final class SearchBarView: NSView {
         backdrop.wantsLayer = true
         backdrop.layer?.cornerRadius = Theme.radiusPanel
         backdrop.layer?.masksToBounds = true
-        backdrop.appearance = NSAppearance(named: .darkAqua)
+        backdrop.appearance = Theme.overlayAppearance
         addSubview(backdrop)
 
         let border = CALayer()
@@ -129,6 +141,8 @@ final class SearchBarView: NSView {
         escLabel.drawsBackground = false
         escLabel.alignment = .center
         escBadge.addSubview(escLabel)
+
+        refreshTheme()
     }
 
     private func configureNavButton(_ button: NSButton, symbolName: String, action: Selector) {
@@ -155,13 +169,35 @@ final class SearchBarView: NSView {
     }
 
     private func updateToggleAppearance(_ button: NSButton, isActive: Bool) {
-        if isActive {
-            button.layer?.backgroundColor = Theme.accent.withAlphaComponent(0.2).cgColor
-            button.contentTintColor = Theme.accent
-        } else {
-            button.layer?.backgroundColor = NSColor.clear.cgColor
-            button.contentTintColor = Theme.textMuted
+        Theme.animate { _ in
+            if isActive {
+                button.layer?.backgroundColor = Theme.accent.withAlphaComponent(0.2).cgColor
+                button.contentTintColor = Theme.accent
+            } else {
+                button.layer?.backgroundColor = NSColor.clear.cgColor
+                button.contentTintColor = Theme.textMuted
+            }
         }
+    }
+
+    func refreshTheme() {
+        borderLayer?.borderColor = Theme.border.cgColor
+        backdrop.appearance = Theme.overlayAppearance
+        inputField.textColor = Theme.textPrimary
+        inputField.placeholderAttributedString = NSAttributedString(
+            string: "Find...",
+            attributes: [
+                .foregroundColor: Theme.textMuted,
+                .font: NSFont.systemFont(ofSize: 13, weight: .regular),
+            ]
+        )
+        prevButton.contentTintColor = Theme.textSecondary
+        nextButton.contentTintColor = Theme.textSecondary
+        escBadge.layer?.backgroundColor = Theme.overlay.cgColor
+        escLabel.textColor = Theme.textMuted
+        updateToggleAppearance(caseSensitiveButton, isActive: isCaseSensitive)
+        updateToggleAppearance(regexButton, isActive: isRegex)
+        updateCount(selected: searchSelected, total: searchTotal)
     }
 
     override func layout() {
@@ -184,7 +220,7 @@ final class SearchBarView: NSView {
         regexButton.frame = NSRect(x: bounds.width - 116, y: toggleY, width: 24, height: 20)
         caseSensitiveButton.frame = NSRect(x: bounds.width - 140, y: toggleY, width: 24, height: 20)
 
-        let countW: CGFloat = 50
+        let countW: CGFloat = 64
         countLabel.frame = NSRect(x: bounds.width - 140 - countW - 4, y: (h - 16) / 2, width: countW, height: 16)
 
         let inputX: CGFloat = 32
@@ -203,14 +239,20 @@ final class SearchBarView: NSView {
         searchTotal = total
         if total > 0 {
             countLabel.stringValue = "\(selected)/\(total)"
+            countLabel.textColor = Theme.textSecondary
             countLabel.layer?.backgroundColor = Theme.accent.withAlphaComponent(0.08).cgColor
             countLabel.layer?.cornerRadius = 4
+            iconView.contentTintColor = Theme.accent
         } else if !inputField.stringValue.isEmpty {
-            countLabel.stringValue = "0"
-            countLabel.layer?.backgroundColor = NSColor.clear.cgColor
+            countLabel.stringValue = "No results"
+            countLabel.textColor = Theme.destructive.withAlphaComponent(0.8)
+            countLabel.layer?.backgroundColor = Theme.destructive.withAlphaComponent(0.08).cgColor
+            countLabel.layer?.cornerRadius = 4
+            iconView.contentTintColor = Theme.destructive.withAlphaComponent(0.6)
         } else {
             countLabel.stringValue = ""
             countLabel.layer?.backgroundColor = NSColor.clear.cgColor
+            iconView.contentTintColor = Theme.textMuted
         }
     }
 
@@ -229,8 +271,8 @@ final class SearchBarView: NSView {
 
         let finalFrame = NSRect(x: x, y: y, width: width, height: height)
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = Theme.animFast
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            ctx.duration = Theme.animMedium
+            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 1.0, 0.3, 1.0)
             self.animator().frame = finalFrame
             self.animator().alphaValue = 1
         } completionHandler: {

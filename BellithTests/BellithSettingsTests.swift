@@ -14,14 +14,16 @@ final class BellithSettingsTests: XCTestCase {
     }
 
     override func tearDown() {
-        UserDefaults.standard.removePersistentDomain(forName: suiteName)
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults = nil
+        settings = nil
         super.tearDown()
     }
 
     // MARK: - Default Values
 
     func testDefaultFontFamily() {
-        XCTAssertEqual(settings.fontFamily, "JetBrains Mono")
+        XCTAssertEqual(settings.fontFamily, "Hack Nerd Font Mono")
     }
 
     func testDefaultFontSize() {
@@ -57,7 +59,7 @@ final class BellithSettingsTests: XCTestCase {
     }
 
     func testDefaultConfirmClose() {
-        XCTAssertTrue(settings.confirmClose)
+        XCTAssertFalse(settings.confirmClose)
     }
 
     func testDefaultRestoreSession() {
@@ -65,12 +67,12 @@ final class BellithSettingsTests: XCTestCase {
     }
 
     func testDefaultCursorBlink() {
-        XCTAssertTrue(settings.cursorBlink)
+        XCTAssertFalse(settings.cursorBlink)
     }
 
     func testDefaultWindowPadding() {
-        XCTAssertEqual(settings.windowPaddingX, 8)
-        XCTAssertEqual(settings.windowPaddingY, 4)
+        XCTAssertEqual(settings.windowPaddingX, 10)
+        XCTAssertEqual(settings.windowPaddingY, 38)
     }
 
     // MARK: - Roundtrip
