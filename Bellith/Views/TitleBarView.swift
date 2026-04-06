@@ -4,19 +4,33 @@ import AppKit
 /// Sits in the window's title area with a folder icon prefix.
 final class TitleBarView: NSView {
     private let folderIcon = NSImageView()
+    private let sizeLabel = NSTextField(labelWithString: "")
     private var breadcrumbViews: [NSView] = []
     private var currentPath: String = "~"
     private var segmentTrackingAreas: [NSTrackingArea] = []
     private var hoveredView: NSView?
+    var leadingInset: CGFloat = 0 {
+        didSet {
+            if leadingInset != oldValue { needsLayout = true }
+        }
+    }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
 
         folderIcon.image = NSImage(systemSymbolName: "folder.fill", accessibilityDescription: nil)
-        folderIcon.contentTintColor = Theme.textMuted.withAlphaComponent(0.7)
+        folderIcon.contentTintColor = Theme.textMuted
         folderIcon.imageScaling = .scaleProportionallyDown
         addSubview(folderIcon)
+
+        sizeLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        sizeLabel.textColor = Theme.textMuted
+        sizeLabel.alignment = .right
+        sizeLabel.isEditable = false
+        sizeLabel.isBezeled = false
+        sizeLabel.drawsBackground = false
+        addSubview(sizeLabel)
     }
 
     @available(*, unavailable)
@@ -65,7 +79,7 @@ final class TitleBarView: NSView {
 
             let label = NSTextField(labelWithString: part)
             label.font = .systemFont(ofSize: 12.5, weight: isLast ? .medium : .regular)
-            label.textColor = isLast ? Theme.textSecondary : Theme.textMuted.withAlphaComponent(0.7)
+            label.textColor = isLast ? Theme.textPrimary : Theme.textMuted.withAlphaComponent(0.85)
             label.isEditable = false
             label.isBezeled = false
             label.drawsBackground = false
@@ -98,8 +112,10 @@ final class TitleBarView: NSView {
         super.layout()
         let h = bounds.height
         let iconSize: CGFloat = 12
-        var x: CGFloat = 0
+        var x: CGFloat = leadingInset
         let gap: CGFloat = 4
+        let sizeWidth: CGFloat = sizeLabel.stringValue.isEmpty ? 0 : max(54, sizeLabel.attributedStringValue.size().width + 2)
+        let maxContentX = bounds.width - sizeWidth - (sizeWidth > 0 ? 12 : 0)
 
         folderIcon.frame = NSRect(x: x, y: (h - iconSize) / 2, width: iconSize, height: iconSize)
         x += iconSize + gap + 2
@@ -110,13 +126,24 @@ final class TitleBarView: NSView {
                 imageView.frame = NSRect(x: x, y: (h - size) / 2, width: size, height: size)
                 x += size + gap
             } else if let label = view as? NSTextField {
-                let textW = min(120, label.attributedStringValue.size().width + 4)
+                let textW = min(max(0, maxContentX - x), label.attributedStringValue.size().width + 4)
                 label.frame = NSRect(x: x, y: (h - 15) / 2, width: textW, height: 15)
                 x += textW + gap
             }
         }
 
+        if sizeWidth > 0 {
+            sizeLabel.frame = NSRect(x: bounds.width - sizeWidth, y: (h - 14) / 2, width: sizeWidth, height: 14)
+        } else {
+            sizeLabel.frame = .zero
+        }
+
         updateSegmentTracking()
+    }
+
+    func updateSize(cols: Int, rows: Int) {
+        sizeLabel.stringValue = "\(cols)x\(rows)"
+        needsLayout = true
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -135,7 +162,7 @@ final class TitleBarView: NSView {
         if hoveredView === view { hoveredView = nil }
         // Determine if this is the last segment
         let isLast = view === breadcrumbViews.last
-        let color = isLast ? Theme.textSecondary : Theme.textMuted.withAlphaComponent(0.7)
+        let color = isLast ? Theme.textPrimary : Theme.textMuted.withAlphaComponent(0.85)
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = Theme.animFast
             view.animator().textColor = color
@@ -143,7 +170,8 @@ final class TitleBarView: NSView {
     }
 
     func refreshTheme() {
-        folderIcon.contentTintColor = Theme.textMuted.withAlphaComponent(0.7)
+        folderIcon.contentTintColor = Theme.textMuted
+        sizeLabel.textColor = Theme.textMuted
         rebuildBreadcrumbs()
     }
 }

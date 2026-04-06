@@ -113,13 +113,13 @@ final class TabBarView: NSView {
 
         var x: CGFloat = 0
         let height = bounds.height
-        let tabHeight: CGFloat = 28
+        let tabHeight: CGFloat = 30
         let y = (height - tabHeight) / 2
 
         for pill in tabViews {
-            let width: CGFloat = min(160, max(80, pill.idealWidth))
+            let width: CGFloat = min(180, max(92, pill.idealWidth))
             pill.frame = NSRect(x: x, y: y, width: width, height: tabHeight)
-            x += width + 4
+            x += width + 6
         }
 
         newTabButton.frame = NSRect(x: x + 4, y: (height - 24) / 2, width: 24, height: 24)
@@ -127,7 +127,7 @@ final class TabBarView: NSView {
         // Single tab: show just the label and new tab button, hide pills
         if tabs.count <= 1 {
             singleTabLabel.isHidden = false
-            singleTabLabel.frame = NSRect(x: 0, y: (height - 16) / 2, width: min(200, singleTabLabel.attributedStringValue.size().width + 8), height: 16)
+            singleTabLabel.frame = NSRect(x: 0, y: (height - 16) / 2, width: min(240, singleTabLabel.attributedStringValue.size().width + 8), height: 16)
             newTabButton.frame = NSRect(x: singleTabLabel.frame.maxX + 8, y: (height - 24) / 2, width: 24, height: 24)
             tabViews.forEach { $0.isHidden = true }
         } else {
@@ -233,7 +233,8 @@ fileprivate final class TabPillView: NSView {
         self.kind = kind
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = Theme.radiusElement
+        layer?.cornerRadius = 7
+        layer?.borderWidth = 0.5
 
         // Accessibility
         setAccessibilityRole(.button)
@@ -249,8 +250,8 @@ fileprivate final class TabPillView: NSView {
         }
 
         titleLabel.stringValue = title
-        titleLabel.font = .systemFont(ofSize: 12, weight: isSelected ? .medium : .regular)
-        titleLabel.textColor = isSelected ? Theme.textPrimary : Theme.textSecondary
+        titleLabel.font = .systemFont(ofSize: 12, weight: isSelected ? .semibold : .regular)
+        titleLabel.textColor = isSelected ? Theme.textPrimary : Theme.textMuted.withAlphaComponent(0.9)
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.maximumNumberOfLines = 1
         addSubview(titleLabel)
@@ -259,7 +260,7 @@ fileprivate final class TabPillView: NSView {
         closeButton.title = ""
         closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close")
         closeButton.contentTintColor = Theme.textMuted
-        closeButton.setFrameSize(NSSize(width: 16, height: 16))
+        closeButton.setFrameSize(NSSize(width: 18, height: 18))
         closeButton.target = self
         closeButton.action = #selector(handleClose)
         closeButton.alphaValue = 0
@@ -273,15 +274,15 @@ fileprivate final class TabPillView: NSView {
 
     override func layout() {
         super.layout()
-        var labelX: CGFloat = 10
+        var labelX: CGFloat = 12
 
         if isSmartTab {
-            iconView.frame = NSRect(x: 8, y: (bounds.height - 12) / 2, width: 12, height: 12)
-            labelX = 24
+            iconView.frame = NSRect(x: 10, y: (bounds.height - 12) / 2, width: 12, height: 12)
+            labelX = 28
         }
 
-        titleLabel.frame = NSRect(x: labelX, y: (bounds.height - 16) / 2, width: bounds.width - labelX - 22, height: 16)
-        closeButton.frame = NSRect(x: bounds.width - 22, y: (bounds.height - 16) / 2, width: 16, height: 16)
+        titleLabel.frame = NSRect(x: labelX, y: (bounds.height - 16) / 2, width: bounds.width - labelX - 28, height: 16)
+        closeButton.frame = NSRect(x: bounds.width - 24, y: (bounds.height - 18) / 2, width: 18, height: 18)
     }
 
     override func updateTrackingAreas() {
@@ -351,20 +352,25 @@ fileprivate final class TabPillView: NSView {
 
     private func updateAppearance() {
         let bgColor: CGColor
+        let borderColor: CGColor
         if isSelected {
             bgColor = isSmartTab
-                ? Theme.accent.withAlphaComponent(0.12).cgColor
-                : Theme.accentSubtle.cgColor
+                ? Theme.selectionFill.cgColor
+                : Theme.chromeElevated.cgColor
+            borderColor = isSmartTab ? Theme.selectionStroke.cgColor : Theme.chromeStroke.cgColor
         } else if isHovered {
-            bgColor = Theme.borderSubtle.cgColor
+            bgColor = Theme.hoverOverlay.cgColor
+            borderColor = Theme.chromeHairline.cgColor
         } else {
             bgColor = NSColor.clear.cgColor
+            borderColor = NSColor.clear.cgColor
         }
 
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = Theme.animFast
             ctx.allowsImplicitAnimation = true
             self.layer?.backgroundColor = bgColor
+            self.layer?.borderColor = borderColor
         }
     }
 }

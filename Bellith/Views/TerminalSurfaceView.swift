@@ -22,6 +22,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
 
     /// Called after text is inserted, for broadcast mode.
     var onTextInserted: ((String, TerminalSurfaceView) -> Void)?
+    var onSizeChanged: ((Int, Int) -> Void)?
 
     init(app: TerminalApp, baseConfig: ghostty_surface_config_s? = nil) {
         self.terminalApp = app
@@ -93,6 +94,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         // Ghostty expects backing pixel sizes (retina-scaled), not points
         let scaled = convertToBacking(newSize)
         ghostty_surface_set_size(surface, UInt32(scaled.width), UInt32(scaled.height))
+        reportGridSize(for: newSize)
     }
 
     override func viewDidChangeBackingProperties() {
@@ -112,12 +114,25 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
             let scaled = convertToBacking(frame.size)
             ghostty_surface_set_size(surface, UInt32(scaled.width), UInt32(scaled.height))
         }
+        reportGridSize(for: frame.size)
     }
 
     private func updateContentScale() {
         guard let surface else { return }
         let scale = Double(window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2.0)
         ghostty_surface_set_content_scale(surface, scale, scale)
+    }
+
+    private func reportGridSize(for size: NSSize) {
+        let cellWidth: CGFloat = 9.0
+        let cellHeight: CGFloat = 19.0
+        let cols = max(1, Int(floor(size.width / cellWidth)))
+        let rows = max(1, Int(floor(size.height / cellHeight)))
+        onSizeChanged?(cols, rows)
+    }
+
+    func refreshReportedSize() {
+        reportGridSize(for: bounds.size)
     }
 
     override func updateLayer() {

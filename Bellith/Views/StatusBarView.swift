@@ -4,7 +4,7 @@ import AppKit
 /// Shows cwd, git branch, foreground process, and terminal dimensions.
 /// Designed to be a clear, readable strip — like VS Code's status bar.
 final class StatusBarView: NSView {
-    static let height: CGFloat = 32
+    static let height: CGFloat = 28
 
     // Left items
     private let cwdIcon = NSImageView()
@@ -20,16 +20,26 @@ final class StatusBarView: NSView {
     private let sizeLabel = NSTextField(labelWithString: "")
 
     private let topSeparator = CALayer()
+    private let sizeCapsule = NSView()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.backgroundColor = Theme.surface.cgColor
+        layer?.backgroundColor = Theme.chrome.cgColor
+        layer?.borderWidth = 0
 
         // Subtle top edge separator
-        topSeparator.backgroundColor = Theme.border.cgColor
+        topSeparator.backgroundColor = Theme.chromeHairline.cgColor
         topSeparator.autoresizingMask = [.layerWidthSizable, .layerMinYMargin]
         layer?.addSublayer(topSeparator)
+
+        sizeCapsule.wantsLayer = true
+        sizeCapsule.layer?.cornerRadius = 6
+        sizeCapsule.layer?.backgroundColor = Theme.chromeElevated.cgColor
+        sizeCapsule.layer?.borderWidth = 0.5
+        sizeCapsule.layer?.borderColor = Theme.chromeHairline.cgColor
+        sizeCapsule.isHidden = true
+        addSubview(sizeCapsule)
 
         setupIcon(cwdIcon, symbol: "folder.fill", tint: Theme.accent)
         setupLabel(cwdLabel, size: 12, weight: .medium, color: Theme.textPrimary)
@@ -53,6 +63,7 @@ final class StatusBarView: NSView {
         setupLabel(sizeLabel, size: 11, weight: .medium, color: Theme.textMuted)
         sizeLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         sizeLabel.alignment = .right
+        sizeCapsule.addSubview(sizeLabel)
     }
 
     @available(*, unavailable)
@@ -151,6 +162,8 @@ final class StatusBarView: NSView {
 
     func updateSize(cols: Int, rows: Int) {
         sizeLabel.stringValue = "\(cols)×\(rows)"
+        sizeCapsule.isHidden = false
+        needsLayout = true
     }
 
     // MARK: - Layout
@@ -208,15 +221,22 @@ final class StatusBarView: NSView {
         }
 
         // Right: terminal size
-        let sizeW: CGFloat = 60
-        sizeLabel.frame = NSRect(x: bounds.width - sizeW - 14, y: labelY, width: sizeW, height: labelH)
+        let hasSize = !sizeLabel.stringValue.isEmpty
+        sizeCapsule.isHidden = !hasSize
+        if hasSize {
+            let sizeW: CGFloat = max(64, sizeLabel.attributedStringValue.size().width + 22)
+            sizeCapsule.frame = NSRect(x: bounds.width - sizeW - 10, y: (h - 20) / 2, width: sizeW, height: 20)
+            sizeLabel.frame = NSRect(x: 10, y: (sizeCapsule.bounds.height - labelH) / 2, width: sizeW - 20, height: labelH)
+        }
     }
 
     // MARK: - Theme
 
     func refreshTheme() {
-        layer?.backgroundColor = Theme.surface.cgColor
-        topSeparator.backgroundColor = Theme.border.cgColor
+        layer?.backgroundColor = Theme.chrome.cgColor
+        topSeparator.backgroundColor = Theme.chromeHairline.cgColor
+        sizeCapsule.layer?.backgroundColor = Theme.chromeElevated.cgColor
+        sizeCapsule.layer?.borderColor = Theme.chromeHairline.cgColor
         cwdIcon.contentTintColor = Theme.accent
         cwdLabel.textColor = Theme.textPrimary
         separator1.textColor = Theme.textMuted.withAlphaComponent(0.5)

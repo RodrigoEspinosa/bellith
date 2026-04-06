@@ -34,6 +34,34 @@ struct ThemeColors {
                        blue: rgb.blueComponent * factor,
                        alpha: 1.0)
     }
+
+    var chrome: NSColor {
+        base.mixing(with: surface, baseFraction: isLight ? 0.42 : 0.35)
+    }
+
+    var chromeElevated: NSColor {
+        surface.mixing(with: overlay, baseFraction: isLight ? 0.60 : 0.48)
+    }
+
+    var chromePanel: NSColor {
+        chrome.mixing(with: overlay, baseFraction: isLight ? 0.74 : 0.68)
+    }
+
+    var selectionFill: NSColor {
+        accent.withAlphaComponent(isLight ? 0.12 : 0.16)
+    }
+
+    var selectionStroke: NSColor {
+        accent.withAlphaComponent(isLight ? 0.22 : 0.30)
+    }
+
+    var chromeStroke: NSColor {
+        border.scaledAlpha(isLight ? 0.90 : 1.0)
+    }
+
+    var chromeHairline: NSColor {
+        borderSubtle.scaledAlpha(isLight ? 1.0 : 1.0)
+    }
 }
 
 // MARK: - Built-in Themes
@@ -312,6 +340,16 @@ private extension NSColor {
             alpha: 1.0
         )
     }
+
+    func mixing(with color: NSColor, baseFraction: CGFloat) -> NSColor {
+        let fraction = max(0, min(1, 1 - baseFraction))
+        return blended(withFraction: fraction, of: color) ?? self
+    }
+
+    func scaledAlpha(_ multiplier: CGFloat) -> NSColor {
+        let converted = usingColorSpace(.sRGB) ?? self
+        return converted.withAlphaComponent(max(0, min(1, converted.alphaComponent * multiplier)))
+    }
 }
 
 // MARK: - Theme Manager (Observable)
@@ -341,6 +379,13 @@ enum Theme {
     static var base: NSColor { colors.base }
     static var surface: NSColor { colors.surface }
     static var overlay: NSColor { colors.overlay }
+    static var chrome: NSColor { colors.chrome }
+    static var chromeElevated: NSColor { colors.chromeElevated }
+    static var chromePanel: NSColor { colors.chromePanel }
+    static var selectionFill: NSColor { colors.selectionFill }
+    static var selectionStroke: NSColor { colors.selectionStroke }
+    static var chromeStroke: NSColor { colors.chromeStroke }
+    static var chromeHairline: NSColor { colors.chromeHairline }
 
     // Accent
     static var accent: NSColor { colors.accent }

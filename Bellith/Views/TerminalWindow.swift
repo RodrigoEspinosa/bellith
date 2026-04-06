@@ -29,11 +29,15 @@ final class TerminalWindow: NSWindow {
         titlebarAppearsTransparent = true
         titleVisibility = .hidden
         isMovableByWindowBackground = true
+        toolbarStyle = .unifiedCompact
 
         applyThemeBackground()
         applyThemeAppearance()
         isOpaque = true
         hasShadow = true
+        contentView?.wantsLayer = true
+        contentView?.layer?.cornerRadius = Theme.radiusWindow + 4
+        contentView?.layer?.masksToBounds = true
 
         // Clear titlebar backgrounds
         if let titlebarContainer = standardWindowButton(.closeButton)?.superview?.superview {
@@ -54,11 +58,13 @@ final class TerminalWindow: NSWindow {
         ) { [weak self] _ in
             self?.applyThemeBackground()
             self?.applyThemeAppearance()
+            self?.positionTrafficLights()
         }
     }
 
     private func applyThemeBackground() {
         backgroundColor = Theme.colors.frame
+        contentView?.layer?.backgroundColor = Theme.colors.frame.cgColor
     }
 
     private func applyThemeAppearance() {
@@ -133,6 +139,7 @@ final class TerminalWindow: NSWindow {
 
     override func makeKeyAndOrderFront(_ sender: Any?) {
         super.makeKeyAndOrderFront(sender)
+        positionTrafficLights()
         setupTrafficLightTracking()
     }
 
@@ -144,8 +151,14 @@ final class TerminalWindow: NSWindow {
         let currentHeight = contentView?.bounds.height ?? 0
         if abs(currentHeight - lastTrackingHeight) > 1 {
             lastTrackingHeight = currentHeight
+            positionTrafficLights()
             setupTrafficLightTracking()
         }
+    }
+
+    override func layoutIfNeeded() {
+        super.layoutIfNeeded()
+        positionTrafficLights()
     }
 
     // MARK: - Traffic Light Hover Tracking
@@ -166,6 +179,28 @@ final class TerminalWindow: NSWindow {
         )
         contentView.addTrackingArea(area)
         trafficLightTrackingArea = area
+    }
+
+    private func positionTrafficLights() {
+        guard let close = standardWindowButton(.closeButton),
+              let mini = standardWindowButton(.miniaturizeButton),
+              let zoom = standardWindowButton(.zoomButton),
+              let container = close.superview else { return }
+
+        let buttons = [close, mini, zoom]
+        let buttonHeight = close.frame.height
+        let originY = round((container.bounds.height - buttonHeight) / 2) - 1
+        let originX: CGFloat = 14
+        let spacing: CGFloat = 6
+        var x = originX
+
+        for button in buttons {
+            var frame = button.frame
+            frame.origin = NSPoint(x: x, y: originY)
+            button.setFrameOrigin(frame.origin)
+            button.alphaValue = trafficLightsVisible || !shouldAutoHideTrafficLights ? 1 : 0
+            x += frame.width + spacing
+        }
     }
 
     override func mouseEntered(with event: NSEvent) {

@@ -515,7 +515,8 @@ final class TerminalContainerView: NSView {
         root.layer?.cornerRadius = contentRadius
         root.layer?.maskedCorners = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
         root.layer?.masksToBounds = true
-        root.layer?.borderWidth = 0
+        root.layer?.borderWidth = 0.5
+        root.layer?.borderColor = Theme.chromeStroke.cgColor
 
         // Subtle fade-in when switching between tabs
         if previousIndex != index && previousIndex < tabs.count {
@@ -530,18 +531,15 @@ final class TerminalContainerView: NSView {
             let focusSurface = entry.focusedSurface ?? entry.surfaces.first
             window?.makeFirstResponder(focusSurface)
             updateFocusIndicator()
-            // Update status bar with current tab info
-            statusBar.updateCwd(entry.cwd)
+            focusSurface?.refreshReportedSize()
             titleBar.updatePath(entry.cwd)
             if let cwd = entry.cwd {
                 refreshStatusBarAsync(cwd: cwd)
             }
-            statusBar.isHidden = false
             sidebar.setActiveToolKind(nil)
         case .smart(let panel):
             panel.startRefreshing()
             window?.makeFirstResponder(self)
-            statusBar.isHidden = true
             sidebar.setActiveToolKind(panel.kind)
         }
 
@@ -565,14 +563,13 @@ final class TerminalContainerView: NSView {
 
             // Update status bar and title bar if this is the active tab
             if idx == selectedTabIndex {
-                statusBar.updateCwd(cwd)
                 titleBar.updatePath(cwd)
                 refreshStatusBarAsync(cwd: cwd)
             }
         }
     }
 
-    /// Fetch git branch and process info off the main thread, then update the status bar.
+    /// Fetch shell context off the main thread.
     private func refreshStatusBarAsync(cwd: String) {
         let pid = findShellPID()
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -597,8 +594,9 @@ final class TerminalContainerView: NSView {
             }
 
             DispatchQueue.main.async {
-                self?.statusBar.updateGitBranch(branch)
-                self?.statusBar.updateProcess(foregroundProcess)
+                _ = self
+                _ = branch
+                _ = foregroundProcess
             }
         }
     }
@@ -1036,10 +1034,10 @@ final class TerminalContainerView: NSView {
 
     private let contentPadding: CGFloat = 8
     private let contentRadius: CGFloat = 12
-    private let sidebarGap: CGFloat = 6
+    private let sidebarGap: CGFloat = 8
     private let tabBarHeight: CGFloat = 36
-    private let statusBarHeight: CGFloat = StatusBarView.height
-    private let titleBarHeight: CGFloat = 28
+    private let statusBarHeight: CGFloat = 0
+    private let titleBarHeight: CGFloat = 24
 
     private func contentRect(forSidebarWidth sidebarWidth: CGFloat) -> NSRect {
         let p = contentPadding
@@ -1085,10 +1083,10 @@ final class TerminalContainerView: NSView {
         sidebar.layer?.cornerRadius = contentRadius
 
         if !useSidebar {
-            let tabBarX: CGFloat = 80
+            let tabBarX: CGFloat = 76
             tabBar.frame = NSRect(
                 x: tabBarX,
-                y: bounds.height - p - titleBarHeight - tabBarHeight,
+                y: bounds.height - p - titleBarHeight - tabBarHeight + 2,
                 width: bounds.width - tabBarX - p,
                 height: tabBarHeight
             )
@@ -1101,32 +1099,16 @@ final class TerminalContainerView: NSView {
         } else {
             contentLeft = p
         }
+        let trafficLightClearance: CGFloat = useSidebar ? 0 : 96
+        titleBar.leadingInset = trafficLightClearance
         titleBar.frame = NSRect(
-            x: contentLeft + 12,
+            x: contentLeft + 10,
             y: bounds.height - p - titleBarHeight,
-            width: bounds.width - contentLeft - p - 12,
+            width: bounds.width - contentLeft - p - 10,
             height: titleBarHeight
         )
 
-        // Status bar — at the bottom, spanning the content width
-        let statusBarX: CGFloat
-        let statusBarW: CGFloat
-        if useSidebar && sidebarWidth > 0 {
-            statusBarX = p + sidebarWidth + sidebarGap
-            statusBarW = bounds.width - statusBarX - p
-        } else {
-            statusBarX = p
-            statusBarW = bounds.width - p * 2
-        }
-        statusBar.frame = NSRect(
-            x: statusBarX, y: p,
-            width: statusBarW,
-            height: statusBarHeight
-        )
-        statusBar.wantsLayer = true
-        statusBar.layer?.cornerRadius = contentRadius
-        statusBar.layer?.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
-        statusBar.layer?.masksToBounds = true
+        statusBar.isHidden = true
 
         let rect = contentRect
         if selectedTabIndex < tabs.count {
@@ -1135,6 +1117,8 @@ final class TerminalContainerView: NSView {
             root.layer?.cornerRadius = contentRadius
             root.layer?.maskedCorners = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
             root.layer?.masksToBounds = true
+            root.layer?.borderWidth = 0.5
+            root.layer?.borderColor = Theme.chromeStroke.cgColor
         }
 
         // Keep zoomed surface in sync with content rect
@@ -1630,6 +1614,12 @@ final class TerminalContainerView: NSView {
         }
         surface.onTextInserted = { [weak self] text, source in
             self?.broadcastText(text, from: source)
+        }
+        surface.onSizeChanged = { [weak self, weak surface] cols, rows in
+            guard let self, let surface else { return }
+            if self.activeSurface === surface {
+                self.titleBar.updateSize(cols: cols, rows: rows)
+            }
         }
         return surface
     }

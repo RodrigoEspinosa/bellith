@@ -357,7 +357,7 @@ final class SplitPaneView: NSView {
 
     // MARK: - Layout
 
-    private let dividerThickness: CGFloat = 2
+    private let dividerThickness: CGFloat = 1
     private let dividerHitArea: CGFloat = 8
 
     override func layout() {
@@ -458,44 +458,16 @@ fileprivate final class SplitDividerView: NSView {
             color = Theme.divider
         }
 
-        // Scale transform: expand divider to 4px when hovered or dragging (base is 2px, so scale 2x)
-        let scale: CATransform3D
-        if isDragging || isHovered {
-            switch orientation {
-            case .vertical:
-                scale = CATransform3DMakeScale(2.0, 1.0, 1.0)
-            case .horizontal:
-                scale = CATransform3DMakeScale(1.0, 2.0, 1.0)
-            }
-        } else {
-            scale = CATransform3DIdentity
-        }
-
-        // Glow shadow when dragging
-        let shadowOpacity: Float = isDragging ? 0.6 : 0
-        let shadowColor = Theme.accent.cgColor
-        let shadowRadius: CGFloat = isDragging ? 4.0 : 0
-
         if animated {
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = Theme.animFast
                 ctx.allowsImplicitAnimation = true
                 self.layer?.backgroundColor = color.cgColor
-                self.layer?.transform = scale
-                self.layer?.opacity = (self.isDragging || self.isHovered) ? 1.0 : 0.8
-                self.layer?.shadowColor = shadowColor
-                self.layer?.shadowOpacity = shadowOpacity
-                self.layer?.shadowRadius = shadowRadius
-                self.layer?.shadowOffset = .zero
+                self.layer?.opacity = self.isDragging ? 0.95 : (self.isHovered ? 0.75 : 0.5)
             }
         } else {
             layer?.backgroundColor = color.cgColor
-            layer?.transform = scale
-            layer?.opacity = (isDragging || isHovered) ? 1.0 : 0.8
-            layer?.shadowColor = shadowColor
-            layer?.shadowOpacity = shadowOpacity
-            layer?.shadowRadius = shadowRadius
-            layer?.shadowOffset = .zero
+            layer?.opacity = isDragging ? 0.95 : (isHovered ? 0.75 : 0.5)
         }
     }
 
