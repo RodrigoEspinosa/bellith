@@ -5,6 +5,7 @@ import AppKit
 final class BellithSettings {
     static let shared = BellithSettings()
     static let didChangeNotification = Notification.Name("BellithSettingsDidChange")
+    static let defaultTerminalTerm = "xterm-ghostty"
 
     let defaults: UserDefaults
 
@@ -57,6 +58,14 @@ final class BellithSettings {
     var shell: String {
         get { defaults.string(forKey: "shell") ?? "" } // empty = login shell
         set { defaults.set(newValue, forKey: "shell"); notify() }
+    }
+
+    var terminalTerm: String {
+        get { defaults.string(forKey: "terminalTerm") ?? "" } // empty = Ghostty default TERM
+        set {
+            defaults.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "terminalTerm")
+            notify()
+        }
     }
 
     var scrollbackLines: Int {
@@ -401,5 +410,10 @@ final class BellithSettings {
         ]
         .map { $0.0 ? $0.1 : "no-\($0.1)" }
         .joined(separator: ",")
+    }
+
+    var effectiveTerminalTerm: String {
+        let trimmed = terminalTerm.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? Self.defaultTerminalTerm : trimmed
     }
 }

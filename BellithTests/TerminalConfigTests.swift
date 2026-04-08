@@ -35,6 +35,7 @@ final class TerminalConfigTests: XCTestCase {
         XCTAssertTrue(contents.contains("font-family"), "Config should contain font-family")
         XCTAssertTrue(contents.contains("font-size"), "Config should contain font-size")
         XCTAssertTrue(contents.contains("theme"), "Config should contain theme")
+        XCTAssertTrue(contents.contains("term = xterm-ghostty"), "Config should set Ghostty's default TERM explicitly")
         XCTAssertTrue(contents.contains("background-opacity"), "Config should contain background-opacity")
         XCTAssertTrue(contents.contains("cursor-style"), "Config should contain cursor-style")
         XCTAssertTrue(contents.contains("scrollback-limit"), "Config should contain scrollback-limit")
@@ -47,6 +48,7 @@ final class TerminalConfigTests: XCTestCase {
     func testWrittenFileReflectsCurrentSettings() throws {
         settings.fontFamily = "JetBrains Mono"
         settings.fontSize = 18
+        settings.terminalTerm = "xterm-256color"
         settings.shellIntegrationCursor = false
         settings.shellIntegrationSSHTerminfo = true
 
@@ -60,6 +62,8 @@ final class TerminalConfigTests: XCTestCase {
                        "Config should reflect current font family")
         XCTAssertTrue(contents.contains("font-size = \(settings.fontSize)"),
                        "Config should reflect current font size")
+        XCTAssertTrue(contents.contains("term = xterm-256color"),
+                      "Config should reflect the TERM override")
         XCTAssertTrue(
             contents.contains("shell-integration-features = no-cursor,title,path,ssh-env,ssh-terminfo"),
             "Config should reflect shell integration feature toggles"

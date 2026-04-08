@@ -43,6 +43,7 @@ final class TerminalConfig {
             "font-family = \(s.fontFamily)",
             "font-size = \(s.fontSize)",
             "theme = \(s.resolvedTheme.ghosttyTheme)",
+            "term = \(s.effectiveTerminalTerm)",
             "background-opacity = \(s.backgroundOpacity)",
             "window-padding-x = \(s.windowPaddingX)",
             "window-padding-y = \(s.windowPaddingY),2",

@@ -33,10 +33,13 @@ final class TerminalPane: NSView {
     private let cursorColorLabel = CardRowLabel("Cursor Color")
     private let cursorColorNote = FooterNote("Inherited from the selected theme")
 
-    private let sessionCard = SettingsCard(title: "Session Defaults", subtitle: "Shell, directory, scrollback, and bell behavior")
+    private let sessionCard = SettingsCard(title: "Session Defaults", subtitle: "Shell, TERM, directory, scrollback, and bell behavior")
     private let shellLabel = CardRowLabel("Shell Command")
     private var shellField: PrefTextField!
     private let shellNote = FooterNote("Leave empty to use the login shell")
+    private let termLabel = CardRowLabel("TERM")
+    private var termField: PrefTextField!
+    private let termNote = FooterNote("Leave empty to use xterm-ghostty")
     private let cwdLabel = CardRowLabel("Start Directory")
     private var cwdField: PrefTextField!
     private let cwdNote = FooterNote("Used for new tabs and restored sessions")
@@ -149,6 +152,9 @@ final class TerminalPane: NSView {
             self?.settings.shell = value
             self?.updateHero()
         }
+        termField = PrefTextField(text: settings.terminalTerm) { [weak self] value in
+            self?.settings.terminalTerm = value
+        }
         cwdField = PrefTextField(text: settings.workingDirectory) { [weak self] value in
             self?.settings.workingDirectory = value
             self?.updateHero()
@@ -162,7 +168,22 @@ final class TerminalPane: NSView {
             self?.updateHero()
         }
         content.addSubview(sessionCard)
-        for view: NSView in [shellLabel, shellField, shellNote, cwdLabel, cwdField, cwdNote, scrollLabel, scrollField, scrollUnit, bellLabel, bellSegment] {
+        for view: NSView in [
+            shellLabel,
+            shellField,
+            shellNote,
+            termLabel,
+            termField,
+            termNote,
+            cwdLabel,
+            cwdField,
+            cwdNote,
+            scrollLabel,
+            scrollField,
+            scrollUnit,
+            bellLabel,
+            bellSegment
+        ] {
             sessionCard.addSubview(view)
         }
 
@@ -229,6 +250,7 @@ final class TerminalPane: NSView {
         cursorSegment.setSelected(["block": 0, "bar": 1, "underline": 2][settings.cursorStyle] ?? 0)
         blinkToggle.setOn(settings.cursorBlink)
         shellField.updateText(settings.shell)
+        termField.updateText(settings.terminalTerm)
         cwdField.updateText(settings.workingDirectory)
         scrollField.setValue(settings.scrollbackLines)
         bellSegment.setSelected(["system": 0, "visual": 1, "bounce": 2, "none": 3][settings.bellMode] ?? 0)
@@ -317,7 +339,7 @@ final class TerminalPane: NSView {
         cursorColorNote.frame = NSRect(x: controlX, y: cr2 + 12, width: controlW, height: 14)
         y += cursorCardHeight + PreferencesLayout.sectionGap
 
-        let sessionCardHeight = sessionCard.headerHeight + 4 * PreferencesLayout.rowH + 2 * 14 + 3 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        let sessionCardHeight = sessionCard.headerHeight + 5 * PreferencesLayout.rowH + 3 * 14 + 4 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
         sessionCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: sessionCardHeight)
         let sr0 = sessionCardHeight - sessionCard.headerHeight - PreferencesLayout.rowH
         shellLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr0, width: labelW - 12, height: PreferencesLayout.rowH)
@@ -325,17 +347,22 @@ final class TerminalPane: NSView {
         let shellNoteY = sr0 - 14
         shellNote.frame = NSRect(x: controlX, y: shellNoteY, width: controlW, height: 14)
         let sr1 = shellNoteY - PreferencesLayout.rowH
-        cwdLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr1, width: labelW - 12, height: PreferencesLayout.rowH)
-        cwdField.frame = NSRect(x: controlX, y: sr1 + 6, width: controlW, height: 28)
-        let cwdNoteY = sr1 - 14
+        termLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr1, width: labelW - 12, height: PreferencesLayout.rowH)
+        termField.frame = NSRect(x: controlX, y: sr1 + 6, width: controlW, height: 28)
+        let termNoteY = sr1 - 14
+        termNote.frame = NSRect(x: controlX, y: termNoteY, width: controlW, height: 14)
+        let sr2 = termNoteY - PreferencesLayout.rowH
+        cwdLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr2, width: labelW - 12, height: PreferencesLayout.rowH)
+        cwdField.frame = NSRect(x: controlX, y: sr2 + 6, width: controlW, height: 28)
+        let cwdNoteY = sr2 - 14
         cwdNote.frame = NSRect(x: controlX, y: cwdNoteY, width: controlW, height: 14)
-        let sr2 = cwdNoteY - PreferencesLayout.rowH
-        scrollLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr2, width: labelW - 12, height: PreferencesLayout.rowH)
-        scrollField.frame = NSRect(x: controlX, y: sr2 + 6, width: 96, height: 28)
-        scrollUnit.frame = NSRect(x: controlX + 106, y: sr2 + 12, width: 40, height: 12)
-        let sr3 = sr2 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        bellLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr3, width: labelW - 12, height: PreferencesLayout.rowH)
-        bellSegment.frame = NSRect(x: controlX, y: sr3 + 6, width: min(320, controlW), height: 28)
+        let sr3 = cwdNoteY - PreferencesLayout.rowH
+        scrollLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr3, width: labelW - 12, height: PreferencesLayout.rowH)
+        scrollField.frame = NSRect(x: controlX, y: sr3 + 6, width: 96, height: 28)
+        scrollUnit.frame = NSRect(x: controlX + 106, y: sr3 + 12, width: 40, height: 12)
+        let sr4 = sr3 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        bellLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr4, width: labelW - 12, height: PreferencesLayout.rowH)
+        bellSegment.frame = NSRect(x: controlX, y: sr4 + 6, width: min(320, controlW), height: 28)
         y += sessionCardHeight + PreferencesLayout.sectionGap
 
         let shellToggleX = cardW - PreferencesLayout.cardPad - 50
