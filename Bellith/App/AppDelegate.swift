@@ -262,6 +262,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let shellMenu = NSMenu(title: "File")
         shellMenu.addItem(withTitle: "New Tab", action: #selector(handleNewTab), keyEquivalent: "t")
         shellMenu.addItem(withTitle: "New Window", action: #selector(handleNewWindow), keyEquivalent: "n")
+        shellMenu.addItem(withTitle: "Connect Host…", action: #selector(handleConnectHost), keyEquivalent: "")
         shellMenu.addItem(.separator())
         let splitRightItem = NSMenuItem(title: "Split Right", action: #selector(handleSplitRight), keyEquivalent: "d")
         shellMenu.addItem(splitRightItem)
@@ -396,6 +397,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func handleCloseWindow() { NSApp.keyWindow?.close() }
     @objc private func handleClosePane() { activeEntry?.container.closePane() }
     @objc private func handleNewWindow() { createWindow() }
+    @objc private func handleConnectHost() {
+        let profiles = SSHProfileStore.shared.profiles
+        if profiles.count == 1, let profile = profiles.first {
+            activeEntry?.container.connectSSHProfile(id: profile.id)
+        } else {
+            PreferencesWindowController.shared.showWindow(selecting: "ssh")
+        }
+    }
     @objc private func handleSplitRight() { activeEntry?.container.splitPane(direction: .vertical) }
     @objc private func handleSplitDown() { activeEntry?.container.splitPane(direction: .horizontal) }
     @objc private func handleReopenTab() { activeEntry?.container.reopenClosedTab() }

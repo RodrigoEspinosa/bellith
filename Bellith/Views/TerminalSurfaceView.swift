@@ -21,6 +21,9 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
 
     /// Current working directory of this surface, set via OSC 7.
     var currentCwd: String?
+    var terminalContext: TerminalContext = .local
+    var detectedContext: TerminalContext?
+    var displayContext: TerminalContext { detectedContext ?? terminalContext }
 
     /// Called after text is inserted, for broadcast mode.
     var onTextInserted: ((String, TerminalSurfaceView) -> Void)?

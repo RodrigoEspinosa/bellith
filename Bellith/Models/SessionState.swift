@@ -13,12 +13,21 @@ struct SessionState: Codable {
         let kind: Kind
         let splitTree: SplitNodeState?
         let smartPanelID: String?
+        let terminalContext: TerminalContext?
+        let sshProfileID: UUID?
 
-        init(title: String, splitTree: SplitNodeState) {
+        init(
+            title: String,
+            splitTree: SplitNodeState,
+            terminalContext: TerminalContext? = nil,
+            sshProfileID: UUID? = nil
+        ) {
             self.title = title
             self.kind = .terminal
             self.splitTree = splitTree
             self.smartPanelID = nil
+            self.terminalContext = terminalContext
+            self.sshProfileID = sshProfileID
         }
 
         init(title: String, smartPanelID: String) {
@@ -26,6 +35,8 @@ struct SessionState: Codable {
             self.kind = .smart
             self.splitTree = nil
             self.smartPanelID = smartPanelID
+            self.terminalContext = nil
+            self.sshProfileID = nil
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -33,6 +44,8 @@ struct SessionState: Codable {
             case kind
             case splitTree
             case smartPanelID
+            case terminalContext
+            case sshProfileID
         }
 
         init(from decoder: Decoder) throws {
@@ -41,6 +54,8 @@ struct SessionState: Codable {
             kind = try container.decodeIfPresent(Kind.self, forKey: .kind) ?? .terminal
             splitTree = try container.decodeIfPresent(SplitNodeState.self, forKey: .splitTree)
             smartPanelID = try container.decodeIfPresent(String.self, forKey: .smartPanelID)
+            terminalContext = try container.decodeIfPresent(TerminalContext.self, forKey: .terminalContext)
+            sshProfileID = try container.decodeIfPresent(UUID.self, forKey: .sshProfileID)
         }
     }
 

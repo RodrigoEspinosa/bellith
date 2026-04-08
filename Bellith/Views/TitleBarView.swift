@@ -18,6 +18,8 @@ final class TitleBarView: NSView {
     private let bottomSeparatorLayer = CALayer()
 
     private let folderIcon = NSImageView()
+    private let hostBadge = ContextBadgeView()
+    private let environmentBadge = ContextBadgeView()
     private let gitIcon = NSImageView()
     private let gitLabel = NSTextField(labelWithString: "")
     private let processIcon = NSImageView()
@@ -28,6 +30,7 @@ final class TitleBarView: NSView {
     private var currentPath: String = "~"
     private var currentGitBranch: String?
     private var currentProcess: String?
+    private var currentContext: TerminalContext?
     private var segmentTrackingAreas: [NSTrackingArea] = []
     private var hoveredView: NSView?
 
@@ -63,6 +66,12 @@ final class TitleBarView: NSView {
         folderIcon.image = NSImage(systemSymbolName: "folder.fill", accessibilityDescription: nil)
         folderIcon.imageScaling = .scaleProportionallyDown
         addSubview(folderIcon)
+
+        hostBadge.isHidden = true
+        addSubview(hostBadge)
+
+        environmentBadge.isHidden = true
+        addSubview(environmentBadge)
 
         gitIcon.image = NSImage(systemSymbolName: "arrow.triangle.branch", accessibilityDescription: nil)
         gitIcon.imageScaling = .scaleProportionallyDown
@@ -142,6 +151,32 @@ final class TitleBarView: NSView {
         processIcon.isHidden = !visible
         processLabel.isHidden = !visible
         rebuildBreadcrumbs()
+        needsLayout = true
+    }
+
+    func updateContext(_ context: TerminalContext?) {
+        currentContext = context
+
+        guard let context else {
+            hostBadge.text = ""
+            environmentBadge.text = ""
+            needsLayout = true
+            return
+        }
+
+        hostBadge.text = context.hostDisplayText.uppercased()
+        hostBadge.iconName = context.isRemote ? "network" : "laptopcomputer"
+        hostBadge.tone = tone(for: context)
+
+        if let environment = context.environmentDisplayText {
+            environmentBadge.text = environment
+            environmentBadge.iconName = nil
+            environmentBadge.tone = tone(for: context, preferEnvironment: true)
+        } else {
+            environmentBadge.text = ""
+            environmentBadge.iconName = nil
+        }
+
         needsLayout = true
     }
 
@@ -284,6 +319,22 @@ final class TitleBarView: NSView {
         let maxContentX = max(leadingInset + 20, trailingX)
 
         var x: CGFloat = leadingInset + 6
+        if !hostBadge.isHidden {
+            let size = hostBadge.intrinsicContentSize
+            hostBadge.frame = NSRect(x: x, y: floor((h - size.height) / 2), width: size.width, height: size.height)
+            x += size.width + 8
+        } else {
+            hostBadge.frame = .zero
+        }
+
+        if !environmentBadge.isHidden {
+            let size = environmentBadge.intrinsicContentSize
+            environmentBadge.frame = NSRect(x: x, y: floor((h - size.height) / 2), width: size.width, height: size.height)
+            x += size.width + 10
+        } else {
+            environmentBadge.frame = .zero
+        }
+
         folderIcon.frame = NSRect(x: x, y: floor((h - iconSize) / 2), width: iconSize, height: iconSize)
         x += iconSize + gap + 1
 
@@ -343,11 +394,31 @@ final class TitleBarView: NSView {
         bottomSeparatorLayer.backgroundColor = NSColor.clear.cgColor
 
         folderIcon.contentTintColor = Theme.textSecondary
+        hostBadge.refreshTheme()
+        environmentBadge.refreshTheme()
         gitIcon.contentTintColor = Theme.success
         gitLabel.textColor = Theme.textSecondary
         processIcon.contentTintColor = Theme.warning
         processLabel.textColor = Theme.textSecondary
         sizeLabel.textColor = Theme.textSecondary
         rebuildBreadcrumbs()
+    }
+
+    private func tone(for context: TerminalContext, preferEnvironment: Bool = false) -> ContextBadgeView.Tone {
+        if context.isSensitive {
+            return .destructive
+        }
+
+        let tag = context.environmentTag?.lowercased()
+        switch tag {
+        case "prod", "production":
+            return .destructive
+        case "stage", "staging", "preprod":
+            return .warning
+        case "dev", "development", "test", "qa":
+            return .success
+        default:
+            return preferEnvironment && context.isRemote ? .warning : .neutral
+        }
     }
 }

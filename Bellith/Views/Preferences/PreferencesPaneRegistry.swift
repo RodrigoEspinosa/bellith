@@ -46,6 +46,9 @@ final class PreferencesPaneRegistry {
         register(PreferencesPanePlugin(id: "terminal", title: "Terminal", iconName: "terminal") {
             TerminalPane()
         })
+        register(PreferencesPanePlugin(id: "ssh", title: "SSH", iconName: "server.rack") {
+            SSHPane()
+        })
         register(PreferencesPanePlugin(id: "sidebar", title: "Sidebar", iconName: "sidebar.left") {
             SidebarPane()
         })

@@ -73,9 +73,17 @@ final class SessionStateTests: XCTestCase {
     }
 
     func testSessionStateMultiTabRoundtrip() throws {
+        let context = TerminalContext(
+            source: .sshProfile,
+            host: "prod.example.com",
+            user: "deploy",
+            environmentTag: "prod",
+            isSensitive: true,
+            sshProfileID: UUID()
+        )
         let state = SessionState(
             tabs: [
-                SessionState.TabState(title: "Tab 1", splitTree: .leaf(cwd: "/home")),
+                SessionState.TabState(title: "Tab 1", splitTree: .leaf(cwd: "/home"), terminalContext: context, sshProfileID: context.sshProfileID),
                 SessionState.TabState(title: "Inspector", smartPanelID: "performance"),
                 SessionState.TabState(title: "Tab 2", splitTree: .branch(
                     orientation: "horizontal", ratio: 0.5,
@@ -90,6 +98,8 @@ final class SessionStateTests: XCTestCase {
         XCTAssertEqual(decoded.tabs.count, 3)
         XCTAssertEqual(decoded.selectedTabIndex, 1)
         XCTAssertEqual(decoded.tabs[0].title, "Tab 1")
+        XCTAssertEqual(decoded.tabs[0].terminalContext, context)
+        XCTAssertEqual(decoded.tabs[0].sshProfileID, context.sshProfileID)
         XCTAssertEqual(decoded.tabs[1].title, "Inspector")
         XCTAssertEqual(decoded.tabs[1].kind, .smart)
         XCTAssertEqual(decoded.tabs[1].smartPanelID, "performance")

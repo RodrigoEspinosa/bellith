@@ -104,6 +104,12 @@ final class ProcessMonitor {
         processName(pid: pid)
     }
 
+    /// Read process arguments via `KERN_PROCARGS2`.
+    static func arguments(for pid: pid_t) -> [String] {
+        guard let (buffer, size) = procArgsBuffer(for: pid) else { return [] }
+        return argumentList(from: buffer, size: size)
+    }
+
     /// Get the process name for a PID.
     private static func processName(pid: pid_t) -> String {
         var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
@@ -115,19 +121,59 @@ final class ProcessMonitor {
     }
 
     private static func kernProcName(pid: pid_t) -> String? {
-        var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
-        var size: Int = 0
-        guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > 0 else { return nil }
-
-        var buffer = [UInt8](repeating: 0, count: size)
-        guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0 else { return nil }
-
+        guard let (buffer, size) = procArgsBuffer(for: pid) else { return nil }
         guard size > MemoryLayout<Int32>.size else { return nil }
         let pathStart = MemoryLayout<Int32>.size
         let pathBytes = buffer[pathStart...]
         guard let nullIdx = pathBytes.firstIndex(of: 0) else { return nil }
         let path = String(bytes: buffer[pathStart..<nullIdx], encoding: .utf8) ?? ""
         return (path as NSString).lastPathComponent
+    }
+
+    private static func procArgsBuffer(for pid: pid_t) -> ([UInt8], Int)? {
+        var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
+        var size: Int = 0
+        guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > 0 else { return nil }
+
+        var buffer = [UInt8](repeating: 0, count: size)
+        guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0 else { return nil }
+        return (buffer, size)
+    }
+
+    private static func argumentList(from buffer: [UInt8], size: Int) -> [String] {
+        guard size > MemoryLayout<Int32>.size else { return [] }
+
+        var argc: Int32 = 0
+        var copiedBuffer = buffer
+        memcpy(&argc, &copiedBuffer, MemoryLayout<Int32>.size)
+        guard argc > 0 else { return [] }
+
+        var position = MemoryLayout<Int32>.size
+
+        while position < size && copiedBuffer[position] != 0 { position += 1 }
+        guard position < size else { return [] }
+        position += 1
+
+        while position < size && copiedBuffer[position] == 0 { position += 1 }
+
+        var arguments: [String] = []
+        arguments.reserveCapacity(Int(argc))
+
+        while arguments.count < Int(argc), position < size {
+            let start = position
+            while position < size && copiedBuffer[position] != 0 { position += 1 }
+            guard position <= size else { break }
+
+            if position > start,
+               let argument = String(bytes: copiedBuffer[start..<position], encoding: .utf8),
+               !argument.isEmpty {
+                arguments.append(argument)
+            }
+
+            position += 1
+        }
+
+        return arguments
     }
 
     private static func fallbackProcMetadata(pid: pid_t) -> (ppid: pid_t, name: String, startTime: Date?)? {

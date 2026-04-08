@@ -47,7 +47,7 @@ final class CommandRegistry {
     }
 
     var allCommands: [CommandPlugin] {
-        orderedCommandIDs.compactMap { commandsByID[$0] } + smartPanelCommands
+        orderedCommandIDs.compactMap { commandsByID[$0] } + smartPanelCommands + sshProfileCommands
     }
 
     func command(matching text: String) -> CommandPlugin? {
@@ -78,6 +78,21 @@ final class CommandRegistry {
         }
     }
 
+    private var sshProfileCommands: [CommandPlugin] {
+        SSHProfileStore.shared.profiles.map { profile in
+            CommandPlugin(
+                id: "sshProfile-\(profile.id.uuidString)",
+                title: "Connect \(profile.displayName)",
+                description: "Open \(profile.destination) in a new SSH tab",
+                iconName: "point.3.connected.trianglepath.dotted",
+                aliases: [profile.host, profile.destination, profile.displayName]
+            ) { container, _ in
+                container.connectSSHProfile(id: profile.id)
+                return true
+            }
+        }
+    }
+
     private func register(_ command: CommandPlugin) {
         guard commandsByID[command.id] == nil else { return }
         orderedCommandIDs.append(command.id)
@@ -85,6 +100,22 @@ final class CommandRegistry {
     }
 
     private func registerBuiltIns() {
+        register(CommandPlugin(
+            id: "connectHost",
+            title: "Connect Host",
+            description: "Open an SSH profile or manage saved hosts",
+            iconName: "point.3.connected.trianglepath.dotted",
+            aliases: ["ssh", "connect ssh", "host"]
+        ) { container, _ in
+            let profiles = SSHProfileStore.shared.profiles
+            if profiles.count == 1, let profile = profiles.first {
+                container.connectSSHProfile(id: profile.id)
+            } else {
+                PreferencesWindowController.shared.showWindow(selecting: "ssh")
+            }
+            return true
+        })
+
         register(CommandPlugin(
             id: "newTab",
             title: "New Tab",
@@ -273,6 +304,17 @@ final class CommandRegistry {
             aliases: ["search"]
         ) { container, _ in
             container.showSearch()
+            return true
+        })
+
+        register(CommandPlugin(
+            id: "sshProfiles",
+            title: "SSH Profiles",
+            description: "Open SSH profile settings",
+            iconName: "server.rack",
+            aliases: ["ssh settings", "hosts", "ssh profiles"]
+        ) { _, _ in
+            PreferencesWindowController.shared.showWindow(selecting: "ssh")
             return true
         })
 

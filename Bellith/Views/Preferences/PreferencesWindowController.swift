@@ -65,9 +65,13 @@ final class PreferencesWindowController: NSWindowController {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    func showWindow() {
+    func showWindow(selecting paneID: String? = nil) {
         applyWindowAppearance()
-        (window?.contentView as? PreferencesRootView)?.refresh()
+        let root = window?.contentView as? PreferencesRootView
+        root?.refresh()
+        if let paneID {
+            root?.selectPane(paneID)
+        }
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -129,6 +133,10 @@ final class PreferencesRootView: NSView {
         for pane in panes.values {
             (pane as? PreferencesPaneRefreshable)?.refreshPreferencesPane()
         }
+    }
+
+    func selectPane(_ id: String) {
+        showPane(id)
     }
 
     private func showPane(_ id: String) {

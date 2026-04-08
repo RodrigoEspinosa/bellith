@@ -7,6 +7,8 @@ final class StatusBarView: NSView {
     static let height: CGFloat = 28
 
     // Left items
+    private let hostBadge = ContextBadgeView()
+    private let environmentBadge = ContextBadgeView()
     private let cwdIcon = NSImageView()
     private let cwdLabel = NSTextField(labelWithString: "~")
     private let separator1 = NSTextField(labelWithString: "·")
@@ -40,6 +42,12 @@ final class StatusBarView: NSView {
         sizeCapsule.layer?.borderColor = Theme.chromeHairline.cgColor
         sizeCapsule.isHidden = true
         addSubview(sizeCapsule)
+
+        hostBadge.isHidden = true
+        addSubview(hostBadge)
+
+        environmentBadge.isHidden = true
+        addSubview(environmentBadge)
 
         setupIcon(cwdIcon, symbol: "folder.fill", tint: Theme.accent)
         setupLabel(cwdLabel, size: 12, weight: .medium, color: Theme.textPrimary)
@@ -97,6 +105,30 @@ final class StatusBarView: NSView {
     }
 
     // MARK: - Update
+
+    func updateContext(_ context: TerminalContext?) {
+        guard let context else {
+            hostBadge.text = ""
+            environmentBadge.text = ""
+            needsLayout = true
+            return
+        }
+
+        hostBadge.text = context.hostDisplayText.uppercased()
+        hostBadge.iconName = context.isRemote ? "network" : "laptopcomputer"
+        hostBadge.tone = tone(for: context)
+
+        if let environment = context.environmentDisplayText {
+            environmentBadge.text = environment
+            environmentBadge.iconName = nil
+            environmentBadge.tone = tone(for: context, preferEnvironment: true)
+        } else {
+            environmentBadge.text = ""
+            environmentBadge.iconName = nil
+        }
+
+        needsLayout = true
+    }
 
     func updateCwd(_ cwd: String?) {
         guard let cwd else { cwdLabel.stringValue = "~"; return }
@@ -167,6 +199,7 @@ final class StatusBarView: NSView {
     }
 
     func clear() {
+        updateContext(nil)
         cwdLabel.stringValue = "~"
         updateGitBranch(nil)
         updateProcess(nil)
@@ -192,6 +225,22 @@ final class StatusBarView: NSView {
         let sepW: CGFloat = 8
 
         var x: CGFloat = 14
+
+        if !hostBadge.isHidden {
+            let badgeSize = hostBadge.intrinsicContentSize
+            hostBadge.frame = NSRect(x: x, y: (h - badgeSize.height) / 2, width: badgeSize.width, height: badgeSize.height)
+            x += badgeSize.width + 8
+        } else {
+            hostBadge.frame = .zero
+        }
+
+        if !environmentBadge.isHidden {
+            let badgeSize = environmentBadge.intrinsicContentSize
+            environmentBadge.frame = NSRect(x: x, y: (h - badgeSize.height) / 2, width: badgeSize.width, height: badgeSize.height)
+            x += badgeSize.width + 10
+        } else {
+            environmentBadge.frame = .zero
+        }
 
         // CWD
         cwdIcon.frame = NSRect(x: x, y: iconY, width: iconSize, height: iconSize)
@@ -246,6 +295,8 @@ final class StatusBarView: NSView {
         topSeparator.backgroundColor = Theme.chromeHairline.cgColor
         sizeCapsule.layer?.backgroundColor = Theme.chromeElevated.cgColor
         sizeCapsule.layer?.borderColor = Theme.chromeHairline.cgColor
+        hostBadge.refreshTheme()
+        environmentBadge.refreshTheme()
         cwdIcon.contentTintColor = Theme.accent
         cwdLabel.textColor = Theme.textPrimary
         separator1.textColor = Theme.textMuted.withAlphaComponent(0.5)
@@ -255,5 +306,23 @@ final class StatusBarView: NSView {
         processIcon.contentTintColor = Theme.warning
         processLabel.textColor = Theme.textSecondary
         sizeLabel.textColor = Theme.textMuted
+    }
+
+    private func tone(for context: TerminalContext, preferEnvironment: Bool = false) -> ContextBadgeView.Tone {
+        if context.isSensitive {
+            return .destructive
+        }
+
+        let tag = context.environmentTag?.lowercased()
+        switch tag {
+        case "prod", "production":
+            return .destructive
+        case "stage", "staging", "preprod":
+            return .warning
+        case "dev", "development", "test", "qa":
+            return .success
+        default:
+            return preferEnvironment && context.isRemote ? .warning : .neutral
+        }
     }
 }
