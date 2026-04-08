@@ -210,6 +210,8 @@ fileprivate final class TabPillView: NSView {
     private var isDragging = false
     private var mouseDownLocation: NSPoint?
 
+    override var mouseDownCanMoveWindow: Bool { false }
+
     private let iconView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
     private let closeButton = NSButton()

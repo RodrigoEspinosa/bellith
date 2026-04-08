@@ -77,6 +77,8 @@ final class ShortcutBadge: NSView {
     private var isHovered = false
     private let recordingLabel = NSTextField(labelWithString: "")
 
+    override var mouseDownCanMoveWindow: Bool { false }
+
     init(shortcut: KeyShortcut) {
         self.shortcut = shortcut
         super.init(frame: .zero)
@@ -342,6 +344,7 @@ final class PrefToggle: NSView {
     private let trackLayer = CALayer()
 
     override var acceptsFirstResponder: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
     private let knobLayer = CALayer()
     private let knobShadowLayer = CALayer()
 
@@ -466,6 +469,7 @@ final class OpacityTrackView: NSView {
     private let percentLabel: NSTextField
 
     override var acceptsFirstResponder: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
 
     init(value: Double, onChange: @escaping (Double) -> Void) {
         self.value = value
@@ -637,6 +641,7 @@ final class StepButton: NSView {
     private var trackingArea: NSTrackingArea?
 
     override var acceptsFirstResponder: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
 
     init(symbol name: String, action: @escaping () -> Void) {
         self.action = action
@@ -691,6 +696,7 @@ final class LinkButton: NSView {
     private var isHovered = false
 
     override var acceptsFirstResponder: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
 
     init(title: String) {
         label = NSTextField(labelWithString: title.uppercased())
@@ -761,6 +767,7 @@ final class FontPickerButton: NSView {
     private var trackingArea: NSTrackingArea?
 
     override var acceptsFirstResponder: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -848,6 +855,8 @@ final class ResetDefaultsButton: NSView {
     private var isHovered = false
     private var trackingArea: NSTrackingArea?
     private let label: NSTextField
+
+    override var mouseDownCanMoveWindow: Bool { false }
 
     init(title: String = "Reset to Defaults") {
         label = NSTextField(labelWithString: title)

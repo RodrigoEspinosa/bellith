@@ -527,6 +527,8 @@ fileprivate final class SplitDividerView: NSView {
         addCursorRect(hitRect, cursor: cursor)
     }
 
+    override var mouseDownCanMoveWindow: Bool { false }
+
     override func mouseDown(with event: NSEvent) {
         if event.clickCount == 2 {
             // Double-click to equalize with smooth animation

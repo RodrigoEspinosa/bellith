@@ -287,6 +287,7 @@ final class PrefSidebarItem: NSView {
     private var isHovered = false
 
     override var acceptsFirstResponder: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
 
     init(icon: String, label text: String) {
         self.label = NSTextField(labelWithString: text.uppercased())

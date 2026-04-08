@@ -5,6 +5,7 @@ import os
 /// NSView subclass that hosts a single ghostty terminal surface.
 /// Handles Metal rendering internally via libghostty — we just forward events.
 final class TerminalSurfaceView: NSView, NSTextInputClient {
+    override var mouseDownCanMoveWindow: Bool { false }
     private(set) var surface: ghostty_surface_t?
     /// Whether the surface was successfully created and is ready for use.
     var isReady: Bool { surface != nil }

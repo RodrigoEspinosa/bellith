@@ -565,6 +565,8 @@ fileprivate final class SidebarTabRow: NSView {
     private var isDragging = false
     private var mouseDownLocation: NSPoint?
 
+    override var mouseDownCanMoveWindow: Bool { false }
+
     private let selectionIndicator = CALayer()
     private let iconPlate = CALayer()
     private let iconView = NSImageView()
