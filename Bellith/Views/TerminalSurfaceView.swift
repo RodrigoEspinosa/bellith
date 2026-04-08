@@ -15,6 +15,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     private var eventMonitor: Any?
     private var focused = false
     private let dropIndicatorLayer = CALayer()
+    private let temporaryDropDirectoryURL = TerminalSurfaceView.temporaryDropDirectoryURL()
 
     /// Called when the shell process exits or the surface requests close.
     var onClose: ((Bool) -> Void)?
@@ -73,6 +74,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     required init?(coder: NSCoder) { fatalError() }
 
     deinit {
+        Self.cleanupTemporaryDropDirectory(at: temporaryDropDirectoryURL)
         if let eventMonitor { NSEvent.removeMonitor(eventMonitor) }
         if let surface { ghostty_surface_free(surface) }
     }
@@ -260,12 +262,13 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     }
 
     private func writeTemporaryImageData(_ data: Data, fileExtension: String) -> URL? {
-        let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-            .appendingPathComponent("BellithDrops", isDirectory: true)
-
         do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
-            let fileURL = directory.appendingPathComponent("image-\(UUID().uuidString).\(fileExtension)")
+            try FileManager.default.createDirectory(
+                at: temporaryDropDirectoryURL,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            let fileURL = Self.temporaryDropImageURL(in: temporaryDropDirectoryURL, fileExtension: fileExtension)
             try data.write(to: fileURL, options: .atomic)
             return fileURL
         } catch {
@@ -289,6 +292,21 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     private static func shellQuoted(_ path: String) -> String {
         let escaped = path.replacingOccurrences(of: "'", with: "'\\''")
         return "'\(escaped)'"
+    }
+
+    static func temporaryDropDirectoryURL(baseDirectory: URL = FileManager.default.temporaryDirectory) -> URL {
+        baseDirectory
+            .appendingPathComponent("BellithDrops", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    }
+
+    static func temporaryDropImageURL(in directory: URL, fileExtension: String) -> URL {
+        directory.appendingPathComponent("image-\(UUID().uuidString).\(fileExtension)")
+    }
+
+    static func cleanupTemporaryDropDirectory(at directory: URL, fileManager: FileManager = .default) {
+        guard fileManager.fileExists(atPath: directory.path) else { return }
+        try? fileManager.removeItem(at: directory)
     }
 
     // MARK: - Keyboard

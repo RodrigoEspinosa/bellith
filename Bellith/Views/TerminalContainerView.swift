@@ -1898,16 +1898,6 @@ final class TerminalContainerView: NSView {
         }
     }
 
-    // MARK: - Link Preview
-
-    func showLinkPreview(_ url: String) {
-        // TODO: implement link preview tooltip
-    }
-
-    func hideLinkPreview() {
-        // TODO: hide link preview tooltip
-    }
-
     // MARK: - Font Size
 
     func adjustFontSizePublic(delta: Int) { adjustFontSize(delta: delta) }
@@ -1933,12 +1923,6 @@ final class TerminalContainerView: NSView {
         let config = TerminalConfig()
         guard let newConfig = config.config else { return }
         ghostty_app_update_config(app, newConfig)
-    }
-
-    // MARK: - Scrollbar
-
-    func updateScrollbar(total: UInt64, offset: UInt64, visible: UInt64) {
-        // TODO: implement scrollbar overlay
     }
 
     // MARK: - Session Save / Restore

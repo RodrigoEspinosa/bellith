@@ -602,17 +602,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return true
 
         case GHOSTTY_ACTION_MOUSE_OVER_LINK:
-            let link = action.action.mouse_over_link
-            if link.len > 0, let url = link.url {
-                let urlStr = String(cString: url)
-                if target.tag == GHOSTTY_TARGET_SURFACE,
-                   let surfaceUD = ghostty_surface_userdata(target.target.surface) {
-                    let surfaceView = Unmanaged<TerminalSurfaceView>.fromOpaque(surfaceUD).takeUnretainedValue()
-                    container(for: surfaceView)?.showLinkPreview(urlStr)
-                }
-            } else {
-                activeEntry?.container.hideLinkPreview()
-            }
             return true
 
         case GHOSTTY_ACTION_TOGGLE_QUICK_TERMINAL:
@@ -658,14 +647,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return true
 
         case GHOSTTY_ACTION_SCROLLBAR:
-            let bar = action.action.scrollbar
-            if target.tag == GHOSTTY_TARGET_SURFACE,
-               let surfaceUD = ghostty_surface_userdata(target.target.surface) {
-                let surfaceView = Unmanaged<TerminalSurfaceView>.fromOpaque(surfaceUD).takeUnretainedValue()
-                container(for: surfaceView)?.updateScrollbar(
-                    total: bar.total, offset: bar.offset, visible: bar.len
-                )
-            }
             return true
 
         case GHOSTTY_ACTION_START_SEARCH:
