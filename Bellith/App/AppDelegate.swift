@@ -14,10 +14,12 @@ struct BellithApp {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var terminalApp: TerminalApp?
     private var windows: [WindowEntry] = []
     private var newWindowObserver: NSObjectProtocol?
+    private var appearanceObserver: NSObjectProtocol?
+    private var themeMenu = NSMenu(title: "Theme")
 
     private struct WindowEntry {
         let window: TerminalWindow
@@ -60,12 +62,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.handleAction(target: target, action: action) ?? false
         }
 
-        // Restore saved theme
+        // Restore saved theme for current system appearance
         ThemeManager.shared.apply(BellithSettings.shared.resolvedTheme)
 
-        let appearance = NSApp.effectiveAppearance
-        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let isDark = BellithSettings.shared.systemIsDark
         app.setColorScheme(isDark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
+
+        // Observe system appearance changes to switch themes
+        appearanceObserver = DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.handleSystemAppearanceChanged()
+        }
 
         // Request notification permission
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
@@ -113,7 +122,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        // Clean up observer
+        // Clean up observers
+        if let obs = appearanceObserver {
+            DistributedNotificationCenter.default().removeObserver(obs)
+            appearanceObserver = nil
+        }
         if let obs = newWindowObserver {
             NotificationCenter.default.removeObserver(obs)
             newWindowObserver = nil
@@ -320,27 +333,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         viewMenu.addItem(.separator())
 
         // Theme submenu
-        let themeSubmenu = NSMenu(title: "Theme")
-        // Dark themes
-        let darkHeader = NSMenuItem(title: "Dark", action: nil, keyEquivalent: "")
-        darkHeader.isEnabled = false
-        themeSubmenu.addItem(darkHeader)
-        for theme in ThemeColors.allThemes where !theme.isLight {
-            let item = NSMenuItem(title: "  " + theme.name, action: #selector(handleThemeSelection(_:)), keyEquivalent: "")
-            item.representedObject = theme
-            themeSubmenu.addItem(item)
-        }
-        themeSubmenu.addItem(.separator())
-        let lightHeader = NSMenuItem(title: "Light", action: nil, keyEquivalent: "")
-        lightHeader.isEnabled = false
-        themeSubmenu.addItem(lightHeader)
-        for theme in ThemeColors.allThemes where theme.isLight {
-            let item = NSMenuItem(title: "  " + theme.name, action: #selector(handleThemeSelection(_:)), keyEquivalent: "")
-            item.representedObject = theme
-            themeSubmenu.addItem(item)
-        }
+        themeMenu = NSMenu(title: "Theme")
+        themeMenu.delegate = self
+        rebuildThemeMenu()
         let themeItem = NSMenuItem(title: "Theme", action: nil, keyEquivalent: "")
-        themeItem.submenu = themeSubmenu
+        themeItem.submenu = themeMenu
         viewMenu.addItem(themeItem)
 
         let viewMenuItem = NSMenuItem()
@@ -445,11 +442,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc private func handleThemeSelection(_ sender: NSMenuItem) {
         guard let theme = sender.representedObject as? ThemeColors else { return }
-        BellithSettings.shared.themeName = theme.name
-        ThemeManager.shared.apply(theme)
-        // Update window appearance for light/dark themes
-        let appearance = theme.isLight ? NSAppearance(named: .aqua) : NSAppearance(named: .darkAqua)
+        if theme.isLight {
+            BellithSettings.shared.lightThemeName = theme.name
+        } else {
+            BellithSettings.shared.darkThemeName = theme.name
+        }
+        // Apply immediately if it matches the current system appearance
+        let resolved = BellithSettings.shared.resolvedTheme
+        ThemeManager.shared.apply(resolved)
+        let appearance = resolved.isLight ? NSAppearance(named: .aqua) : NSAppearance(named: .darkAqua)
         for entry in windows { entry.window.appearance = appearance }
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        if menu === themeMenu { rebuildThemeMenu() }
+    }
+
+    private func rebuildThemeMenu() {
+        themeMenu.removeAllItems()
+        let settings = BellithSettings.shared
+        let darkHeader = NSMenuItem(title: "Dark", action: nil, keyEquivalent: "")
+        darkHeader.isEnabled = false
+        themeMenu.addItem(darkHeader)
+        for theme in ThemeColors.allThemes where !theme.isLight {
+            let item = NSMenuItem(title: "  " + theme.name, action: #selector(handleThemeSelection(_:)), keyEquivalent: "")
+            item.representedObject = theme
+            item.state = theme.name == settings.darkThemeName ? .on : .off
+            themeMenu.addItem(item)
+        }
+        themeMenu.addItem(.separator())
+        let lightHeader = NSMenuItem(title: "Light", action: nil, keyEquivalent: "")
+        lightHeader.isEnabled = false
+        themeMenu.addItem(lightHeader)
+        for theme in ThemeColors.allThemes where theme.isLight {
+            let item = NSMenuItem(title: "  " + theme.name, action: #selector(handleThemeSelection(_:)), keyEquivalent: "")
+            item.representedObject = theme
+            item.state = theme.name == settings.lightThemeName ? .on : .off
+            themeMenu.addItem(item)
+        }
+    }
+
+    private func handleSystemAppearanceChanged() {
+        // Small delay to let NSApp.effectiveAppearance update
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            let theme = BellithSettings.shared.resolvedTheme
+            ThemeManager.shared.apply(theme)
+            let appearance = theme.isLight ? NSAppearance(named: .aqua) : NSAppearance(named: .darkAqua)
+            if let self {
+                for entry in self.windows { entry.window.appearance = appearance }
+            }
+        }
     }
 
     // MARK: - Ghostty Actions

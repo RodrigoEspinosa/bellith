@@ -1494,6 +1494,8 @@ final class TerminalContainerView: NSView {
         (zoomBadge as? ZoomBadge)?.refreshTheme()
         (broadcastBadge as? BroadcastBadge)?.refreshTheme()
         updateChromeFrames(animated: false)
+        reloadConfig()
+        terminalApp?.setColorScheme(Theme.colors.isLight ? GHOSTTY_COLOR_SCHEME_LIGHT : GHOSTTY_COLOR_SCHEME_DARK)
         needsDisplay = true
     }
 
@@ -1576,8 +1578,13 @@ final class TerminalContainerView: NSView {
 
         let normalizedThemeName = cmd.lowercased()
         if let theme = ThemeColors.allThemes.first(where: { $0.name.lowercased() == normalizedThemeName }) {
-            BellithSettings.shared.themeName = theme.name
-            ThemeManager.shared.apply(theme)
+            if theme.isLight {
+                BellithSettings.shared.lightThemeName = theme.name
+            } else {
+                BellithSettings.shared.darkThemeName = theme.name
+            }
+            let resolved = BellithSettings.shared.resolvedTheme
+            ThemeManager.shared.apply(resolved)
         } else {
             Logger.ui.warning("Unknown command: \(text)")
         }

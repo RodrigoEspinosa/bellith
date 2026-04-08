@@ -465,14 +465,16 @@ final class PrefToggle: NSView {
 
 final class OpacityTrackView: NSView {
     private var value: Double
+    private let minValue: Double
     private let onChange: (Double) -> Void
     private let percentLabel: NSTextField
 
     override var acceptsFirstResponder: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
-    init(value: Double, onChange: @escaping (Double) -> Void) {
+    init(value: Double, minValue: Double = 0.3, onChange: @escaping (Double) -> Void) {
         self.value = value
+        self.minValue = minValue
         self.onChange = onChange
         self.percentLabel = NSTextField(labelWithString: "\(Int(value * 100))%")
         super.init(frame: .zero)
@@ -528,7 +530,7 @@ final class OpacityTrackView: NSView {
     }
 
     func setValue(_ newValue: Double) {
-        value = min(1.0, max(0.3, newValue))
+        value = min(1.0, max(minValue, newValue))
         percentLabel.stringValue = "\(Int(value * 100))%"
         needsDisplay = true
     }

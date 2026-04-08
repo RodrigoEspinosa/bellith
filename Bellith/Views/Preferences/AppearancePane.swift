@@ -60,8 +60,6 @@ final class AppearancePane: NSView {
     private let importBtn = LinkButton(title: "Import Theme…")
 
     private let interfaceCard = SettingsCard(title: "Interface", subtitle: "Window chrome and navigation structure")
-    private let modeLabel = CardRowLabel("Appearance Mode")
-    private var modeSegment: PrefSegment!
     private let tabLabel = CardRowLabel("Tab Style")
     private var tabSegment: PrefSegment!
     private let padLabel = CardRowLabel("Window Padding")
@@ -112,10 +110,6 @@ final class AppearancePane: NSView {
         themeCard.addSubview(themeGrid)
         themeCard.addSubview(importBtn)
 
-        let modeIdx = ["dark": 0, "light": 1, "system": 2][settings.appearanceMode] ?? 0
-        modeSegment = PrefSegment(labels: ["Dark", "Light", "System"], selected: modeIdx) { [weak self] idx in
-            self?.settings.appearanceMode = ["dark", "light", "system"][idx]
-        }
         tabSegment = PrefSegment(labels: ["Sidebar", "Tab Bar"], selected: settings.tabMode == "sidebar" ? 0 : 1) { [weak self] idx in
             self?.settings.tabMode = idx == 0 ? "sidebar" : "tabbar"
             if let window = NSApp.windows.first(where: { $0.contentView is TerminalContainerView }),
@@ -131,14 +125,14 @@ final class AppearancePane: NSView {
             self?.settings.windowPaddingY = value
         }
         content.addSubview(interfaceCard)
-        for view: NSView in [modeLabel, modeSegment, tabLabel, tabSegment, padLabel, padXLabel, padXField, padYLabel, padYField] {
+        for view: NSView in [tabLabel, tabSegment, padLabel, padXLabel, padXField, padYLabel, padYField] {
             interfaceCard.addSubview(view)
         }
 
         opacityTrack = OpacityTrackView(value: settings.backgroundOpacity) { [weak self] value in
             self?.settings.backgroundOpacity = value
         }
-        noiseTrack = OpacityTrackView(value: settings.noiseIntensity) { [weak self] value in
+        noiseTrack = OpacityTrackView(value: settings.noiseIntensity, minValue: 0.0) { [weak self] value in
             self?.settings.noiseIntensity = value
         }
         trafficLightToggle = PrefToggle(isOn: settings.trafficLightAutoHide) { [weak self] value in
@@ -161,7 +155,6 @@ final class AppearancePane: NSView {
         interfaceCard.refresh()
         windowCard.refresh()
         themeGrid.refresh()
-        modeSegment.setSelected(["dark": 0, "light": 1, "system": 2][settings.appearanceMode] ?? 0)
         tabSegment.setSelected(settings.tabMode == "sidebar" ? 0 : 1)
         padXField.setValue(settings.windowPaddingX)
         padYField.setValue(settings.windowPaddingY)
@@ -173,11 +166,10 @@ final class AppearancePane: NSView {
     }
 
     private func updateHero() {
-        heroThemeLabel.stringValue = settings.themeName.uppercased()
-        let mode = settings.appearanceMode.uppercased()
+        heroThemeLabel.stringValue = settings.resolvedTheme.name.uppercased()
         let tabs = settings.tabMode == "sidebar" ? "SIDEBAR" : "TAB BAR"
-        heroMetaLabel.stringValue = "[ \(mode) ]   [ \(tabs) ]"
-        heroCommandLabel.stringValue = "bellith --theme \"\(settings.themeName)\" --opacity \(Int(settings.backgroundOpacity * 100))%"
+        heroMetaLabel.stringValue = "[ DARK: \(settings.darkThemeName) ]   [ LIGHT: \(settings.lightThemeName) ]   [ \(tabs) ]"
+        heroCommandLabel.stringValue = "bellith --theme \"\(settings.resolvedTheme.name)\" --opacity \(Int(settings.backgroundOpacity * 100))%"
         heroThemeLabel.textColor = Theme.textDisplay
         heroMetaLabel.textColor = Theme.textSecondary
         heroCommandLabel.textColor = Theme.textPrimary
@@ -228,20 +220,17 @@ final class AppearancePane: NSView {
         importBtn.frame = NSRect(x: PreferencesLayout.cardPad, y: 18, width: innerW, height: 16)
         y += themeCardHeight + PreferencesLayout.sectionGap
 
-        let interfaceCardHeight = interfaceCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        let interfaceCardHeight = interfaceCard.headerHeight + 2 * PreferencesLayout.rowH + 1 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
         interfaceCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: interfaceCardHeight)
         let ir0 = interfaceCardHeight - interfaceCard.headerHeight - PreferencesLayout.rowH
-        modeLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir0, width: labelW - 12, height: PreferencesLayout.rowH)
-        modeSegment.frame = NSRect(x: controlX, y: ir0 + 6, width: min(250, controlW), height: 28)
+        tabLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir0, width: labelW - 12, height: PreferencesLayout.rowH)
+        tabSegment.frame = NSRect(x: controlX, y: ir0 + 6, width: min(220, controlW), height: 28)
         let ir1 = ir0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        tabLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir1, width: labelW - 12, height: PreferencesLayout.rowH)
-        tabSegment.frame = NSRect(x: controlX, y: ir1 + 6, width: min(220, controlW), height: 28)
-        let ir2 = ir1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        padLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir2, width: labelW - 12, height: PreferencesLayout.rowH)
-        padXLabel.frame = NSRect(x: controlX, y: ir2 + 12, width: 14, height: 12)
-        padXField.frame = NSRect(x: controlX + 18, y: ir2 + 6, width: 56, height: 28)
-        padYLabel.frame = NSRect(x: controlX + 88, y: ir2 + 12, width: 14, height: 12)
-        padYField.frame = NSRect(x: controlX + 106, y: ir2 + 6, width: 56, height: 28)
+        padLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir1, width: labelW - 12, height: PreferencesLayout.rowH)
+        padXLabel.frame = NSRect(x: controlX, y: ir1 + 12, width: 14, height: 12)
+        padXField.frame = NSRect(x: controlX + 18, y: ir1 + 6, width: 56, height: 28)
+        padYLabel.frame = NSRect(x: controlX + 88, y: ir1 + 12, width: 14, height: 12)
+        padYField.frame = NSRect(x: controlX + 106, y: ir1 + 6, width: 56, height: 28)
         y += interfaceCardHeight + PreferencesLayout.sectionGap
 
         let windowCardHeight = windowCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad

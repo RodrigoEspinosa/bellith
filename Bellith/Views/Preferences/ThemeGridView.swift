@@ -6,46 +6,75 @@ final class ThemeGridView: NSView {
     private let settings: BellithSettings
     private let onApply: () -> Void
     private var cells: [ThemeCell] = []
+    private let darkLabel = SectionLabel("DARK")
+    private let lightLabel = SectionLabel("LIGHT")
 
     private let columns = 3
     private let spacing: CGFloat = 10
     private let cellHeight: CGFloat = 78
+    private let sectionLabelHeight: CGFloat = 24
 
     init(settings: BellithSettings, onApply: @escaping () -> Void) {
         self.settings = settings
         self.onApply = onApply
         super.init(frame: .zero)
+        addSubview(darkLabel)
+        addSubview(lightLabel)
         rebuild()
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    private var darkThemes: [ThemeColors] { ThemeColors.allThemes.filter { !$0.isLight } }
+    private var lightThemes: [ThemeColors] { ThemeColors.allThemes.filter { $0.isLight } }
 
     func refresh() {
         if cells.count != ThemeColors.allThemes.count {
             rebuild()
         }
         for cell in cells {
-            cell.isSelected = cell.theme.name == settings.themeName
+            if cell.theme.isLight {
+                cell.isSelected = cell.theme.name == settings.lightThemeName
+            } else {
+                cell.isSelected = cell.theme.name == settings.darkThemeName
+            }
             cell.needsDisplay = true
         }
     }
 
     func requiredHeight(for width: CGFloat) -> CGFloat {
         guard width > 0 else { return cellHeight }
-        let rowCount = ceil(CGFloat(max(cells.count, 1)) / CGFloat(columns))
-        return rowCount * cellHeight + max(0, rowCount - 1) * spacing
+        let darkRows = ceil(CGFloat(max(darkThemes.count, 1)) / CGFloat(columns))
+        let lightRows = ceil(CGFloat(max(lightThemes.count, 1)) / CGFloat(columns))
+        let darkGridH = darkRows * cellHeight + max(0, darkRows - 1) * spacing
+        let lightGridH = lightRows * cellHeight + max(0, lightRows - 1) * spacing
+        return sectionLabelHeight + darkGridH + sectionLabelHeight + spacing + lightGridH
     }
 
     private func rebuild() {
-        subviews.forEach { $0.removeFromSuperview() }
+        cells.forEach { $0.removeFromSuperview() }
         cells.removeAll()
 
         for theme in ThemeColors.allThemes {
-            let cell = ThemeCell(theme: theme, isSelected: theme.name == settings.themeName)
+            let selected: Bool
+            if theme.isLight {
+                selected = theme.name == settings.lightThemeName
+            } else {
+                selected = theme.name == settings.darkThemeName
+            }
+            let cell = ThemeCell(theme: theme, isSelected: selected)
             cell.onSelect = { [weak self] t in
                 guard let self else { return }
-                self.settings.themeName = t.name
-                ThemeManager.shared.apply(t)
+                if t.isLight {
+                    self.settings.lightThemeName = t.name
+                } else {
+                    self.settings.darkThemeName = t.name
+                }
+                // Apply immediately if it matches the current system appearance
+                if t.isLight == !self.settings.systemIsDark || t.isLight == self.settings.systemIsDark {
+                    let resolved = self.settings.resolvedTheme
+                    ThemeManager.shared.apply(resolved)
+                }
                 self.refresh()
                 self.onApply()
             }
@@ -58,17 +87,64 @@ final class ThemeGridView: NSView {
     override func layout() {
         super.layout()
         let cellW = (bounds.width - spacing * CGFloat(columns - 1)) / CGFloat(columns)
-        for (i, cell) in cells.enumerated() {
+        let darkList = darkThemes
+        let lightList = lightThemes
+
+        var y: CGFloat = 0
+
+        // Dark section label
+        darkLabel.frame = NSRect(x: 0, y: y, width: bounds.width, height: sectionLabelHeight)
+        darkLabel.textColor = Theme.textSecondary
+        y += sectionLabelHeight
+
+        // Dark theme cells
+        let darkCells = cells.filter { !$0.theme.isLight }
+        for (i, cell) in darkCells.enumerated() {
             let col = i % columns
             let row = i / columns
             cell.frame = NSRect(
                 x: CGFloat(col) * (cellW + spacing),
-                y: CGFloat(row) * (cellHeight + spacing),
+                y: y + CGFloat(row) * (cellHeight + spacing),
+                width: cellW,
+                height: cellHeight
+            )
+        }
+        let darkRows = ceil(CGFloat(max(darkList.count, 1)) / CGFloat(columns))
+        y += darkRows * cellHeight + max(0, darkRows - 1) * spacing + spacing
+
+        // Light section label
+        lightLabel.frame = NSRect(x: 0, y: y, width: bounds.width, height: sectionLabelHeight)
+        lightLabel.textColor = Theme.textSecondary
+        y += sectionLabelHeight
+
+        // Light theme cells
+        let lightCells = cells.filter { $0.theme.isLight }
+        for (i, cell) in lightCells.enumerated() {
+            let col = i % columns
+            let row = i / columns
+            cell.frame = NSRect(
+                x: CGFloat(col) * (cellW + spacing),
+                y: y + CGFloat(row) * (cellHeight + spacing),
                 width: cellW,
                 height: cellHeight
             )
         }
     }
+}
+
+private final class SectionLabel: NSTextField {
+    init(_ title: String) {
+        super.init(frame: .zero)
+        stringValue = title
+        font = BellithFont.mono(10, weight: .medium)
+        textColor = Theme.textSecondary
+        isEditable = false
+        isBordered = false
+        isSelectable = false
+        drawsBackground = false
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 }
 
 final class ThemeCell: NSView {

@@ -38,9 +38,14 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "cursorStyle"); notify() }
     }
 
-    var themeName: String {
-        get { defaults.string(forKey: "themeName") ?? "Tokyo Night" }
-        set { defaults.set(newValue, forKey: "themeName"); notify() }
+    var darkThemeName: String {
+        get { defaults.string(forKey: "darkThemeName") ?? defaults.string(forKey: "themeName") ?? "Tokyo Night" }
+        set { defaults.set(newValue, forKey: "darkThemeName"); notify() }
+    }
+
+    var lightThemeName: String {
+        get { defaults.string(forKey: "lightThemeName") ?? "Tokyo Night Light" }
+        set { defaults.set(newValue, forKey: "lightThemeName"); notify() }
     }
 
     var tabMode: String {
@@ -124,10 +129,9 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "sidebarShowTools"); notify() }
     }
 
-    // Appearance mode: "dark", "light", "system"
-    var appearanceMode: String {
-        get { defaults.string(forKey: "appearanceMode") ?? "dark" }
-        set { defaults.set(newValue, forKey: "appearanceMode"); notify() }
+    /// Whether the system is currently in dark mode.
+    var systemIsDark: Bool {
+        NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
     }
 
     // Quick Terminal
@@ -319,6 +323,7 @@ final class BellithSettings {
     }
 
     var resolvedTheme: ThemeColors {
-        ThemeColors.allThemes.first { $0.name == themeName } ?? .tokyonight
+        let name = systemIsDark ? darkThemeName : lightThemeName
+        return ThemeColors.allThemes.first { $0.name == name } ?? .tokyonight
     }
 }

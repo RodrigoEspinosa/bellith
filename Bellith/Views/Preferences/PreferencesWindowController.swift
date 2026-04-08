@@ -73,14 +73,7 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     private func applyWindowAppearance() {
-        switch BellithSettings.shared.appearanceMode {
-        case "light":
-            window?.appearance = NSAppearance(named: .aqua)
-        case "dark":
-            window?.appearance = NSAppearance(named: .darkAqua)
-        default:
-            window?.appearance = nil
-        }
+        window?.appearance = Theme.overlayAppearance
         window?.backgroundColor = Theme.base
     }
 }
