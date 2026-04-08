@@ -281,15 +281,17 @@ final class TerminalPane: NSView {
 
         let behaviorCardHeight = behaviorCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
         behaviorCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: behaviorCardHeight)
+        let toggleX = cardW - PreferencesLayout.cardPad - 50
+        let behaviorLabelW = toggleX - PreferencesLayout.cardPad - 8
         let br0 = behaviorCardHeight - behaviorCard.headerHeight - PreferencesLayout.rowH
-        hideMouseLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br0, width: labelW + 54, height: PreferencesLayout.rowH)
-        hideMouseToggle.frame = NSRect(x: controlX, y: br0 + 6, width: 50, height: 28)
+        hideMouseLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br0, width: behaviorLabelW, height: PreferencesLayout.rowH)
+        hideMouseToggle.frame = NSRect(x: toggleX, y: br0 + 6, width: 50, height: 28)
         let br1 = br0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        confirmLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br1, width: labelW + 54, height: PreferencesLayout.rowH)
-        confirmToggle.frame = NSRect(x: controlX, y: br1 + 6, width: 50, height: 28)
+        confirmLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br1, width: behaviorLabelW, height: PreferencesLayout.rowH)
+        confirmToggle.frame = NSRect(x: toggleX, y: br1 + 6, width: 50, height: 28)
         let br2 = br1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        restoreLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br2, width: labelW + 54, height: PreferencesLayout.rowH)
-        restoreToggle.frame = NSRect(x: controlX, y: br2 + 6, width: 50, height: 28)
+        restoreLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br2, width: behaviorLabelW, height: PreferencesLayout.rowH)
+        restoreToggle.frame = NSRect(x: toggleX, y: br2 + 6, width: 50, height: 28)
         y += behaviorCardHeight + PreferencesLayout.hPad
 
         content.frame = NSRect(x: 0, y: 0, width: width, height: max(y, bounds.height))

@@ -134,9 +134,9 @@ final class SidebarPane: NSView {
 
         let heroHeight: CGFloat = 156
         heroCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: heroHeight)
-        heroStateLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 60, width: cardW - PreferencesLayout.cardPad * 2, height: 40)
-        heroMetaLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 108, width: cardW - PreferencesLayout.cardPad * 2, height: 14)
-        heroCountLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 34, width: cardW - PreferencesLayout.cardPad * 2, height: 16)
+        heroMetaLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 90, width: cardW - PreferencesLayout.cardPad * 2, height: 14)
+        heroStateLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 46, width: cardW - PreferencesLayout.cardPad * 2, height: 40)
+        heroCountLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 22, width: cardW - PreferencesLayout.cardPad * 2, height: 16)
         y += heroHeight + PreferencesLayout.sectionGap
 
         let behaviorCardHeight = behaviorCard.headerHeight + PreferencesLayout.rowH + PreferencesLayout.cardPad
