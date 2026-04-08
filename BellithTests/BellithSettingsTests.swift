@@ -90,6 +90,23 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(settings.windowPaddingY, 38)
     }
 
+    func testSidebarSettingsSnapshotIgnoresUnrelatedSettings() {
+        let baseline = SidebarView.SettingsSnapshot.current(using: settings)
+
+        settings.fontSize = 18
+        settings.backgroundOpacity = 0.75
+        settings.workingDirectory = "/tmp"
+
+        XCTAssertEqual(SidebarView.SettingsSnapshot.current(using: settings), baseline)
+    }
+
+    func testSidebarSettingsSnapshotTracksSidebarOnlySettings() {
+        let baseline = SidebarView.SettingsSnapshot.current(using: settings)
+
+        settings.sidebarPinned = !settings.sidebarPinned
+        XCTAssertNotEqual(SidebarView.SettingsSnapshot.current(using: settings), baseline)
+    }
+
     // MARK: - Roundtrip
 
     func testFontFamilyRoundtrip() {

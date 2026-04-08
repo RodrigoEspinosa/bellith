@@ -5,6 +5,20 @@ import QuartzCore
 final class SidebarView: NSView {
     typealias TabModel = (id: UUID, title: String, kind: TerminalContainerView.TabKind)
 
+    struct SettingsSnapshot: Equatable {
+        let isPinned: Bool
+        let showTools: Bool
+        let enabledToolIDs: [String]
+
+        static func current(using settings: BellithSettings = .shared) -> SettingsSnapshot {
+            SettingsSnapshot(
+                isPinned: settings.sidebarPinned,
+                showTools: settings.sidebarShowTools,
+                enabledToolIDs: settings.sidebarTools
+            )
+        }
+    }
+
     static let expandedWidth: CGFloat = 216
 
     private var tabRows: [SidebarTabRow] = []
@@ -32,6 +46,7 @@ final class SidebarView: NSView {
     private(set) var isExpanded = false
     private var hideTimer: Timer?
     private(set) var isPinned: Bool = BellithSettings.shared.sidebarPinned
+    private var settingsSnapshot = SettingsSnapshot.current()
 
     var tabs: [TabModel] = []
     var selectedIndex: Int = 0
@@ -116,12 +131,12 @@ final class SidebarView: NSView {
         applySidebarChrome()
 
         // Rebuild tools from settings
-        rebuildTools()
+        rebuildTools(using: settingsSnapshot)
 
-        // Watch for settings changes to update tools
+        // Watch for sidebar settings changes to update pins and tools.
         settingsObserver = NotificationCenter.default.addObserver(
             forName: BellithSettings.didChangeNotification, object: nil, queue: .main
-        ) { [weak self] _ in self?.rebuildTools() }
+        ) { [weak self] _ in self?.handleSettingsChange() }
     }
 
     deinit {
@@ -238,24 +253,38 @@ final class SidebarView: NSView {
 
     // MARK: - Tools Section
 
-    private func rebuildTools() {
-        let settings = BellithSettings.shared
-        let showTools = settings.sidebarShowTools
-        let enabledRawValues = settings.sidebarTools
-        let newTools = showTools
-            ? SmartPanelRegistry.shared.allPlugins.filter { enabledRawValues.contains($0.id) }
+    private func handleSettingsChange() {
+        let nextSnapshot = SettingsSnapshot.current()
+        guard nextSnapshot != settingsSnapshot else { return }
+
+        let previousSnapshot = settingsSnapshot
+        settingsSnapshot = nextSnapshot
+
+        if nextSnapshot.isPinned != previousSnapshot.isPinned {
+            applyPinnedState(nextSnapshot.isPinned)
+        }
+
+        if nextSnapshot.showTools != previousSnapshot.showTools ||
+            nextSnapshot.enabledToolIDs != previousSnapshot.enabledToolIDs {
+            rebuildTools(using: nextSnapshot)
+        }
+    }
+
+    private func rebuildTools(using snapshot: SettingsSnapshot) {
+        let newTools = snapshot.showTools
+            ? SmartPanelRegistry.shared.allPlugins.filter { snapshot.enabledToolIDs.contains($0.id) }
             : []
 
         // Skip rebuild if nothing changed
-        if newTools.map(\.id) == enabledTools.map(\.id) && showTools == !toolsHeaderLabel.isHidden {
+        if newTools.map(\.id) == enabledTools.map(\.id) && snapshot.showTools == !toolsHeaderLabel.isHidden {
             return
         }
 
         toolRows.forEach { $0.removeFromSuperview() }
         toolRows.removeAll()
 
-        toolsHeaderLabel.isHidden = !showTools
-        toolsSeparator.isHidden = !showTools
+        toolsHeaderLabel.isHidden = !snapshot.showTools
+        toolsSeparator.isHidden = !snapshot.showTools
 
         // Clear active highlight if its plugin was removed
         if let active = activeToolID, !newTools.contains(where: { $0.id == active }) {
@@ -278,7 +307,7 @@ final class SidebarView: NSView {
     }
 
     private var shouldHideSmartTabsInTabList: Bool {
-        BellithSettings.shared.sidebarShowTools && !enabledTools.isEmpty
+        settingsSnapshot.showTools && !enabledTools.isEmpty
     }
 
     // MARK: - Tool Selection
@@ -306,18 +335,33 @@ final class SidebarView: NSView {
         pinButton.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: isPinned ? "Unpin sidebar" : "Pin sidebar")
     }
 
-    @objc private func handlePinToggle() {
-        isPinned.toggle()
-        BellithSettings.shared.sidebarPinned = isPinned
+    private func applyPinnedState(_ newPinnedState: Bool) {
+        guard isPinned != newPinnedState else { return }
+
+        isPinned = newPinnedState
         updatePinButtonIcon()
         pinButton.contentTintColor = isPinned ? Theme.textPrimary : Theme.textMuted
         Theme.animate { _ in
             self.pinButton.layer?.backgroundColor = (self.isPinned ? Theme.selectionFill.withAlphaComponent(0.65) : NSColor.clear).cgColor
         }
         pinButton.toolTip = isPinned ? "Unpin sidebar" : "Pin sidebar"
-        if !isPinned && isExpanded {
+
+        if isPinned {
+            show()
+        } else if isExpanded {
             scheduleHide()
         }
+    }
+
+    @objc private func handlePinToggle() {
+        let newPinnedState = !isPinned
+        applyPinnedState(newPinnedState)
+        settingsSnapshot = SettingsSnapshot(
+            isPinned: newPinnedState,
+            showTools: settingsSnapshot.showTools,
+            enabledToolIDs: settingsSnapshot.enabledToolIDs
+        )
+        BellithSettings.shared.sidebarPinned = newPinnedState
     }
 
     override func layout() {
@@ -362,7 +406,7 @@ final class SidebarView: NSView {
             height: 24
         )
 
-        let showTools = BellithSettings.shared.sidebarShowTools && !enabledTools.isEmpty
+        let showTools = settingsSnapshot.showTools && !enabledTools.isEmpty
         let contentWidth = bounds.width - sideInset * 2
 
         let tabBottomLimit: CGFloat
@@ -549,7 +593,7 @@ final class SidebarView: NSView {
     func refreshTheme() {
         applySidebarChrome()
         rebuildTabs()
-        rebuildTools()
+        rebuildTools(using: settingsSnapshot)
     }
 }
 
