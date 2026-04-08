@@ -196,7 +196,7 @@ final class CommandPaletteView: NSView {
     // MARK: - Results
 
     /// Fuzzy match score — returns nil if no match, higher score = better match
-    private static func fuzzyScore(query: String, target: String) -> Int? {
+    static func fuzzyScore(query: String, target: String) -> Int? {
         guard !query.isEmpty else { return 0 }
         let queryChars = Array(query.lowercased())
         let targetChars = Array(target.lowercased())
@@ -219,12 +219,13 @@ final class CommandPaletteView: NSView {
     }
 
     /// Shared filtering logic — returns commands ranked by fuzzy relevance.
-    private static func filteredCommands(for query: String, limit: Int) -> [CommandItem] {
+    static func filteredCommands(for query: String, limit: Int, commands: [CommandItem]? = nil) -> [CommandItem] {
+        let sourceCommands = commands ?? Self.commands
         if query.isEmpty {
-            return Array(commands.prefix(limit))
+            return Array(sourceCommands.prefix(limit))
         }
         var scored: [(cmd: CommandItem, score: Int)] = []
-        for cmd in commands {
+        for cmd in sourceCommands {
             if let labelScore = fuzzyScore(query: query, target: cmd.label) {
                 scored.append((cmd, labelScore + 10)) // Boost label matches
             } else if let idScore = fuzzyScore(query: query, target: cmd.id) {
