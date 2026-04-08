@@ -112,6 +112,7 @@ final class TerminalContainerView: NSView {
     private static let maxRecentlyClosed = 10
     private var zoomBadge: NSView?
     private var contextRefreshTimer: Timer?
+    private var runtimeStatusObservers: [NSObjectProtocol] = []
 
     private let noiseLayer = CALayer()
     private let contentBackdropLayer = CALayer()
@@ -191,6 +192,7 @@ final class TerminalContainerView: NSView {
             NotificationCenter.default.removeObserver(settingsObserver)
             self.settingsObserver = nil
         }
+        removeRuntimeStatusObservers()
         contextRefreshTimer?.invalidate()
         contextRefreshTimer = nil
 
@@ -399,10 +401,56 @@ final class TerminalContainerView: NSView {
 
     private func startContextRefreshTimer() {
         let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.refreshActiveRuntimeStatusAsync()
+            self?.refreshActiveRuntimeStatusIfNeeded()
         }
         contextRefreshTimer = timer
         RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func refreshActiveRuntimeStatusIfNeeded() {
+        guard shouldPollRuntimeStatus else { return }
+        refreshActiveRuntimeStatusAsync()
+    }
+
+    private var shouldPollRuntimeStatus: Bool {
+        guard let window else { return false }
+        return Self.shouldPollRuntimeStatus(windowIsVisible: window.isVisible, isKeyWindow: window.isKeyWindow)
+    }
+
+    static func shouldPollRuntimeStatus(windowIsVisible: Bool, isKeyWindow: Bool) -> Bool {
+        windowIsVisible && isKeyWindow
+    }
+
+    private func updateRuntimeStatusObservers() {
+        removeRuntimeStatusObservers()
+        guard let window else { return }
+
+        runtimeStatusObservers.append(
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.didBecomeKeyNotification,
+                object: window,
+                queue: .main
+            ) { [weak self] _ in
+                self?.refreshActiveRuntimeStatusIfNeeded()
+            }
+        )
+
+        runtimeStatusObservers.append(
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.didChangeOcclusionStateNotification,
+                object: window,
+                queue: .main
+            ) { [weak self] _ in
+                self?.refreshActiveRuntimeStatusIfNeeded()
+            }
+        )
+    }
+
+    private func removeRuntimeStatusObservers() {
+        for observer in runtimeStatusObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        runtimeStatusObservers.removeAll()
     }
 
     // MARK: - Focus Indicator
@@ -1552,6 +1600,7 @@ final class TerminalContainerView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        updateRuntimeStatusObservers()
         syncTrafficLightDisplayMode()
     }
 
