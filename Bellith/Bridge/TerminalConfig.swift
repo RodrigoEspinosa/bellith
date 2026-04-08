@@ -3,16 +3,57 @@ import GhosttyKit
 
 // MARK: - Ghostty Config Wrapper
 
+enum TerminalConfigError: LocalizedError {
+    case failedToCreateGhosttyConfig
+    case applicationSupportDirectoryUnavailable
+    case failedToCreateConfigDirectory(URL, underlying: Error)
+    case failedToWriteConfigFile(URL, underlying: Error)
+
+    var errorDescription: String? {
+        switch self {
+        case .failedToCreateGhosttyConfig:
+            return "Bellith could not initialize Ghostty's configuration."
+        case .applicationSupportDirectoryUnavailable:
+            return "Bellith could not locate the Application Support directory."
+        case .failedToCreateConfigDirectory(let url, _):
+            return "Bellith could not create its configuration directory at \(url.path)."
+        case .failedToWriteConfigFile(let url, _):
+            return "Bellith could not write its configuration file at \(url.path)."
+        }
+    }
+
+    var failureReason: String? {
+        switch self {
+        case .failedToCreateGhosttyConfig, .applicationSupportDirectoryUnavailable:
+            return nil
+        case .failedToCreateConfigDirectory(_, let underlying), .failedToWriteConfigFile(_, let underlying):
+            return underlying.localizedDescription
+        }
+    }
+}
+
+extension Notification.Name {
+    static let terminalConfigDidFail = Notification.Name("TerminalConfigDidFail")
+}
+
 final class TerminalConfig {
     private(set) var config: ghostty_config_t?
+    private(set) var configurationError: TerminalConfigError?
 
-    init() {
+    init(configurationDirectory: URL? = nil) {
         config = ghostty_config_new()
-        guard config != nil else { return }
+        guard config != nil else {
+            report(.failedToCreateGhosttyConfig)
+            return
+        }
 
-        let configPath = Self.writeConfigFile()
-        if let path = configPath {
+        do {
+            let path = try Self.writeConfigFile(configurationDirectory: configurationDirectory)
             path.withCString { ghostty_config_load_file(config, $0) }
+        } catch let error as TerminalConfigError {
+            report(error)
+        } catch {
+            report(.applicationSupportDirectoryUnavailable)
         }
 
         ghostty_config_finalize(config)
@@ -32,10 +73,20 @@ final class TerminalConfig {
         }
     }
 
-    static func writeConfigFile(settings: BellithSettings = .shared) -> String? {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("com.rec.bellith", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    static func writeConfigFile(
+        settings: BellithSettings = .shared,
+        configurationDirectory: URL? = nil
+    ) throws -> String {
+        let defaultDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        guard let dir = configurationDirectory ?? defaultDirectory?.appendingPathComponent("com.rec.bellith", isDirectory: true) else {
+            throw TerminalConfigError.applicationSupportDirectoryUnavailable
+        }
+
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        } catch {
+            throw TerminalConfigError.failedToCreateConfigDirectory(dir, underlying: error)
+        }
 
         let s = settings
         let file = dir.appendingPathComponent("config.conf")
@@ -46,7 +97,7 @@ final class TerminalConfig {
             "term = \(s.effectiveTerminalTerm)",
             "background-opacity = \(s.backgroundOpacity)",
             "window-padding-x = \(s.windowPaddingX)",
-            "window-padding-y = \(s.windowPaddingY),2",
+            "window-padding-y = \(s.windowPaddingY)",
             "window-padding-balance = false",
             "cursor-style = \(s.cursorStyle)",
             "cursor-style-blink = \(s.cursorBlink)",
@@ -68,7 +119,12 @@ final class TerminalConfig {
             try lines.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
             return file.path
         } catch {
-            return nil
+            throw TerminalConfigError.failedToWriteConfigFile(file, underlying: error)
         }
+    }
+
+    private func report(_ error: TerminalConfigError) {
+        configurationError = error
+        NotificationCenter.default.post(name: .terminalConfigDidFail, object: error)
     }
 }

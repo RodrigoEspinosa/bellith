@@ -21,15 +21,12 @@ final class TerminalConfigTests: XCTestCase {
     }
 
     func testWriteConfigFileReturnsPath() {
-        let path = TerminalConfig.writeConfigFile(settings: settings)
+        let path = try? TerminalConfig.writeConfigFile(settings: settings)
         XCTAssertNotNil(path, "Config file write should return a path")
     }
 
     func testWrittenFileContainsExpectedKeys() throws {
-        guard let path = TerminalConfig.writeConfigFile(settings: settings) else {
-            XCTFail("Config file write returned nil")
-            return
-        }
+        let path = try TerminalConfig.writeConfigFile(settings: settings)
         let contents = try String(contentsOfFile: path, encoding: .utf8)
 
         XCTAssertTrue(contents.contains("font-family"), "Config should contain font-family")
@@ -43,6 +40,8 @@ final class TerminalConfigTests: XCTestCase {
         XCTAssertTrue(contents.contains("shell-integration-features"), "Config should declare shell integration features")
         XCTAssertTrue(contents.contains("link-url = true"), "Config should enable clickable links")
         XCTAssertTrue(contents.contains("keybind = clear"), "Config should clear keybinds")
+        XCTAssertTrue(contents.contains("window-padding-y = 38"), "Config should write the expected vertical padding")
+        XCTAssertFalse(contents.contains("window-padding-y = 38,2"), "Config should not include the old typo")
     }
 
     func testWrittenFileReflectsCurrentSettings() throws {
@@ -52,10 +51,7 @@ final class TerminalConfigTests: XCTestCase {
         settings.shellIntegrationCursor = false
         settings.shellIntegrationSSHTerminfo = true
 
-        guard let path = TerminalConfig.writeConfigFile(settings: settings) else {
-            XCTFail("Config file write returned nil")
-            return
-        }
+        let path = try TerminalConfig.writeConfigFile(settings: settings)
         let contents = try String(contentsOfFile: path, encoding: .utf8)
 
         XCTAssertTrue(contents.contains("font-family = \(settings.fontFamily)"),
@@ -73,12 +69,45 @@ final class TerminalConfigTests: XCTestCase {
     func testDisabledShellIntegrationWritesNone() throws {
         settings.shellIntegrationEnabled = false
 
-        guard let path = TerminalConfig.writeConfigFile(settings: settings) else {
-            XCTFail("Config file write returned nil")
-            return
-        }
+        let path = try TerminalConfig.writeConfigFile(settings: settings)
         let contents = try String(contentsOfFile: path, encoding: .utf8)
 
         XCTAssertTrue(contents.contains("shell-integration = none"))
+    }
+
+    func testWriteConfigFileThrowsForInvalidDirectory() throws {
+        let invalidDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TerminalConfigTests-\(UUID().uuidString).txt")
+        try "not a directory".write(to: invalidDirectory, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: invalidDirectory) }
+
+        XCTAssertThrowsError(try TerminalConfig.writeConfigFile(
+            settings: settings,
+            configurationDirectory: invalidDirectory
+        )) { error in
+            guard let terminalError = error as? TerminalConfigError else {
+                return XCTFail("Expected TerminalConfigError, got \(error)")
+            }
+            guard case .failedToCreateConfigDirectory(let url, _) = terminalError else {
+                return XCTFail("Expected failedToCreateConfigDirectory, got \(terminalError)")
+            }
+            XCTAssertEqual(url, invalidDirectory)
+        }
+    }
+
+    func testInitializationCapturesConfigWriteFailures() throws {
+        let invalidDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TerminalConfigTests-\(UUID().uuidString).txt")
+        try "not a directory".write(to: invalidDirectory, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: invalidDirectory) }
+
+        let config = TerminalConfig(configurationDirectory: invalidDirectory)
+        XCTAssertNotNil(config.config, "Ghostty config object should still be created")
+        XCTAssertNotNil(config.configurationError, "Initializer should retain the write failure for callers")
+        if case .some(.failedToCreateConfigDirectory(let url, _)) = config.configurationError {
+            XCTAssertEqual(url, invalidDirectory)
+        } else {
+            XCTFail("Expected failedToCreateConfigDirectory")
+        }
     }
 }

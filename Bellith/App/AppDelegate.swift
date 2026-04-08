@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var windows: [WindowEntry] = []
     private var newWindowObserver: NSObjectProtocol?
     private var appearanceObserver: NSObjectProtocol?
+    private var terminalConfigFailureObserver: NSObjectProtocol?
     private var themeMenu = NSMenu(title: "Theme")
 
     private struct WindowEntry {
@@ -38,22 +39,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let argc: UInt = 0
         let initResult = ghostty_init(argc, nil)
         guard initResult == GHOSTTY_SUCCESS else {
-            Logger.app.error("Failed to initialize ghostty: \(String(describing: initResult))")
-            NSApp.terminate(nil)
+            presentStartupFailure(
+                title: "Bellith Could Not Start",
+                message: "Ghostty failed to initialize.",
+                informativeText: "Bellith could not start its terminal runtime."
+            )
             return
+        }
+
+        terminalConfigFailureObserver = NotificationCenter.default.addObserver(
+            forName: .terminalConfigDidFail, object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let error = notification.object as? TerminalConfigError else { return }
+            self?.presentTerminalConfigError(error)
         }
 
         let config = TerminalConfig()
         guard config.config != nil else {
-            Logger.app.error("Failed to create ghostty config")
             NSApp.terminate(nil)
             return
         }
 
         let app = TerminalApp(config: config)
         guard app.app != nil else {
-            Logger.app.error("Failed to create ghostty app")
-            NSApp.terminate(nil)
+            presentStartupFailure(
+                title: "Bellith Could Not Start",
+                message: "Ghostty failed to create the terminal app.",
+                informativeText: "Bellith could not create its terminal runtime."
+            )
             return
         }
         self.terminalApp = app
@@ -130,6 +143,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let obs = newWindowObserver {
             NotificationCenter.default.removeObserver(obs)
             newWindowObserver = nil
+        }
+        if let obs = terminalConfigFailureObserver {
+            NotificationCenter.default.removeObserver(obs)
+            terminalConfigFailureObserver = nil
         }
 
         // Tear down all windows
@@ -279,9 +296,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // Edit menu
         let editMenu = NSMenu(title: "Edit")
-        editMenu.addItem(withTitle: "Undo", action: #selector(UndoManager.undo), keyEquivalent: "z")
-        editMenu.addItem(withTitle: "Redo", action: #selector(UndoManager.redo), keyEquivalent: "z").keyEquivalentModifierMask = [.command, .shift]
-        editMenu.addItem(.separator())
         editMenu.addItem(withTitle: "Copy", action: #selector(handleCopy), keyEquivalent: "c")
         editMenu.addItem(withTitle: "Paste", action: #selector(handlePaste), keyEquivalent: "v")
         editMenu.addItem(withTitle: "Select All", action: #selector(handleSelectAll), keyEquivalent: "a")
@@ -499,6 +513,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let appearance = theme.isLight ? NSAppearance(named: .aqua) : NSAppearance(named: .darkAqua)
             if let self {
                 for entry in self.windows { entry.window.appearance = appearance }
+            }
+        }
+    }
+
+    private func presentTerminalConfigError(_ error: TerminalConfigError) {
+        presentAlert(
+            title: "Bellith Configuration Error",
+            message: error.errorDescription ?? "Bellith could not load its configuration.",
+            informativeText: error.failureReason
+        )
+    }
+
+    private func presentStartupFailure(title: String, message: String, informativeText: String) {
+        presentAlert(title: title, message: message, informativeText: informativeText, terminateAfterDismissal: true)
+    }
+
+    private func presentAlert(
+        title: String,
+        message: String,
+        informativeText: String? = nil,
+        terminateAfterDismissal: Bool = false
+    ) {
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = title
+        alert.informativeText = [message, informativeText].compactMap { $0 }.joined(separator: "\n\n")
+
+        NSApp.activate(ignoringOtherApps: true)
+        if let window = activeEntry?.window ?? NSApp.keyWindow {
+            alert.beginSheetModal(for: window) { _ in
+                if terminateAfterDismissal {
+                    NSApp.terminate(nil)
+                }
+            }
+        } else {
+            _ = alert.runModal()
+            if terminateAfterDismissal {
+                NSApp.terminate(nil)
             }
         }
     }
