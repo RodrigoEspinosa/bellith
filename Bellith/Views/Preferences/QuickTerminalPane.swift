@@ -110,7 +110,7 @@ final class QuickTerminalPane: NSView {
 
         let width = bounds.width
         let cardW = width - PreferencesLayout.hPad * 2
-        let labelW: CGFloat = 148
+        let labelW: CGFloat = 136
         let controlX = PreferencesLayout.cardPad + labelW
         let controlW = cardW - controlX - PreferencesLayout.cardPad
 
@@ -118,31 +118,31 @@ final class QuickTerminalPane: NSView {
 
         let heroHeight: CGFloat = 164
         heroCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: heroHeight)
-        heroHotkeyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 66, width: cardW - PreferencesLayout.cardPad * 2, height: 42)
-        heroMetaLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 112, width: cardW - PreferencesLayout.cardPad * 2, height: 14)
-        heroSizeLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 36, width: cardW - PreferencesLayout.cardPad * 2, height: 16)
+        heroMetaLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 96, width: cardW - PreferencesLayout.cardPad * 2, height: 14)
+        heroHotkeyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 48, width: cardW - PreferencesLayout.cardPad * 2, height: 42)
+        heroSizeLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 24, width: cardW - PreferencesLayout.cardPad * 2, height: 16)
         y += heroHeight + PreferencesLayout.sectionGap
 
         let activationCardHeight = activationCard.headerHeight + 2 * PreferencesLayout.rowH + PreferencesLayout.rowGap + PreferencesLayout.cardPad
         activationCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: activationCardHeight)
         let ar0 = activationCardHeight - activationCard.headerHeight - PreferencesLayout.rowH
-        hotkeyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ar0, width: labelW, height: PreferencesLayout.rowH)
+        hotkeyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ar0, width: labelW - 12, height: PreferencesLayout.rowH)
         hotkeyValue.frame = NSRect(x: controlX, y: ar0 + 12, width: controlW, height: 16)
         let ar1 = ar0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        hideLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ar1, width: labelW + 12, height: PreferencesLayout.rowH)
+        hideLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ar1, width: labelW + 28, height: PreferencesLayout.rowH)
         hideToggle.frame = NSRect(x: controlX, y: ar1 + 6, width: 50, height: 28)
         y += activationCardHeight + PreferencesLayout.sectionGap
 
         let appearanceCardHeight = appearanceCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
         appearanceCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: appearanceCardHeight)
         let gr0 = appearanceCardHeight - appearanceCard.headerHeight - PreferencesLayout.rowH
-        posLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: gr0, width: labelW, height: PreferencesLayout.rowH)
+        posLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: gr0, width: labelW - 12, height: PreferencesLayout.rowH)
         posSegment.frame = NSRect(x: controlX, y: gr0 + 6, width: min(180, controlW), height: 28)
         let gr1 = gr0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        widthLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: gr1, width: labelW, height: PreferencesLayout.rowH)
+        widthLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: gr1, width: labelW - 12, height: PreferencesLayout.rowH)
         widthTrack.frame = NSRect(x: controlX, y: gr1 + 8, width: controlW, height: 24)
         let gr2 = gr1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        heightLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: gr2, width: labelW, height: PreferencesLayout.rowH)
+        heightLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: gr2, width: labelW - 12, height: PreferencesLayout.rowH)
         heightTrack.frame = NSRect(x: controlX, y: gr2 + 8, width: controlW, height: 24)
         y += appearanceCardHeight + PreferencesLayout.hPad
 
