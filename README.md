@@ -67,6 +67,10 @@ make generate # Regenerate Xcode project from project.yml
 | `⌘K` | Command palette |
 | `⌘,` | Preferences |
 
+## UI Anatomy
+
+See `docs/window-anatomy.md` for a labeled diagram of the Bellith window and the names for each screen section.
+
 ## Project Structure
 
 ```

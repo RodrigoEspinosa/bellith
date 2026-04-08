@@ -53,8 +53,8 @@ final class PerformancePanel: SmartPanelView {
         }
 
         for label in [cpuSparklineLabel, memorySparklineLabel] {
-            label.font = .systemFont(ofSize: 10, weight: .semibold)
-            label.textColor = Theme.textMuted
+            label.font = BellithFont.mono(10, weight: .regular)
+            label.textColor = Theme.textSecondary
             label.isEditable = false
             label.isBezeled = false
             label.drawsBackground = false
@@ -152,7 +152,7 @@ final class PerformancePanel: SmartPanelView {
             breakdownRows[i].update(
                 info: entry.info,
                 maxCPU: max(maxCPU, 1.0),
-                isAlternate: i % 2 == 1
+                isAlternate: false
             )
         }
 
@@ -254,25 +254,25 @@ private final class StatCardView: NSView {
     init(icon: String, label: String) {
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.backgroundColor = Theme.surface.cgColor
+        layer?.backgroundColor = Theme.chrome.cgColor
         layer?.cornerRadius = Theme.radiusElement
         layer?.borderWidth = 0.5
-        layer?.borderColor = Theme.borderSubtle.cgColor
+        layer?.borderColor = Theme.chromeHairline.cgColor
 
         iconView.image = NSImage(systemSymbolName: icon, accessibilityDescription: nil)
         iconView.contentTintColor = Theme.textMuted
         iconView.imageScaling = .scaleProportionallyDown
         addSubview(iconView)
 
-        labelField.stringValue = label
-        labelField.font = .systemFont(ofSize: 10, weight: .medium)
-        labelField.textColor = Theme.textMuted
+        labelField.stringValue = label.uppercased()
+        labelField.font = BellithFont.mono(10, weight: .regular)
+        labelField.textColor = Theme.textSecondary
         labelField.isEditable = false
         labelField.isBezeled = false
         labelField.drawsBackground = false
         addSubview(labelField)
 
-        valueField.font = .monospacedSystemFont(ofSize: 16, weight: .semibold)
+        valueField.font = BellithFont.mono(16, weight: .medium)
         valueField.textColor = Theme.textPrimary
         valueField.isEditable = false
         valueField.isBezeled = false
@@ -316,10 +316,10 @@ private final class SparklineView: NSView {
         self.strokeColor = strokeColor
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.backgroundColor = Theme.surface.cgColor
+        layer?.backgroundColor = Theme.chrome.cgColor
         layer?.cornerRadius = Theme.radiusElement
         layer?.borderWidth = 0.5
-        layer?.borderColor = Theme.borderSubtle.cgColor
+        layer?.borderColor = Theme.chromeHairline.cgColor
         layer?.masksToBounds = true
 
         fillLayer.fillColor = strokeColor.withAlphaComponent(0.08).cgColor
@@ -332,7 +332,7 @@ private final class SparklineView: NSView {
         shapeLayer.lineJoin = .round
         layer?.addSublayer(shapeLayer)
 
-        latestLabel.font = .monospacedSystemFont(ofSize: 10, weight: .medium)
+        latestLabel.font = BellithFont.mono(10, weight: .regular)
         latestLabel.textColor = Theme.textSecondary
         latestLabel.isEditable = false
         latestLabel.isBezeled = false
@@ -437,11 +437,11 @@ private final class BreakdownHeaderRow: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.backgroundColor = NSColor(white: 1.0, alpha: 0.03).cgColor
+        layer?.backgroundColor = Theme.chrome.cgColor
 
         for label in [nameLabel, pidLabel, cpuLabel, memLabel] {
-            label.font = .systemFont(ofSize: 10, weight: .semibold)
-            label.textColor = Theme.textMuted
+            label.font = BellithFont.mono(10, weight: .regular)
+            label.textColor = Theme.textSecondary
             label.isEditable = false
             label.isBezeled = false
             label.drawsBackground = false
@@ -480,7 +480,7 @@ private final class BreakdownRow: NSView {
         wantsLayer = true
 
         cpuBarBackground.wantsLayer = true
-        cpuBarBackground.layer?.backgroundColor = NSColor(white: 1.0, alpha: 0.04).cgColor
+        cpuBarBackground.layer?.backgroundColor = Theme.borderSubtle.cgColor
         cpuBarBackground.layer?.cornerRadius = 2
         addSubview(cpuBarBackground)
 
@@ -498,18 +498,18 @@ private final class BreakdownRow: NSView {
             addSubview(label)
         }
 
-        nameLabel.font = .monospacedSystemFont(ofSize: 11, weight: .medium)
+        nameLabel.font = BellithFont.mono(11, weight: .regular)
         nameLabel.textColor = Theme.textPrimary
 
-        pidLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        pidLabel.textColor = Theme.textMuted
+        pidLabel.font = BellithFont.mono(11, weight: .regular)
+        pidLabel.textColor = Theme.textTertiary
         pidLabel.alignment = .right
 
-        cpuLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        cpuLabel.font = BellithFont.mono(11, weight: .regular)
         cpuLabel.textColor = Theme.textSecondary
         cpuLabel.alignment = .right
 
-        memLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        memLabel.font = BellithFont.mono(11, weight: .regular)
         memLabel.textColor = Theme.textSecondary
         memLabel.alignment = .right
     }
@@ -518,9 +518,7 @@ private final class BreakdownRow: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     func update(info: TerminalProcessInfo, maxCPU: Double, isAlternate: Bool) {
-        layer?.backgroundColor = isAlternate
-            ? NSColor(white: 1.0, alpha: 0.02).cgColor
-            : NSColor.clear.cgColor
+        layer?.backgroundColor = NSColor.clear.cgColor
 
         nameLabel.stringValue = info.name
         pidLabel.stringValue = "\(info.pid)"

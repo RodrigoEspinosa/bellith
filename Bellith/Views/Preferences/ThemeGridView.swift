@@ -7,10 +7,39 @@ final class ThemeGridView: NSView {
     private let onApply: () -> Void
     private var cells: [ThemeCell] = []
 
+    private let columns = 3
+    private let spacing: CGFloat = 10
+    private let cellHeight: CGFloat = 78
+
     init(settings: BellithSettings, onApply: @escaping () -> Void) {
         self.settings = settings
         self.onApply = onApply
         super.init(frame: .zero)
+        rebuild()
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    func refresh() {
+        if cells.count != ThemeColors.allThemes.count {
+            rebuild()
+        }
+        for cell in cells {
+            cell.isSelected = cell.theme.name == settings.themeName
+            cell.needsDisplay = true
+        }
+    }
+
+    func requiredHeight(for width: CGFloat) -> CGFloat {
+        guard width > 0 else { return cellHeight }
+        let rowCount = ceil(CGFloat(max(cells.count, 1)) / CGFloat(columns))
+        return rowCount * cellHeight + max(0, rowCount - 1) * spacing
+    }
+
+    private func rebuild() {
+        subviews.forEach { $0.removeFromSuperview() }
+        cells.removeAll()
+
         for theme in ThemeColors.allThemes {
             let cell = ThemeCell(theme: theme, isSelected: theme.name == settings.themeName)
             cell.onSelect = { [weak self] t in
@@ -23,27 +52,21 @@ final class ThemeGridView: NSView {
             addSubview(cell)
             cells.append(cell)
         }
-    }
-
-    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
-
-    func refresh() {
-        for c in cells { c.isSelected = c.theme.name == settings.themeName; c.needsDisplay = true }
+        needsLayout = true
     }
 
     override func layout() {
         super.layout()
-        let cols = 3
-        let spacing: CGFloat = 8
-        let cellW = (bounds.width - spacing * CGFloat(cols - 1)) / CGFloat(cols)
-        let cellH: CGFloat = 54
+        let cellW = (bounds.width - spacing * CGFloat(columns - 1)) / CGFloat(columns)
         for (i, cell) in cells.enumerated() {
-            let col = i % cols
-            let row = i / cols
+            let col = i % columns
+            let row = i / columns
             cell.frame = NSRect(
                 x: CGFloat(col) * (cellW + spacing),
-                y: bounds.height - CGFloat(row + 1) * (cellH + spacing) + spacing,
-                width: cellW, height: cellH)
+                y: CGFloat(row) * (cellHeight + spacing),
+                width: cellW,
+                height: cellHeight
+            )
         }
     }
 }
@@ -52,21 +75,29 @@ final class ThemeCell: NSView {
     let theme: ThemeColors
     var isSelected: Bool
     var onSelect: ((ThemeColors) -> Void)?
+
     private var trackingArea: NSTrackingArea?
     private var isHovered = false
     private let nameLabel: NSTextField
+    private let metaLabel = NSTextField(labelWithString: "THEME")
+
+    override var acceptsFirstResponder: Bool { true }
 
     init(theme: ThemeColors, isSelected: Bool) {
         self.theme = theme
         self.isSelected = isSelected
-        self.nameLabel = NSTextField(labelWithString: theme.name)
+        self.nameLabel = NSTextField(labelWithString: theme.name.uppercased())
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = 8
+        layer?.cornerRadius = 12
         toolTip = theme.name
-        nameLabel.font = .systemFont(ofSize: 9.5, weight: .medium)
-        nameLabel.textColor = theme.textSecondary
-        nameLabel.alignment = .center
+
+        metaLabel.font = BellithFont.mono(10, weight: .regular)
+        metaLabel.textColor = theme.textSecondary
+        addSubview(metaLabel)
+
+        nameLabel.font = BellithFont.mono(11, weight: .regular)
+        nameLabel.textColor = theme.textPrimary
         nameLabel.lineBreakMode = .byTruncatingTail
         addSubview(nameLabel)
     }
@@ -75,56 +106,55 @@ final class ThemeCell: NSView {
 
     override func layout() {
         super.layout()
-        nameLabel.frame = NSRect(x: 4, y: 3, width: bounds.width - 8, height: 13)
+        metaLabel.frame = NSRect(x: 10, y: bounds.height - 20, width: bounds.width - 20, height: 12)
+        nameLabel.frame = NSRect(x: 10, y: 10, width: bounds.width - 20, height: 14)
     }
 
     override func draw(_ dirtyRect: NSRect) {
         let b = bounds
         theme.base.setFill()
-        NSBezierPath(roundedRect: b, xRadius: 8, yRadius: 8).fill()
+        NSBezierPath(roundedRect: b, xRadius: 12, yRadius: 12).fill()
 
-        // Mini terminal preview
-        let barInset: CGFloat = 10
+        let inset: CGFloat = 10
+        let headerRect = NSRect(x: inset, y: b.height - 34, width: b.width - inset * 2, height: 10)
+        theme.overlay.setFill()
+        NSBezierPath(roundedRect: headerRect, xRadius: 5, yRadius: 5).fill()
+
+        let line1 = NSRect(x: inset, y: 36, width: b.width - inset * 2, height: 6)
         theme.accent.setFill()
-        NSBezierPath(roundedRect: NSRect(x: barInset, y: 20, width: b.width - barInset * 2, height: 5),
-                     xRadius: 2.5, yRadius: 2.5).fill()
+        NSBezierPath(roundedRect: line1, xRadius: 3, yRadius: 3).fill()
 
-        // Dots representing window controls
-        let dotR: CGFloat = 2.5
-        let dotGap: CGFloat = 7
-        let totalDotsW = 3 * (dotR * 2) + 2 * dotGap
-        let startX = (b.width - totalDotsW) / 2
-        for (i, c) in [theme.textPrimary, theme.textSecondary, theme.textMuted].enumerated() {
-            c.setFill()
-            NSBezierPath(ovalIn: NSRect(x: startX + CGFloat(i) * (dotR * 2 + dotGap), y: b.height - 13, width: dotR * 2, height: dotR * 2)).fill()
+        let gap: CGFloat = 3
+        let segments = 9
+        let segmentW = (b.width - inset * 2 - CGFloat(segments - 1) * gap) / CGFloat(segments)
+        for idx in 0..<segments {
+            let rect = NSRect(x: inset + CGFloat(idx) * (segmentW + gap), y: 24, width: segmentW, height: 6)
+            let fill = idx < 6 ? theme.textPrimary : theme.border
+            fill.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 1.5, yRadius: 1.5).fill()
         }
 
-        // Selection / hover border
+        let borderColor: NSColor
+        let borderWidth: CGFloat
         if isSelected {
-            theme.accent.withAlphaComponent(0.8).setStroke()
-            let bp = NSBezierPath(roundedRect: b.insetBy(dx: 0.5, dy: 0.5), xRadius: 8, yRadius: 8)
-            bp.lineWidth = 2
-            bp.stroke()
-
-            // Checkmark indicator
-            let checkSize: CGFloat = 14
-            let checkRect = NSRect(x: b.width - checkSize - 4, y: b.height - checkSize - 4, width: checkSize, height: checkSize)
-            theme.accent.setFill()
-            NSBezierPath(ovalIn: checkRect).fill()
-            let checkmark = NSImage(systemSymbolName: "checkmark", accessibilityDescription: "selected")
-            let config = NSImage.SymbolConfiguration(pointSize: 7, weight: .bold)
-            let tinted = checkmark?.withSymbolConfiguration(config)
-            tinted?.draw(in: checkRect.insetBy(dx: 3, dy: 3), from: .zero, operation: .sourceOver, fraction: 1.0)
+            borderColor = Theme.accent
+            borderWidth = 2
         } else if isHovered {
-            NSColor(white: 1, alpha: 0.15).setStroke()
-            let bp = NSBezierPath(roundedRect: b.insetBy(dx: 0.5, dy: 0.5), xRadius: 8, yRadius: 8)
-            bp.lineWidth = 1
-            bp.stroke()
+            borderColor = theme.textPrimary.withAlphaComponent(0.28)
+            borderWidth = 1
         } else {
-            NSColor(white: 1, alpha: 0.04).setStroke()
-            let bp = NSBezierPath(roundedRect: b.insetBy(dx: 0.5, dy: 0.5), xRadius: 8, yRadius: 8)
-            bp.lineWidth = 0.5
-            bp.stroke()
+            borderColor = theme.border.withAlphaComponent(0.9)
+            borderWidth = 0.5
+        }
+        borderColor.setStroke()
+        let bp = NSBezierPath(roundedRect: b.insetBy(dx: borderWidth / 2, dy: borderWidth / 2), xRadius: 12, yRadius: 12)
+        bp.lineWidth = borderWidth
+        bp.stroke()
+
+        if isSelected {
+            let indicatorRect = NSRect(x: b.width - 24, y: 10, width: 14, height: 14)
+            Theme.accent.setFill()
+            NSBezierPath(ovalIn: indicatorRect).fill()
         }
     }
 
@@ -133,7 +163,17 @@ final class ThemeCell: NSView {
         trackingArea = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
         addTrackingArea(trackingArea!)
     }
+
     override func mouseEntered(with event: NSEvent) { isHovered = true; needsDisplay = true }
     override func mouseExited(with event: NSEvent) { isHovered = false; needsDisplay = true }
     override func mouseDown(with event: NSEvent) { onSelect?(theme) }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 49, 36:
+            onSelect?(theme)
+        default:
+            super.keyDown(with: event)
+        }
+    }
 }

@@ -71,21 +71,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
 
         // Listen for new window requests
-        newWindowObserver = NotificationCenter.default.addObserver(forName: .init("BellithCreateNewWindow"), object: nil, queue: .main) { [weak self] _ in
-            self?.createWindow()
+        newWindowObserver = NotificationCenter.default.addObserver(forName: .bellithCreateNewWindow, object: nil, queue: .main) { [weak self] notification in
+            let request = notification.object as? WindowLaunchRequest
+            self?.createWindow(
+                session: request?.session,
+                initialWorkingDirectory: request?.initialWorkingDirectory
+            )
         }
 
         // Setup quick terminal (visor)
         QuickTerminalController.shared.setup(terminalApp: app)
 
-        // Try to restore previous session
-        if BellithSettings.shared.restoreSession,
-           let data = UserDefaults.standard.data(forKey: "savedSession"),
-           let state = try? JSONDecoder().decode(SessionState.self, from: data),
-           !state.tabs.isEmpty {
-            let entry = createWindow()
-            entry?.container.restoreSession(state)
-        } else {
+        // Try to restore previous session(s)
+        if !restoreSavedWindows() {
             createWindow()
         }
         setupMenus()
@@ -94,13 +92,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Save all window sessions if enabled
         if BellithSettings.shared.restoreSession {
-            var allSessions: [Data] = []
-            for entry in windows {
-                let state = entry.container.saveSession()
-                if let data = try? JSONEncoder().encode(state) {
-                    allSessions.append(data)
-                }
+            let savedWindows = windows.map {
+                WindowSessionState(
+                    session: $0.container.saveSession(),
+                    frameDescriptor: NSStringFromRect($0.window.frame)
+                )
             }
+
+            if let data = try? JSONEncoder().encode(savedWindows) {
+                UserDefaults.standard.set(data, forKey: "savedWindowSessions")
+            }
+
+            let allSessions = savedWindows.compactMap { try? JSONEncoder().encode($0.session) }
             if let firstData = allSessions.first {
                 // Primary session for backward compat
                 UserDefaults.standard.set(firstData, forKey: "savedSession")
@@ -126,7 +129,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @discardableResult
-    private func createWindow() -> WindowEntry? {
+    private func createWindow(
+        session: SessionState? = nil,
+        initialWorkingDirectory: String? = nil,
+        frameDescriptor: String? = nil
+    ) -> WindowEntry? {
         guard let terminalApp else { return nil }
 
         let window = TerminalWindow(
@@ -135,20 +142,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
-        window.center()
+        if let frameDescriptor {
+            let restoredFrame = NSRectFromString(frameDescriptor)
+            if restoredFrame.width > 0, restoredFrame.height > 0 {
+                window.setFrame(restoredFrame, display: false)
+            } else {
+                window.center()
+            }
+        } else {
+            window.center()
+        }
         window.isReleasedWhenClosed = false
         window.delegate = self
 
         let container = TerminalContainerView(terminalApp: terminalApp)
         window.contentView = container
-        window.makeFirstResponder(container.activeSurface)
 
         let entry = WindowEntry(window: window, container: container)
         windows.append(entry)
 
+        if let session, !session.tabs.isEmpty {
+            container.restoreSession(session)
+        } else if let initialWorkingDirectory, !initialWorkingDirectory.isEmpty {
+            container.openWorkingDirectory(initialWorkingDirectory)
+        }
+
+        window.makeFirstResponder(container.activeSurface ?? container)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
         return entry
+    }
+
+    private func restoreSavedWindows() -> Bool {
+        guard BellithSettings.shared.restoreSession else { return false }
+
+        if let data = UserDefaults.standard.data(forKey: "savedWindowSessions"),
+           let savedWindows = try? JSONDecoder().decode([WindowSessionState].self, from: data),
+           !savedWindows.isEmpty {
+            for savedWindow in savedWindows where !savedWindow.session.tabs.isEmpty {
+                createWindow(session: savedWindow.session, frameDescriptor: savedWindow.frameDescriptor)
+            }
+            return !windows.isEmpty
+        }
+
+        if let data = UserDefaults.standard.data(forKey: "savedAllSessions"),
+           let encodedSessions = try? JSONDecoder().decode([String].self, from: data) {
+            var restoredAny = false
+            for encoded in encodedSessions {
+                guard let sessionData = Data(base64Encoded: encoded),
+                      let session = try? JSONDecoder().decode(SessionState.self, from: sessionData),
+                      !session.tabs.isEmpty else { continue }
+                createWindow(session: session)
+                restoredAny = true
+            }
+            if restoredAny { return true }
+        }
+
+        if let data = UserDefaults.standard.data(forKey: "savedSession"),
+           let state = try? JSONDecoder().decode(SessionState.self, from: data),
+           !state.tabs.isEmpty {
+            createWindow(session: state)
+            return true
+        }
+
+        return false
     }
 
     /// Find the container that owns a given surface view.
@@ -188,8 +245,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
 
-        // Shell menu
-        let shellMenu = NSMenu(title: "Shell")
+        // File menu
+        let shellMenu = NSMenu(title: "File")
         shellMenu.addItem(withTitle: "New Tab", action: #selector(handleNewTab), keyEquivalent: "t")
         shellMenu.addItem(withTitle: "New Window", action: #selector(handleNewWindow), keyEquivalent: "n")
         shellMenu.addItem(.separator())
@@ -363,7 +420,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func handleFontReset() { activeEntry?.container.resetFontSizePublic() }
     @objc private func handleFullscreen() { NSApp.keyWindow?.toggleFullScreen(nil) }
     @objc private func handlePreferences() { PreferencesWindowController.shared.showWindow() }
-    @objc private func handleAbout() { PreferencesWindowController.shared.showWindow() }
+    @objc private func handleAbout() {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: "Bellith",
+            .applicationVersion: version,
+            .version: build,
+            .credits: NSAttributedString(string: "A native macOS terminal powered by GhosttyKit.")
+        ])
+        NSApp.activate(ignoringOtherApps: true)
+    }
     @objc private func handleHelp() {
         // Open help/documentation — for now open the custom themes folder as a basic help action
         if let url = URL(string: "https://github.com/RodrigoEspinosa/bellith") {

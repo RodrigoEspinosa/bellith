@@ -1,0 +1,87 @@
+<svg width="1400" height="920" viewBox="0 0 1400 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1400" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0E1016"/>
+      <stop offset="1" stop-color="#161924"/>
+    </linearGradient>
+    <linearGradient id="window" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#232637"/>
+      <stop offset="1" stop-color="#1A1D2A"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="200%" height="200%">
+      <feDropShadow dx="0" dy="28" stdDeviation="30" flood-color="#000000" flood-opacity="0.38"/>
+    </filter>
+    <style>
+      .title { font: 700 34px -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; fill: #EEF1FF; }
+      .subtitle { font: 500 17px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; fill: #9FACD4; }
+      .label { font: 700 18px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; fill: #EEF1FF; }
+      .body { font: 500 15px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; fill: #C9D2F0; }
+      .mono { font: 600 17px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #E7EBF9; }
+      .note { font: 700 16px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; fill: #10131C; }
+      .tiny { font: 600 14px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; fill: #E7EBF9; }
+    </style>
+  </defs>
+
+  <rect width="1400" height="920" fill="url(#bg)"/>
+  <text x="80" y="84" class="title">Annotated screenshot-style reference</text>
+  <text x="80" y="118" class="subtitle">This version matches the structure of your screenshot more closely, so you can point to parts of the UI precisely.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="80" y="160" width="980" height="720" rx="24" fill="#0C0E15"/>
+    <rect x="100" y="180" width="940" height="680" rx="18" fill="url(#window)" stroke="#40455E"/>
+
+    <rect x="100" y="180" width="940" height="30" rx="18" fill="#2A2D3C"/>
+    <text x="118" y="199" class="tiny" fill="#737B9D">◼︎  ~ › Projects… › volt…</text>
+    <text x="890" y="199" class="tiny" fill="#71E3A0">⌥</text>
+    <text x="912" y="199" class="tiny" fill="#B6BDE0">mast…</text>
+    <text x="996" y="199" class="tiny" fill="#B6BDE0">98×29</text>
+
+    <rect x="108" y="202" width="924" height="650" rx="16" fill="#242736" stroke="#32364C"/>
+
+    <text x="120" y="300" class="mono" fill="#7DD6FF">volttt</text>
+    <text x="188" y="300" class="mono" fill="#BFC7E8"> on </text>
+    <text x="232" y="300" class="mono" fill="#FF76C7">master</text>
+    <text x="312" y="300" class="mono" fill="#FF6A8A">[$⇡1]</text>
+    <text x="384" y="300" class="mono" fill="#BFC7E8"> via </text>
+    <text x="468" y="300" class="mono" fill="#63F28D">v25.9.0</text>
+
+    <text x="120" y="338" class="mono" fill="#63F28D">❯</text>
+    <rect x="142" y="318" width="12" height="24" rx="2" fill="#EEF1FF"/>
+  </g>
+
+  <g>
+    <path d="M420 195C1110 195 1160 195 1210 195" stroke="#84A0FF" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="408" cy="195" r="7" fill="#84A0FF"/>
+    <rect x="1210" y="167" width="138" height="56" rx="14" fill="#84A0FF"/>
+    <text x="1246" y="200" class="note">Title/context strip</text>
+
+    <path d="M235 300C1100 300 1160 300 1210 300" stroke="#F48FB1" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="223" cy="300" r="7" fill="#F48FB1"/>
+    <rect x="1210" y="272" width="120" height="56" rx="14" fill="#F48FB1"/>
+    <text x="1248" y="305" class="note">Prompt line</text>
+
+    <path d="M148 330C260 330 260 406 1210 406" stroke="#C89BFF" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="148" cy="330" r="7" fill="#C89BFF"/>
+    <rect x="1210" y="378" width="98" height="56" rx="14" fill="#C89BFF"/>
+    <text x="1238" y="411" class="note">Cursor</text>
+
+    <path d="M970 520C1110 520 1150 520 1210 520" stroke="#72EBC8" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="958" cy="520" r="7" fill="#72EBC8"/>
+    <rect x="1210" y="492" width="132" height="56" rx="14" fill="#72EBC8"/>
+    <text x="1242" y="525" class="note">Terminal viewport</text>
+
+    <path d="M122 195C40 195 36 268 36 320" stroke="#F7B955" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="122" cy="195" r="7" fill="#F7B955"/>
+    <rect x="36" y="320" width="124" height="56" rx="14" fill="#F7B955"/>
+    <text x="67" y="353" class="note">Window chrome</text>
+  </g>
+
+  <g>
+    <rect x="1110" y="646" width="238" height="166" rx="18" fill="#1B1F2D" stroke="#3E435C"/>
+    <text x="1134" y="678" class="label">What the tiny top text is</text>
+    <text x="1134" y="712" class="body">Best name:</text>
+    <text x="1134" y="740" class="body">• title/context strip</text>
+    <text x="1134" y="768" class="body">Also okay:</text>
+    <text x="1134" y="796" class="body">• breadcrumb strip</text>
+  </g>
+</svg>

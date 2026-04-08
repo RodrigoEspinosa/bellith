@@ -13,6 +13,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     private var keyTextAccumulator: [String]?
     private var eventMonitor: Any?
     private var focused = false
+    private let dropIndicatorLayer = CALayer()
 
     /// Called when the shell process exits or the surface requests close.
     var onClose: ((Bool) -> Void)?
@@ -30,6 +31,14 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
 
         wantsLayer = true
         layer?.isOpaque = true
+        registerForDraggedTypes([.fileURL, .png, .tiff])
+
+        dropIndicatorLayer.borderWidth = 2
+        dropIndicatorLayer.cornerRadius = 10
+        dropIndicatorLayer.borderColor = Theme.accent.withAlphaComponent(0.85).cgColor
+        dropIndicatorLayer.backgroundColor = Theme.accent.withAlphaComponent(0.08).cgColor
+        dropIndicatorLayer.isHidden = true
+        layer?.addSublayer(dropIndicatorLayer)
 
         guard let ghosttyApp = app.app else { return }
 
@@ -87,6 +96,14 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     }
 
     override var wantsUpdateLayer: Bool { true }
+
+    override func layout() {
+        super.layout()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        dropIndicatorLayer.frame = bounds.insetBy(dx: 6, dy: 6)
+        CATransaction.commit()
+    }
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
@@ -153,6 +170,115 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
             owner: self,
             userInfo: nil
         ))
+    }
+
+    // MARK: - Drag and Drop
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        updateDropIndicator(isVisible: acceptsDraggedContent(from: sender.draggingPasteboard))
+        return dropIndicatorLayer.isHidden ? [] : .copy
+    }
+
+    override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        updateDropIndicator(isVisible: acceptsDraggedContent(from: sender.draggingPasteboard))
+        return dropIndicatorLayer.isHidden ? [] : .copy
+    }
+
+    override func draggingExited(_ sender: (any NSDraggingInfo)?) {
+        updateDropIndicator(isVisible: false)
+    }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        defer { updateDropIndicator(isVisible: false) }
+        guard let text = droppedInsertText(from: sender.draggingPasteboard) else { return false }
+        window?.makeFirstResponder(self)
+        sendTextToSurface(text)
+        return true
+    }
+
+    override func concludeDragOperation(_ sender: (any NSDraggingInfo)?) {
+        updateDropIndicator(isVisible: false)
+    }
+
+    private func updateDropIndicator(isVisible: Bool) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        dropIndicatorLayer.isHidden = !isVisible
+        CATransaction.commit()
+    }
+
+    private func acceptsDraggedContent(from pasteboard: NSPasteboard) -> Bool {
+        !droppedFileURLs(from: pasteboard).isEmpty || pasteboard.data(forType: .png) != nil || pasteboard.data(forType: .tiff) != nil
+    }
+
+    private func droppedInsertText(from pasteboard: NSPasteboard) -> String? {
+        let fileURLs = droppedFileURLs(from: pasteboard)
+        if !fileURLs.isEmpty {
+            return Self.shellInsertText(for: fileURLs)
+        }
+
+        if let imageURL = writeTemporaryImage(from: pasteboard) {
+            return Self.shellInsertText(for: [imageURL])
+        }
+
+        return nil
+    }
+
+    private func droppedFileURLs(from pasteboard: NSPasteboard) -> [URL] {
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [
+            .urlReadingFileURLsOnly: true,
+        ]
+        guard let items = pasteboard.readObjects(forClasses: [NSURL.self], options: options) as? [NSURL] else {
+            return []
+        }
+
+        return items.compactMap { $0 as URL }
+    }
+
+    private func writeTemporaryImage(from pasteboard: NSPasteboard) -> URL? {
+        if let pngData = pasteboard.data(forType: .png) {
+            return writeTemporaryImageData(pngData, fileExtension: "png")
+        }
+
+        guard let tiffData = pasteboard.data(forType: .tiff),
+              let rep = NSBitmapImageRep(data: tiffData),
+              let pngData = rep.representation(using: .png, properties: [:]) else {
+            return nil
+        }
+
+        return writeTemporaryImageData(pngData, fileExtension: "png")
+    }
+
+    private func writeTemporaryImageData(_ data: Data, fileExtension: String) -> URL? {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("BellithDrops", isDirectory: true)
+
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
+            let fileURL = directory.appendingPathComponent("image-\(UUID().uuidString).\(fileExtension)")
+            try data.write(to: fileURL, options: .atomic)
+            return fileURL
+        } catch {
+            Logger.surface.error("Failed to materialize dropped image: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private func sendTextToSurface(_ text: String) {
+        guard let surface else { return }
+        text.withCString { ptr in
+            ghostty_surface_text(surface, ptr, UInt(text.utf8.count))
+        }
+        onTextInserted?(text, self)
+    }
+
+    private static func shellInsertText(for urls: [URL]) -> String {
+        urls.map { shellQuoted($0.path) }.joined(separator: " ") + " "
+    }
+
+    private static func shellQuoted(_ path: String) -> String {
+        let escaped = path.replacingOccurrences(of: "'", with: "'\\''")
+        return "'\(escaped)'"
     }
 
     // MARK: - Keyboard
@@ -426,12 +552,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
             onTextInserted?(chars, self)
         } else {
             // Direct text input (outside keyDown flow)
-            if let surface {
-                chars.withCString { ptr in
-                    ghostty_surface_text(surface, ptr, UInt(chars.utf8.count))
-                }
-                onTextInserted?(chars, self)
-            }
+            sendTextToSurface(chars)
         }
     }
 

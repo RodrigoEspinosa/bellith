@@ -1,5 +1,6 @@
 import AppKit
 import GhosttyKit
+import QuartzCore
 import os
 
 /// Container that hosts multiple terminal tabs (each with optional split panes),
@@ -103,11 +104,19 @@ final class TerminalContainerView: NSView {
     private static let maxRecentlyClosed = 10
     private var zoomBadge: NSView?
 
+    private let contentBackdropLayer = CALayer()
+    private let contentStrokeLayer = CALayer()
+    private let contentInnerStrokeLayer = CALayer()
+    private let contentTopGlossLayer = CAGradientLayer()
+    private let sidebarGlowLayer = CAGradientLayer()
+    private let sidebarBridgeLayer = CAGradientLayer()
+
     init(terminalApp: TerminalApp) {
         self.terminalApp = terminalApp
         super.init(frame: .zero)
         wantsLayer = true
         applyFrameColor()
+        configureChromeLayers()
 
         // Sidebar
         addSubview(sidebar)
@@ -178,6 +187,154 @@ final class TerminalContainerView: NSView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    private func configureChromeLayers() {
+        guard let layer else { return }
+
+        contentBackdropLayer.cornerCurve = .continuous
+        contentBackdropLayer.shadowOpacity = 1
+        contentBackdropLayer.shadowOffset = CGSize(width: 0, height: -2)
+
+        contentStrokeLayer.backgroundColor = NSColor.clear.cgColor
+        contentStrokeLayer.cornerCurve = .continuous
+        contentInnerStrokeLayer.backgroundColor = NSColor.clear.cgColor
+        contentInnerStrokeLayer.cornerCurve = .continuous
+        contentInnerStrokeLayer.borderWidth = 1
+
+        contentTopGlossLayer.startPoint = CGPoint(x: 0.5, y: 1)
+        contentTopGlossLayer.endPoint = CGPoint(x: 0.5, y: 0)
+        contentTopGlossLayer.cornerCurve = .continuous
+
+        sidebarGlowLayer.startPoint = CGPoint(x: 0, y: 0.5)
+        sidebarGlowLayer.endPoint = CGPoint(x: 1, y: 0.5)
+
+        sidebarBridgeLayer.startPoint = CGPoint(x: 0, y: 0.5)
+        sidebarBridgeLayer.endPoint = CGPoint(x: 1, y: 0.5)
+        sidebarBridgeLayer.cornerRadius = 12
+        sidebarBridgeLayer.cornerCurve = .continuous
+
+        layer.addSublayer(contentBackdropLayer)
+        layer.addSublayer(contentTopGlossLayer)
+        layer.addSublayer(sidebarGlowLayer)
+        layer.addSublayer(sidebarBridgeLayer)
+        layer.addSublayer(contentStrokeLayer)
+        layer.addSublayer(contentInnerStrokeLayer)
+
+        applyChromeTheme()
+        updateChromeFrames(animated: false)
+    }
+
+    private func applyChromeTheme() {
+        contentBackdropLayer.backgroundColor = Theme.surface.cgColor
+        contentBackdropLayer.shadowColor = NSColor.clear.cgColor
+        contentBackdropLayer.shadowOpacity = 0
+        contentBackdropLayer.shadowRadius = 0
+
+        contentStrokeLayer.borderWidth = 0
+        contentStrokeLayer.borderColor = NSColor.clear.cgColor
+
+        contentInnerStrokeLayer.borderColor = NSColor.clear.cgColor
+        contentInnerStrokeLayer.borderWidth = 0
+
+        contentTopGlossLayer.colors = [NSColor.clear.cgColor, NSColor.clear.cgColor]
+        contentTopGlossLayer.locations = [0, 1]
+
+        sidebarGlowLayer.colors = [NSColor.clear.cgColor, NSColor.clear.cgColor]
+        sidebarGlowLayer.locations = [0, 1]
+
+        sidebarBridgeLayer.colors = [NSColor.clear.cgColor, NSColor.clear.cgColor]
+        sidebarBridgeLayer.locations = [0, 1]
+    }
+
+    private func applyChrome(to root: NSView) {
+        root.wantsLayer = true
+        root.layer?.cornerRadius = contentRadius
+        root.layer?.cornerCurve = .continuous
+        root.layer?.maskedCorners = [
+            .layerMinXMinYCorner,
+            .layerMaxXMinYCorner,
+            .layerMinXMaxYCorner,
+            .layerMaxXMaxYCorner,
+        ]
+        root.layer?.masksToBounds = true
+        root.layer?.borderWidth = 0
+        root.layer?.borderColor = NSColor.clear.cgColor
+        root.layer?.backgroundColor = Theme.surface.cgColor
+    }
+
+    private func updateChromeFrames(animated: Bool, sidebarWidth: CGFloat? = nil) {
+        let resolvedSidebarWidth = sidebarWidth ?? ((useSidebar && sidebar.isExpanded) ? SidebarView.expandedWidth : 0)
+        let rect = contentRect(forSidebarWidth: resolvedSidebarWidth)
+        let hasVisibleContent = selectedTabIndex < tabs.count || (isZoomed && zoomedSurface != nil)
+        let cornerMask: CACornerMask = [
+            .layerMinXMinYCorner,
+            .layerMaxXMinYCorner,
+            .layerMinXMaxYCorner,
+            .layerMaxXMaxYCorner,
+        ]
+
+        let updates = {
+            let chromeRect = rect.insetBy(dx: -1, dy: -1)
+
+            self.contentBackdropLayer.isHidden = !hasVisibleContent
+            self.contentStrokeLayer.isHidden = !hasVisibleContent
+            self.contentInnerStrokeLayer.isHidden = !hasVisibleContent
+            self.contentTopGlossLayer.isHidden = !hasVisibleContent
+
+            self.contentBackdropLayer.frame = chromeRect
+            self.contentBackdropLayer.cornerRadius = self.contentRadius + 2
+            self.contentBackdropLayer.maskedCorners = cornerMask
+
+            self.contentStrokeLayer.frame = chromeRect
+            self.contentStrokeLayer.cornerRadius = self.contentRadius + 2
+            self.contentStrokeLayer.maskedCorners = cornerMask
+
+            self.contentInnerStrokeLayer.frame = chromeRect.insetBy(dx: 1, dy: 1)
+            self.contentInnerStrokeLayer.cornerRadius = self.contentRadius + 1
+            self.contentInnerStrokeLayer.maskedCorners = cornerMask
+
+            let glossHeight = min(72, max(40, chromeRect.height * 0.16))
+            self.contentTopGlossLayer.frame = NSRect(
+                x: chromeRect.minX,
+                y: chromeRect.maxY - glossHeight,
+                width: chromeRect.width,
+                height: glossHeight
+            )
+            self.contentTopGlossLayer.cornerRadius = self.contentRadius + 2
+            self.contentTopGlossLayer.maskedCorners = cornerMask
+
+            let showsSidebarTransition = self.useSidebar && resolvedSidebarWidth > 0 && hasVisibleContent
+            self.sidebarGlowLayer.isHidden = !showsSidebarTransition
+            self.sidebarBridgeLayer.isHidden = !showsSidebarTransition
+
+            if showsSidebarTransition {
+                let glowRect = NSRect(
+                    x: self.contentPadding + resolvedSidebarWidth - 6,
+                    y: chromeRect.minY + 16,
+                    width: self.sidebarGap + 24,
+                    height: max(0, chromeRect.height - 32)
+                )
+                self.sidebarGlowLayer.frame = glowRect
+
+                let bridgeHeight = min(168, max(112, chromeRect.height * 0.38))
+                self.sidebarBridgeLayer.frame = NSRect(
+                    x: glowRect.minX,
+                    y: chromeRect.maxY - bridgeHeight - 6,
+                    width: glowRect.width - 2,
+                    height: bridgeHeight
+                )
+            }
+        }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(!(animated && !Theme.prefersReducedMotion))
+        if animated && !Theme.prefersReducedMotion {
+            CATransaction.setAnimationDuration(Theme.animSlow)
+            CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1))
+        }
+        updates()
+        CATransaction.commit()
+    }
 
     // MARK: - Active Surface
 
@@ -271,6 +428,7 @@ final class TerminalContainerView: NSView {
         sidebar.isHidden = !isSidebar
         tabBar.isHidden = isSidebar
         syncTrafficLightDisplayMode()
+        updateChromeFrames(animated: false)
         needsLayout = true
     }
 
@@ -359,7 +517,7 @@ final class TerminalContainerView: NSView {
         if matches(event, action: "clearBuffer") { clearBuffer(); return true }
 
         if matches(event, action: "newWindow") {
-            NotificationCenter.default.post(name: .init("BellithCreateNewWindow"), object: nil)
+            NotificationCenter.default.post(name: .bellithCreateNewWindow, object: nil)
             return true
         }
 
@@ -369,25 +527,35 @@ final class TerminalContainerView: NSView {
     // MARK: - Tab Management
 
     @discardableResult
-    func createTab() -> TerminalSurfaceView? {
+    func createTab(initialWorkingDirectory: String? = nil) -> TerminalSurfaceView? {
         guard let terminalApp else { return nil }
 
         let id = UUID()
         let surface = makeSurface(tabId: id, app: terminalApp)
 
         let splitRoot = SplitPaneView(content: surface)
-        let initialCwd = FileManager.default.currentDirectoryPath
+        let initialCwd = (initialWorkingDirectory?.isEmpty == false)
+            ? initialWorkingDirectory ?? FileManager.default.currentDirectoryPath
+            : FileManager.default.currentDirectoryPath
         tabs.append(TabEntry(
             id: id, title: (initialCwd as NSString).lastPathComponent, cwd: initialCwd,
             content: .terminal(splitRoot: splitRoot, surfaces: [surface], focusedSurface: surface)
         ))
         addSubview(splitRoot, positioned: .below, relativeTo: sidebar)
-        statusBar.updateCwd(initialCwd)
-        titleBar.updatePath(initialCwd)
-        refreshStatusBarAsync(cwd: initialCwd)
 
         selectTab(tabs.count - 1)
         refreshTabUI()
+
+        if initialWorkingDirectory?.isEmpty == false {
+            openWorkingDirectory(initialCwd, in: surface)
+        } else {
+            statusBar.updateCwd(initialCwd)
+            titleBar.updatePath(initialCwd)
+            titleBar.updateGitBranch(nil)
+            titleBar.updateProcess(nil)
+            refreshStatusBarAsync(cwd: initialCwd)
+        }
+
         return surface
     }
 
@@ -514,19 +682,21 @@ final class TerminalContainerView: NSView {
         let root = entry.rootView
         root.isHidden = false
         root.frame = contentRect
-        root.wantsLayer = true
-        root.layer?.cornerRadius = contentRadius
-        root.layer?.maskedCorners = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
-        root.layer?.masksToBounds = true
-        root.layer?.borderWidth = 0.5
-        root.layer?.borderColor = Theme.chromeStroke.cgColor
+        applyChrome(to: root)
 
         // Subtle fade-in when switching between tabs
         if previousIndex != index && previousIndex < tabs.count {
             root.alphaValue = 0
-            Theme.animate(duration: Theme.animFast) { _ in
-                root.animator().alphaValue = 1
+            if !Theme.prefersReducedMotion {
+                root.layer?.setAffineTransform(CGAffineTransform(translationX: useSidebar ? 10 : 6, y: 0).scaledBy(x: 0.992, y: 0.992))
             }
+            Theme.animate(duration: Theme.animMedium, timing: CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)) { _ in
+                root.animator().alphaValue = 1
+                root.layer?.setAffineTransform(.identity)
+            }
+        } else {
+            root.alphaValue = 1
+            root.layer?.setAffineTransform(.identity)
         }
 
         switch entry.content {
@@ -537,15 +707,30 @@ final class TerminalContainerView: NSView {
             focusSurface?.refreshReportedSize()
             titleBar.updatePath(entry.cwd)
             if let cwd = entry.cwd {
+                titleBar.updateGitBranch(nil)
+                titleBar.updateProcess(nil)
+                statusBar.updateCwd(cwd)
+                statusBar.updateGitBranch(nil)
+                statusBar.updateProcess(nil)
                 refreshStatusBarAsync(cwd: cwd)
+            } else {
+                titleBar.updateGitBranch(nil)
+                titleBar.updateProcess(nil)
+                statusBar.clear()
             }
             sidebar.setActiveToolID(nil)
         case .smart(let panel):
             panel.startRefreshing()
             window?.makeFirstResponder(self)
+            titleBar.updatePath(nil)
+            titleBar.updateGitBranch(nil)
+            titleBar.updateProcess(nil)
+            titleBar.clearSize()
+            statusBar.clear()
             sidebar.setActiveToolID(panel.pluginID)
         }
 
+        updateChromeFrames(animated: previousIndex != index)
         refreshTabUI()
     }
 
@@ -567,6 +752,11 @@ final class TerminalContainerView: NSView {
             // Update status bar and title bar if this is the active tab
             if idx == selectedTabIndex {
                 titleBar.updatePath(cwd)
+                titleBar.updateGitBranch(nil)
+                titleBar.updateProcess(nil)
+                statusBar.updateCwd(cwd)
+                statusBar.updateGitBranch(nil)
+                statusBar.updateProcess(nil)
                 refreshStatusBarAsync(cwd: cwd)
             }
         }
@@ -597,9 +787,14 @@ final class TerminalContainerView: NSView {
             }
 
             DispatchQueue.main.async {
-                _ = self
-                _ = branch
-                _ = foregroundProcess
+                guard let self,
+                      self.selectedTabIndex < self.tabs.count,
+                      self.tabs[self.selectedTabIndex].cwd == cwd else { return }
+                self.titleBar.updateGitBranch(branch)
+                self.titleBar.updateProcess(foregroundProcess)
+                self.statusBar.updateCwd(cwd)
+                self.statusBar.updateGitBranch(branch)
+                self.statusBar.updateProcess(foregroundProcess)
             }
         }
     }
@@ -902,10 +1097,10 @@ final class TerminalContainerView: NSView {
     }
 
     @objc private func contextMenuMoveToNewWindow(_ sender: NSMenuItem) {
-        guard let index = sender.representedObject as? Int, index < tabs.count else { return }
-        let cwd = tabs[index].cwd
+        guard let index = sender.representedObject as? Int,
+              let session = sessionState(forTabAt: index) else { return }
+        NotificationCenter.default.post(name: .bellithCreateNewWindow, object: WindowLaunchRequest(session: session))
         closeTab(index)
-        NotificationCenter.default.post(name: .init("BellithCreateNewWindow"), object: cwd)
     }
 
     // MARK: - Reopen Closed Tab
@@ -1036,11 +1231,11 @@ final class TerminalContainerView: NSView {
     // MARK: - Layout
 
     private let contentPadding: CGFloat = 8
-    private let contentRadius: CGFloat = 12
+    private let contentRadius: CGFloat = 13
     private let sidebarGap: CGFloat = 8
     private let tabBarHeight: CGFloat = 36
     private let statusBarHeight: CGFloat = 0
-    private let titleBarHeight: CGFloat = 24
+    private let titleBarHeight: CGFloat = 34
 
     private func contentRect(forSidebarWidth sidebarWidth: CGFloat) -> NSRect {
         let p = contentPadding
@@ -1088,13 +1283,14 @@ final class TerminalContainerView: NSView {
             height: bounds.height - p * 2
         )
         sidebar.wantsLayer = true
-        sidebar.layer?.cornerRadius = contentRadius
+        sidebar.layer?.cornerCurve = .continuous
+        sidebar.layer?.cornerRadius = 0
 
         if !useSidebar {
-            let tabBarX: CGFloat = 76
+            let tabBarX: CGFloat = 84
             tabBar.frame = NSRect(
                 x: tabBarX,
-                y: bounds.height - p - titleBarHeight - tabBarHeight + 2,
+                y: bounds.height - p - titleBarHeight - tabBarHeight + 3,
                 width: bounds.width - tabBarX - p,
                 height: tabBarHeight
             )
@@ -1107,27 +1303,32 @@ final class TerminalContainerView: NSView {
         } else {
             contentLeft = p
         }
-        let trafficLightClearance: CGFloat = useSidebar ? 0 : 96
-        titleBar.leadingInset = trafficLightClearance
+        let hasVisibleTrafficLights = !useSidebar
+        titleBar.leadingInset = hasVisibleTrafficLights ? 92 : 0
+        titleBar.isHidden = false
         titleBar.frame = NSRect(
-            x: contentLeft + 10,
-            y: bounds.height - p - titleBarHeight,
+            x: contentLeft + 6,
+            y: bounds.height - p - titleBarHeight + 1,
             width: bounds.width - contentLeft - p - 10,
             height: titleBarHeight
         )
 
         statusBar.isHidden = true
+        statusBar.frame = NSRect(
+            x: contentLeft,
+            y: p,
+            width: bounds.width - contentLeft - p,
+            height: statusBarHeight
+        )
 
         let rect = contentRect
         if selectedTabIndex < tabs.count {
             let root = tabs[selectedTabIndex].rootView
             root.frame = rect
-            root.layer?.cornerRadius = contentRadius
-            root.layer?.maskedCorners = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
-            root.layer?.masksToBounds = true
-            root.layer?.borderWidth = 0.5
-            root.layer?.borderColor = Theme.chromeStroke.cgColor
+            applyChrome(to: root)
         }
+
+        updateChromeFrames(animated: false)
 
         // Keep zoomed surface in sync with content rect
         if isZoomed, let surface = zoomedSurface {
@@ -1179,13 +1380,16 @@ final class TerminalContainerView: NSView {
         let targetStatusBarX = targetContentLeft
         let targetStatusBarW = bounds.width - targetStatusBarX - p
 
-        let targetTitleBarX = targetContentLeft + 12
-        let targetTitleBarW = bounds.width - targetContentLeft - p - 12
+        let targetTitleBarX = targetContentLeft + 6
+        let targetTitleBarY = bounds.height - p - titleBarHeight + 1
+        let targetTitleBarW = bounds.width - targetContentLeft - p - 10
 
         isAnimatingLayout = true
         let springTiming = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
         Theme.animate(duration: Theme.animSlow, timing: springTiming, { ctx in
             ctx.allowsImplicitAnimation = true
+
+            self.updateChromeFrames(animated: true, sidebarWidth: targetSidebarWidth)
 
             sidebar.animator().frame = NSRect(
                 x: p, y: p,
@@ -1201,7 +1405,7 @@ final class TerminalContainerView: NSView {
 
             titleBar.animator().frame = NSRect(
                 x: targetTitleBarX,
-                y: bounds.height - p - titleBarHeight,
+                y: targetTitleBarY,
                 width: targetTitleBarW,
                 height: titleBarHeight
             )
@@ -1229,6 +1433,7 @@ final class TerminalContainerView: NSView {
 
     private func handleThemeChange() {
         applyFrameColor()
+        applyChromeTheme()
         sidebar.refreshTheme()
         tabBar.refreshTheme()
         statusBar.refreshTheme()
@@ -1237,9 +1442,11 @@ final class TerminalContainerView: NSView {
         searchBar?.refreshTheme()
         for tab in tabs {
             tab.splitRoot?.refreshTheme()
+            applyChrome(to: tab.rootView)
         }
         (zoomBadge as? ZoomBadge)?.refreshTheme()
         (broadcastBadge as? BroadcastBadge)?.refreshTheme()
+        updateChromeFrames(animated: false)
         needsDisplay = true
     }
 
@@ -1411,7 +1618,7 @@ final class TerminalContainerView: NSView {
     func toggleFullscreenMode() { window?.toggleFullScreen(nil) }
 
     func openNewWindow() {
-        NotificationCenter.default.post(name: .init("BellithCreateNewWindow"), object: nil)
+        NotificationCenter.default.post(name: .bellithCreateNewWindow, object: nil)
     }
 
     func selectAllText() {
@@ -1491,13 +1698,35 @@ final class TerminalContainerView: NSView {
 
     func saveSession() -> SessionState {
         let tabStates = tabs.compactMap { tab -> SessionState.TabState? in
-            guard let root = tab.splitRoot else { return nil }
+            switch tab.content {
+            case .terminal(let root, _, _):
+                let tree = root.serialize { view in
+                    (view as? TerminalSurfaceView)?.currentCwd
+                }
+                return SessionState.TabState(title: tab.title, splitTree: tree)
+            case .smart(let panel):
+                return SessionState.TabState(title: tab.title, smartPanelID: panel.pluginID)
+            }
+        }
+        return SessionState(tabs: tabStates, selectedTabIndex: min(selectedTabIndex, max(tabStates.count - 1, 0)))
+    }
+
+    func sessionState(forTabAt index: Int) -> SessionState? {
+        guard index >= 0, index < tabs.count else { return nil }
+        let tab = tabs[index]
+
+        let tabState: SessionState.TabState
+        switch tab.content {
+        case .terminal(let root, _, _):
             let tree = root.serialize { view in
                 (view as? TerminalSurfaceView)?.currentCwd
             }
-            return SessionState.TabState(title: tab.title, splitTree: tree)
+            tabState = SessionState.TabState(title: tab.title, splitTree: tree)
+        case .smart(let panel):
+            tabState = SessionState.TabState(title: tab.title, smartPanelID: panel.pluginID)
         }
-        return SessionState(tabs: tabStates, selectedTabIndex: min(selectedTabIndex, max(tabStates.count - 1, 0)))
+
+        return SessionState(tabs: [tabState], selectedTabIndex: 0)
     }
 
     func restoreSession(_ state: SessionState) {
@@ -1509,28 +1738,45 @@ final class TerminalContainerView: NSView {
         tabs.removeAll()
 
         for tabState in state.tabs {
-            var surfaces: [TerminalSurfaceView] = []
             let id = UUID()
-            let splitRoot = buildSplitTree(tabState.splitTree, tabId: id, app: terminalApp, surfaces: &surfaces, depth: 0)
 
-            // Validate: at least one surface must have initialized successfully
-            let validSurfaces = surfaces.filter { $0.isReady }
-            guard !validSurfaces.isEmpty else {
-                Logger.app.warning("Session restore: skipping tab '\(tabState.title)' — no valid surfaces")
-                splitRoot.removeFromSuperview()
-                continue
-            }
+            switch tabState.kind {
+            case .terminal:
+                guard let splitTree = tabState.splitTree else { continue }
 
-            var entry = TabEntry(
-                id: id, title: tabState.title, cwd: nil,
-                content: .terminal(splitRoot: splitRoot, surfaces: validSurfaces, focusedSurface: validSurfaces.first)
-            )
-            if let firstCwd = validSurfaces.first?.currentCwd {
-                entry.cwd = firstCwd
+                var surfaces: [TerminalSurfaceView] = []
+                let splitRoot = buildSplitTree(splitTree, tabId: id, app: terminalApp, surfaces: &surfaces, depth: 0)
+
+                // Validate: at least one surface must have initialized successfully
+                let validSurfaces = surfaces.filter { $0.isReady }
+                guard !validSurfaces.isEmpty else {
+                    Logger.app.warning("Session restore: skipping tab '\(tabState.title)' — no valid surfaces")
+                    splitRoot.removeFromSuperview()
+                    continue
+                }
+
+                var entry = TabEntry(
+                    id: id, title: tabState.title, cwd: nil,
+                    content: .terminal(splitRoot: splitRoot, surfaces: validSurfaces, focusedSurface: validSurfaces.first)
+                )
+                if let firstCwd = validSurfaces.first?.currentCwd {
+                    entry.cwd = firstCwd
+                }
+                tabs.append(entry)
+                addSubview(splitRoot, positioned: .below, relativeTo: sidebar)
+                splitRoot.isHidden = true
+
+            case .smart:
+                guard let pluginID = tabState.smartPanelID,
+                      let panel = SmartPanelView.create(pluginID: pluginID) else { continue }
+                let entry = TabEntry(
+                    id: id, title: tabState.title, cwd: nil,
+                    content: .smart(panel: panel)
+                )
+                tabs.append(entry)
+                addSubview(panel, positioned: .below, relativeTo: sidebar)
+                panel.isHidden = true
             }
-            tabs.append(entry)
-            addSubview(splitRoot, positioned: .below, relativeTo: sidebar)
-            splitRoot.isHidden = true
         }
 
         if tabs.isEmpty {
@@ -1600,9 +1846,34 @@ final class TerminalContainerView: NSView {
             guard let self, let surface else { return }
             if self.activeSurface === surface {
                 self.titleBar.updateSize(cols: cols, rows: rows)
+                self.statusBar.updateSize(cols: cols, rows: rows)
             }
         }
         return surface
+    }
+
+    func openWorkingDirectory(_ cwd: String) {
+        guard let surface = activeSurface else { return }
+        openWorkingDirectory(cwd, in: surface)
+    }
+
+    private func openWorkingDirectory(_ cwd: String, in surface: TerminalSurfaceView) {
+        surface.currentCwd = cwd
+        if let idx = tabs.firstIndex(where: { $0.surfaces.contains(where: { $0 === surface }) }) {
+            tabs[idx].cwd = cwd
+            tabs[idx].title = (cwd as NSString).lastPathComponent
+            if idx == selectedTabIndex {
+                titleBar.updatePath(cwd)
+                titleBar.updateGitBranch(nil)
+                titleBar.updateProcess(nil)
+                statusBar.updateCwd(cwd)
+                statusBar.updateGitBranch(nil)
+                statusBar.updateProcess(nil)
+                refreshStatusBarAsync(cwd: cwd)
+            }
+            refreshTabUI()
+        }
+        sendCdWhenReady(surface: surface, cwd: cwd)
     }
 
     // MARK: - Session Restore Helpers
@@ -1615,8 +1886,18 @@ final class TerminalContainerView: NSView {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self, weak surface] in
             guard let surface, let surf = surface.surface else { return }
 
-            // If surface reports a CWD (shell has initialized) or we've exhausted retries, send the command
-            if surface.currentCwd != nil || attempt >= maxAttempts {
+            // If the shell has reported its cwd already, only send `cd` when needed.
+            if let currentCwd = surface.currentCwd {
+                guard currentCwd != cwd else { return }
+                let escaped = cwd.replacingOccurrences(of: "'", with: "'\\''")
+                let cmd = " cd '\(escaped)'\n"
+                cmd.withCString { ptr in
+                    ghostty_surface_text(surf, ptr, UInt(cmd.utf8.count))
+                }
+                return
+            }
+
+            if attempt >= maxAttempts {
                 let escaped = cwd.replacingOccurrences(of: "'", with: "'\\''")
                 let cmd = " cd '\(escaped)'\n"
                 cmd.withCString { ptr in

@@ -76,6 +76,7 @@ final class SessionStateTests: XCTestCase {
         let state = SessionState(
             tabs: [
                 SessionState.TabState(title: "Tab 1", splitTree: .leaf(cwd: "/home")),
+                SessionState.TabState(title: "Inspector", smartPanelID: "performance"),
                 SessionState.TabState(title: "Tab 2", splitTree: .branch(
                     orientation: "horizontal", ratio: 0.5,
                     first: .leaf(cwd: "/tmp"), second: .leaf(cwd: nil)
@@ -86,9 +87,28 @@ final class SessionStateTests: XCTestCase {
         let data = try JSONEncoder().encode(state)
         let decoded = try JSONDecoder().decode(SessionState.self, from: data)
 
-        XCTAssertEqual(decoded.tabs.count, 2)
+        XCTAssertEqual(decoded.tabs.count, 3)
         XCTAssertEqual(decoded.selectedTabIndex, 1)
         XCTAssertEqual(decoded.tabs[0].title, "Tab 1")
-        XCTAssertEqual(decoded.tabs[1].title, "Tab 2")
+        XCTAssertEqual(decoded.tabs[1].title, "Inspector")
+        XCTAssertEqual(decoded.tabs[1].kind, .smart)
+        XCTAssertEqual(decoded.tabs[1].smartPanelID, "performance")
+        XCTAssertEqual(decoded.tabs[2].title, "Tab 2")
+    }
+
+    func testWindowSessionStateRoundtrip() throws {
+        let windowState = WindowSessionState(
+            session: SessionState(
+                tabs: [SessionState.TabState(title: "Tab 1", splitTree: .leaf(cwd: "/tmp"))],
+                selectedTabIndex: 0
+            ),
+            frameDescriptor: "{{10, 20}, {900, 600}}"
+        )
+
+        let data = try JSONEncoder().encode(windowState)
+        let decoded = try JSONDecoder().decode(WindowSessionState.self, from: data)
+
+        XCTAssertEqual(decoded.session.tabs.count, 1)
+        XCTAssertEqual(decoded.frameDescriptor, "{{10, 20}, {900, 600}}")
     }
 }

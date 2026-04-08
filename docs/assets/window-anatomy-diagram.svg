@@ -1,0 +1,120 @@
+<svg width="1400" height="920" viewBox="0 0 1400 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1400" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#11131A"/>
+      <stop offset="1" stop-color="#171A24"/>
+    </linearGradient>
+    <linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#2A2D3C"/>
+      <stop offset="1" stop-color="#222534"/>
+    </linearGradient>
+    <linearGradient id="tabbar" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#24283B"/>
+      <stop offset="1" stop-color="#1F2333"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="200%" height="200%">
+      <feDropShadow dx="0" dy="24" stdDeviation="24" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+    <style>
+      .title { font: 700 34px -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; fill: #E9ECF8; }
+      .subtitle { font: 500 17px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; fill: #9AA5CE; }
+      .label { font: 700 18px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; fill: #E9ECF8; }
+      .small { font: 500 15px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; fill: #AAB4D6; }
+      .mono { font: 600 15px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #AAB4D6; }
+      .callout { font: 700 16px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; fill: #11131A; }
+      .legend { font: 600 15px -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; fill: #DCE2FA; }
+    </style>
+  </defs>
+
+  <rect width="1400" height="920" fill="url(#bg)"/>
+
+  <text x="80" y="84" class="title">Bellith window anatomy</text>
+  <text x="80" y="118" class="subtitle">A visual map of the main screen sections and the names to use for each one.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="70" y="160" width="930" height="680" rx="24" fill="#1A1D29" stroke="#3B3F56"/>
+    <rect x="86" y="176" width="898" height="648" rx="18" fill="#202332" stroke="#32364C"/>
+
+    <rect x="86" y="176" width="898" height="76" rx="18" fill="url(#chrome)"/>
+    <path d="M86 234H984" stroke="#3D425C"/>
+
+    <circle cx="118" cy="214" r="7" fill="#FF5F57"/>
+    <circle cx="142" cy="214" r="7" fill="#FEBC2E"/>
+    <circle cx="166" cy="214" r="7" fill="#28C840"/>
+
+    <rect x="246" y="194" width="578" height="40" rx="12" fill="#25293B" stroke="#444A65"/>
+    <text x="268" y="220" class="mono">~/Projects/bellith/volttt   •   master   •   zsh   •   98×29</text>
+
+    <rect x="86" y="252" width="898" height="52" fill="url(#tabbar)"/>
+    <path d="M86 304H984" stroke="#363B53"/>
+    <rect x="112" y="265" width="126" height="28" rx="14" fill="#313754"/>
+    <text x="142" y="284" class="small">Current tab</text>
+    <rect x="248" y="265" width="104" height="28" rx="14" fill="#262A3C"/>
+    <text x="280" y="284" class="small">Other tab</text>
+
+    <rect x="86" y="304" width="214" height="520" fill="#1D2131"/>
+    <path d="M300 304V824" stroke="#3D425A"/>
+    <text x="110" y="346" class="label">Sidebar</text>
+    <text x="110" y="376" class="small">Workspace</text>
+    <rect x="110" y="392" width="166" height="36" rx="10" fill="#2C3150"/>
+    <text x="128" y="415" class="small">Active tab</text>
+    <rect x="110" y="438" width="166" height="36" rx="10" fill="#23273A"/>
+    <text x="128" y="461" class="small">Other tab</text>
+    <text x="110" y="520" class="small">Tools</text>
+    <rect x="110" y="536" width="166" height="34" rx="10" fill="#23273A"/>
+    <text x="128" y="558" class="small">Performance</text>
+
+    <rect x="300" y="304" width="684" height="520" fill="#1F2333"/>
+    <text x="330" y="350" class="label">Terminal viewport</text>
+    <text x="330" y="384" class="small">This is the main terminal content area.</text>
+
+    <text x="330" y="454" class="mono" fill="#7DD6FF">bellith</text>
+    <text x="392" y="454" class="mono" fill="#AAB4D6"> on </text>
+    <text x="426" y="454" class="mono" fill="#FF77C8">master</text>
+    <text x="488" y="454" class="mono" fill="#AAB4D6"> via </text>
+    <text x="532" y="454" class="mono" fill="#63F28D">v25.9.0</text>
+
+    <text x="330" y="492" class="mono" fill="#63F28D">❯</text>
+    <rect x="348" y="473" width="12" height="24" rx="2" fill="#E9ECF8"/>
+
+    <path d="M300 776H984" stroke="#343952"/>
+    <text x="330" y="804" class="small">Status bar (currently hidden in the app, but reserved at the bottom)</text>
+  </g>
+
+  <g>
+    <path d="M1014 220C1080 220 1112 220 1160 220" stroke="#84A0FF" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="1004" cy="220" r="7" fill="#84A0FF"/>
+    <rect x="1160" y="192" width="180" height="56" rx="14" fill="#84A0FF"/>
+    <text x="1180" y="217" class="callout">Title/context strip</text>
+    <text x="1180" y="236" class="callout">breadcrumbs + metadata</text>
+
+    <path d="M994 278C1060 278 1096 278 1160 278" stroke="#7CF0C8" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="984" cy="278" r="7" fill="#7CF0C8"/>
+    <rect x="1160" y="250" width="160" height="56" rx="14" fill="#7CF0C8"/>
+    <text x="1185" y="283" class="callout">Tab bar</text>
+
+    <path d="M196 566C196 566 196 650 1092 650" stroke="#F7B955" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="196" cy="566" r="7" fill="#F7B955"/>
+    <rect x="1092" y="622" width="208" height="56" rx="14" fill="#F7B955"/>
+    <text x="1115" y="655" class="callout">Sidebar navigation</text>
+
+    <path d="M680 350C1070 350 1114 350 1160 350" stroke="#F68FB3" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="670" cy="350" r="7" fill="#F68FB3"/>
+    <rect x="1160" y="322" width="176" height="56" rx="14" fill="#F68FB3"/>
+    <text x="1182" y="355" class="callout">Terminal viewport</text>
+
+    <path d="M352 486C1020 486 1082 486 1160 486" stroke="#C89BFF" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="342" cy="486" r="7" fill="#C89BFF"/>
+    <rect x="1160" y="458" width="164" height="56" rx="14" fill="#C89BFF"/>
+    <text x="1204" y="491" class="callout">Prompt + cursor</text>
+  </g>
+
+  <g>
+    <rect x="1038" y="732" width="286" height="92" rx="18" fill="#1D2131" stroke="#3B3F56"/>
+    <text x="1062" y="764" class="label">Preferred terms</text>
+    <text x="1062" y="792" class="legend">• title/context strip</text>
+    <text x="1062" y="816" class="legend">• sidebar</text>
+    <text x="1202" y="792" class="legend">• tab bar</text>
+    <text x="1202" y="816" class="legend">• terminal viewport</text>
+  </g>
+</svg>

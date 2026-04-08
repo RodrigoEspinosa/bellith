@@ -11,10 +11,13 @@ final class FlippedView: NSView {
 final class PreferencesWindowController: NSWindowController {
     static let shared = PreferencesWindowController()
 
+    private var settingsObserver: NSObjectProtocol?
+    private var themeObserver: NSObjectProtocol?
+
     private init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 660, height: 600),
-            styleMask: [.titled, .closable, .fullSizeContentView],
+            contentRect: NSRect(x: 0, y: 0, width: 760, height: 680),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -23,21 +26,62 @@ final class PreferencesWindowController: NSWindowController {
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
         window.backgroundColor = Theme.base
-        window.appearance = NSAppearance(named: .darkAqua)
         window.center()
-        window.minSize = NSSize(width: 600, height: 500)
+        window.minSize = NSSize(width: 680, height: 560)
+        window.setFrameAutosaveName("BellithPreferencesWindow")
 
         super.init(window: window)
         window.contentView = PreferencesRootView()
+        applyWindowAppearance()
+
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: BellithSettings.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.applyWindowAppearance()
+            (self?.window?.contentView as? PreferencesRootView)?.refresh()
+        }
+
+        themeObserver = NotificationCenter.default.addObserver(
+            forName: ThemeManager.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.window?.backgroundColor = Theme.base
+            (self?.window?.contentView as? PreferencesRootView)?.refresh()
+        }
+    }
+
+    deinit {
+        if let settingsObserver {
+            NotificationCenter.default.removeObserver(settingsObserver)
+        }
+        if let themeObserver {
+            NotificationCenter.default.removeObserver(themeObserver)
+        }
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
     func showWindow() {
+        applyWindowAppearance()
         (window?.contentView as? PreferencesRootView)?.refresh()
         window?.makeKeyAndOrderFront(nil)
-        NSApp.activate()
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func applyWindowAppearance() {
+        switch BellithSettings.shared.appearanceMode {
+        case "light":
+            window?.appearance = NSAppearance(named: .aqua)
+        case "dark":
+            window?.appearance = NSAppearance(named: .darkAqua)
+        default:
+            window?.appearance = nil
+        }
+        window?.backgroundColor = Theme.base
     }
 }
 
@@ -51,7 +95,7 @@ final class PreferencesRootView: NSView {
     private var activePaneId: String = ""
     private let contentClip = NSView()
 
-    private let sidebarWidth: CGFloat = 180
+    private let sidebarWidth: CGFloat = 196
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -66,6 +110,7 @@ final class PreferencesRootView: NSView {
         addSubview(divider)
 
         contentClip.wantsLayer = true
+        contentClip.layer?.backgroundColor = Theme.base.cgColor
         addSubview(contentClip)
 
         for plugin in PreferencesPaneRegistry.shared.allPlugins {
@@ -85,6 +130,8 @@ final class PreferencesRootView: NSView {
     func refresh() {
         layer?.backgroundColor = Theme.base.cgColor
         window?.backgroundColor = Theme.base
+        contentClip.layer?.backgroundColor = Theme.base.cgColor
+        divider.layer?.backgroundColor = Theme.border.cgColor
         sidebar.refresh()
         for pane in panes.values {
             (pane as? PreferencesPaneRefreshable)?.refreshPreferencesPane()
@@ -102,13 +149,10 @@ final class PreferencesRootView: NSView {
         sidebar.selected = id
         activePaneId = id
 
-        // Crossfade transition
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.2
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        Theme.animate(duration: 0.18, timing: CAMediaTimingFunction(name: .easeOut), { _ in
             oldPane?.animator().alphaValue = 0
-            activePane?.animator().alphaValue = 1
-        }, completionHandler: {
+            nextPane.animator().alphaValue = 1
+        }, completion: {
             oldPane?.isHidden = true
             oldPane?.alphaValue = 1
         })
@@ -119,8 +163,8 @@ final class PreferencesRootView: NSView {
     override func layout() {
         super.layout()
         sidebar.frame = NSRect(x: 0, y: 0, width: sidebarWidth, height: bounds.height)
-        divider.frame = NSRect(x: sidebarWidth, y: 12, width: 0.5, height: bounds.height - 24)
-        let contentX = sidebarWidth + 0.5
+        divider.frame = NSRect(x: sidebarWidth, y: 14, width: 1, height: bounds.height - 28)
+        let contentX = sidebarWidth + 1
         contentClip.frame = NSRect(x: contentX, y: 0, width: bounds.width - contentX, height: bounds.height)
         activePane?.frame = contentClip.bounds
     }
@@ -138,7 +182,8 @@ final class PrefSidebar: NSView {
     private let bottomItems = PreferencesPaneRegistry.shared.footerPlugins
     private var mainViews: [PrefSidebarItem] = []
     private var bottomViews: [PrefSidebarItem] = []
-    private let brandLabel = NSTextField(labelWithString: "Bellith")
+    private let overlineLabel = NSTextField(labelWithString: "BELLITH")
+    private let titleLabel = NSTextField(labelWithString: "SETTINGS")
     private let versionLabel = NSTextField(labelWithString: "")
     private let separatorLine = NSView()
 
@@ -146,15 +191,17 @@ final class PrefSidebar: NSView {
         super.init(frame: frame)
         wantsLayer = true
 
-        // Brand label at top
-        brandLabel.font = .systemFont(ofSize: 15, weight: .bold)
-        brandLabel.textColor = Theme.textPrimary
-        brandLabel.alphaValue = 0.7
-        addSubview(brandLabel)
+        overlineLabel.font = BellithFont.mono(10, weight: .regular)
+        overlineLabel.textColor = Theme.textSecondary
+        addSubview(overlineLabel)
+
+        titleLabel.font = BellithFont.display(24)
+        titleLabel.textColor = Theme.textDisplay
+        addSubview(titleLabel)
 
         let ver = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0"
-        versionLabel.stringValue = "v\(ver)"
-        versionLabel.font = .systemFont(ofSize: 10, weight: .medium)
+        versionLabel.stringValue = "[V\(ver)]"
+        versionLabel.font = BellithFont.mono(10, weight: .regular)
         versionLabel.textColor = Theme.textMuted
         addSubview(versionLabel)
 
@@ -182,10 +229,13 @@ final class PrefSidebar: NSView {
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
     func refresh() {
-        brandLabel.textColor = Theme.textPrimary
+        layer?.backgroundColor = Theme.chromePanel.cgColor
+        overlineLabel.textColor = Theme.textSecondary
+        titleLabel.textColor = Theme.textDisplay
         versionLabel.textColor = Theme.textMuted
         separatorLine.layer?.backgroundColor = Theme.border.cgColor
         updateItems()
+        needsDisplay = true
     }
 
     private func updateItems() {
@@ -199,38 +249,31 @@ final class PrefSidebar: NSView {
 
     override func layout() {
         super.layout()
-        let padding: CGFloat = 12
-        let itemH: CGFloat = 34
+        let padding: CGFloat = 14
+        let itemH: CGFloat = 36
 
-        // Brand area at top
-        brandLabel.frame = NSRect(x: padding + 10, y: bounds.height - 46, width: bounds.width - padding * 2, height: 18)
-        versionLabel.frame = NSRect(x: padding + 10, y: bounds.height - 60, width: bounds.width - padding * 2, height: 14)
+        overlineLabel.frame = NSRect(x: padding + 14, y: bounds.height - 42, width: bounds.width - 40, height: 14)
+        titleLabel.frame = NSRect(x: padding + 12, y: bounds.height - 72, width: bounds.width - 40, height: 30)
+        versionLabel.frame = NSRect(x: padding + 14, y: bounds.height - 90, width: bounds.width - 40, height: 14)
 
-        // Main items below brand
-        var y = bounds.height - 76
+        var y = bounds.height - 116
         for view in mainViews {
             view.frame = NSRect(x: padding, y: y - itemH, width: bounds.width - padding * 2, height: itemH)
-            y -= itemH + 2
+            y -= itemH + 6
         }
 
-        // Bottom items
         var bottomY: CGFloat = padding
         for view in bottomViews.reversed() {
             view.frame = NSRect(x: padding, y: bottomY, width: bounds.width - padding * 2, height: itemH)
-            bottomY += itemH + 2
+            bottomY += itemH + 6
         }
 
-        // Separator just above bottom items
-        separatorLine.frame = NSRect(x: padding + 10, y: bottomY + 4, width: bounds.width - padding * 2 - 20, height: 0.5)
+        separatorLine.frame = NSRect(x: padding + 14, y: bottomY + 8, width: bounds.width - padding * 2 - 28, height: 1)
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        // Subtle gradient background for sidebar
-        let gradient = NSGradient(colors: [
-            Theme.surface.withAlphaComponent(0.3),
-            Theme.base,
-        ])
-        gradient?.draw(in: bounds, angle: 180)
+        Theme.chromePanel.setFill()
+        dirtyRect.fill()
     }
 }
 
@@ -243,22 +286,23 @@ final class PrefSidebarItem: NSView {
     private var trackingArea: NSTrackingArea?
     private var isHovered = false
 
+    override var acceptsFirstResponder: Bool { true }
+
     init(icon: String, label text: String) {
-        self.label = NSTextField(labelWithString: text)
+        self.label = NSTextField(labelWithString: text.uppercased())
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = 8
+        layer?.cornerRadius = 10
 
-        // Accessibility
         setAccessibilityRole(.button)
         setAccessibilityLabel(text)
 
         iconView.image = NSImage(systemSymbolName: icon, accessibilityDescription: text)
-        iconView.contentTintColor = Theme.textSecondary
+        iconView.contentTintColor = Theme.textTertiary
         iconView.imageScaling = .scaleProportionallyDown
         addSubview(iconView)
 
-        label.font = .systemFont(ofSize: 13, weight: .medium)
+        label.font = BellithFont.mono(11, weight: .regular)
         label.textColor = Theme.textSecondary
         addSubview(label)
     }
@@ -267,42 +311,61 @@ final class PrefSidebarItem: NSView {
 
     private func updateColors() {
         if isSelected {
-            iconView.contentTintColor = Theme.accent
-            label.textColor = Theme.textPrimary
+            iconView.contentTintColor = Theme.textDisplay
+            label.textColor = Theme.textDisplay
         } else {
-            iconView.contentTintColor = Theme.textMuted
-            label.textColor = Theme.textSecondary
+            iconView.contentTintColor = Theme.textTertiary
+            label.textColor = isHovered ? Theme.textPrimary : Theme.textSecondary
         }
     }
 
     override func layout() {
         super.layout()
         let h = bounds.height
-        iconView.frame = NSRect(x: 10, y: (h - 16) / 2, width: 16, height: 16)
-        label.frame = NSRect(x: 34, y: (h - 16) / 2, width: bounds.width - 44, height: 16)
+        iconView.frame = NSRect(x: 14, y: (h - 14) / 2, width: 14, height: 14)
+        label.frame = NSRect(x: 38, y: (h - 14) / 2, width: bounds.width - 50, height: 14)
     }
 
     override func draw(_ dirtyRect: NSRect) {
+        let rect = bounds
         if isSelected {
-            // Accent glow background
-            Theme.accent.withAlphaComponent(0.12).setFill()
-            NSBezierPath(roundedRect: bounds, xRadius: 8, yRadius: 8).fill()
-            // Left accent bar
-            Theme.accent.withAlphaComponent(0.6).setFill()
-            NSBezierPath(roundedRect: NSRect(x: 2, y: bounds.height * 0.2, width: 3, height: bounds.height * 0.6),
-                         xRadius: 1.5, yRadius: 1.5).fill()
+            Theme.chromeElevated.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
+
+            Theme.accent.setFill()
+            NSBezierPath(roundedRect: NSRect(x: 8, y: 8, width: 2, height: rect.height - 16), xRadius: 1, yRadius: 1).fill()
         } else if isHovered {
-            NSColor(white: 1, alpha: 0.04).setFill()
-            NSBezierPath(roundedRect: bounds, xRadius: 8, yRadius: 8).fill()
+            Theme.hoverOverlay.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
         }
     }
 
     override func mouseDown(with event: NSEvent) { onClick?() }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 49, 36:
+            onClick?()
+        default:
+            super.keyDown(with: event)
+        }
+    }
+
     override func updateTrackingAreas() {
         if let a = trackingArea { removeTrackingArea(a) }
         trackingArea = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
         addTrackingArea(trackingArea!)
     }
-    override func mouseEntered(with event: NSEvent) { isHovered = true; needsDisplay = true }
-    override func mouseExited(with event: NSEvent) { isHovered = false; needsDisplay = true }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovered = true
+        updateColors()
+        needsDisplay = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovered = false
+        updateColors()
+        needsDisplay = true
+    }
 }

@@ -83,10 +83,6 @@ final class PreferencesPaneRegistry {
     }
 }
 
-extension AppearancePane: PreferencesPaneRefreshable {
-    func refreshPreferencesPane() { refresh() }
-}
-
 extension AboutPane: PreferencesPaneRefreshable {
     func refreshPreferencesPane() { refresh() }
 }

@@ -44,6 +44,7 @@
 		AAEC14C4379EFD86E0A0BCCE /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69849D6EC718E0BFF019C9D8 /* TabBarView.swift */; };
 		B80E5D2747AB50B714189BC4 /* ProcessMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8932FC29FCA31DEBC5C25A11 /* ProcessMonitorTests.swift */; };
 		BAF7DA9CF2672F1E616A7F17 /* TitleBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C5C94B09019221ED3984C56 /* TitleBarView.swift */; };
+		CCA0508AE25C077D19B7319C /* BellithFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = A97FAFCF93CCB562713620EE /* BellithFont.swift */; };
 		CE826D24B9117475F5BFB14B /* BellithSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B5E3E792593BBE98618983D /* BellithSettings.swift */; };
 		CF4A12A757D3355AEB4D159A /* AppearancePane.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDFFF00A8FCA7C5D765650BD /* AppearancePane.swift */; };
 		D455B1DABDBE119547D39CE1 /* PreferencesComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 185BCA9A77D1E03020788D4D /* PreferencesComponents.swift */; };
@@ -106,6 +107,7 @@
 		9CB945FE301FBB1B34329681 /* KeyShortcutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyShortcutTests.swift; sourceTree = "<group>"; };
 		A192597C4552FB866CD46BC9 /* PerformancePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformancePanel.swift; sourceTree = "<group>"; };
 		A33E81DDDC25CA709CD563AE /* SidebarPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarPane.swift; sourceTree = "<group>"; };
+		A97FAFCF93CCB562713620EE /* BellithFont.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithFont.swift; sourceTree = "<group>"; };
 		B8917D92D4F8962901183EEA /* ThemeGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeGridView.swift; sourceTree = "<group>"; };
 		CB50294EC30FB94671823CFA /* SplitPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitPaneView.swift; sourceTree = "<group>"; };
 		CD0B5E50A6BE76A1D3EDFE6D /* EnvironmentPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentPanel.swift; sourceTree = "<group>"; };
@@ -157,6 +159,7 @@
 		139A251116CDCE3E13D82D79 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				A97FAFCF93CCB562713620EE /* BellithFont.swift */,
 				7AF3EFCA4440E50031AF178C /* Logger.swift */,
 			);
 			path = Utilities;
@@ -401,6 +404,7 @@
 				9BF5A978A5AACAB4DD91124B /* AboutPane.swift in Sources */,
 				A497CDCB9182E12C715A1A43 /* AppDelegate.swift in Sources */,
 				CF4A12A757D3355AEB4D159A /* AppearancePane.swift in Sources */,
+				CCA0508AE25C077D19B7319C /* BellithFont.swift in Sources */,
 				CE826D24B9117475F5BFB14B /* BellithSettings.swift in Sources */,
 				3A8626193F1471C659C10A4A /* BlurView.swift in Sources */,
 				114F10461A0D9F305FF71202 /* CommandPaletteView.swift in Sources */,

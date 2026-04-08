@@ -4,12 +4,67 @@ import Foundation
 
 struct SessionState: Codable {
     struct TabState: Codable {
+        enum Kind: String, Codable {
+            case terminal
+            case smart
+        }
+
         let title: String
-        let splitTree: SplitNodeState
+        let kind: Kind
+        let splitTree: SplitNodeState?
+        let smartPanelID: String?
+
+        init(title: String, splitTree: SplitNodeState) {
+            self.title = title
+            self.kind = .terminal
+            self.splitTree = splitTree
+            self.smartPanelID = nil
+        }
+
+        init(title: String, smartPanelID: String) {
+            self.title = title
+            self.kind = .smart
+            self.splitTree = nil
+            self.smartPanelID = smartPanelID
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case title
+            case kind
+            case splitTree
+            case smartPanelID
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            title = try container.decode(String.self, forKey: .title)
+            kind = try container.decodeIfPresent(Kind.self, forKey: .kind) ?? .terminal
+            splitTree = try container.decodeIfPresent(SplitNodeState.self, forKey: .splitTree)
+            smartPanelID = try container.decodeIfPresent(String.self, forKey: .smartPanelID)
+        }
     }
 
     let tabs: [TabState]
     let selectedTabIndex: Int
+}
+
+struct WindowSessionState: Codable {
+    let session: SessionState
+    let frameDescriptor: String?
+}
+
+struct WindowLaunchRequest {
+    let session: SessionState?
+    let initialWorkingDirectory: String?
+
+    init(session: SessionState? = nil, initialWorkingDirectory: String? = nil) {
+        self.session = session
+        self.initialWorkingDirectory = initialWorkingDirectory
+    }
+}
+
+extension Notification.Name {
+    static let bellithCreateNewWindow = Notification.Name("BellithCreateNewWindow")
 }
 
 indirect enum SplitNodeState: Codable {

@@ -22,45 +22,52 @@ struct ThemeColors {
         return luminance > 0.5
     }
 
-    var accentSubtle: NSColor { accent.withAlphaComponent(0.08) }
-    var accentGlow: NSColor { accent.withAlphaComponent(0.03) }
-    /// Window frame / gap color — slightly offset from base for visual separation.
-    /// Dark themes darken, light themes darken less to avoid jarring contrast.
+    var accentSubtle: NSColor { accent.withAlphaComponent(isLight ? 0.12 : 0.14) }
+    var accentGlow: NSColor { accent.withAlphaComponent(isLight ? 0.05 : 0.04) }
+
+    /// Keep dark chrome close to the reference: cool slate, not heavily accent-tinted.
     var frame: NSColor {
-        let rgb = base.usingColorSpace(.sRGB) ?? base
-        let factor: CGFloat = isLight ? 0.88 : 0.7
-        return NSColor(red: rgb.redComponent * factor,
-                       green: rgb.greenComponent * factor,
-                       blue: rgb.blueComponent * factor,
-                       alpha: 1.0)
+        isLight
+            ? base.mixing(with: .white, baseFraction: 0.78)
+            : NSColor(red: 0.118, green: 0.122, blue: 0.161, alpha: 1.0)
     }
 
     var chrome: NSColor {
-        base.mixing(with: surface, baseFraction: isLight ? 0.42 : 0.35)
+        isLight
+            ? surface.mixing(with: .white, baseFraction: 0.82)
+            : NSColor(red: 0.154, green: 0.158, blue: 0.205, alpha: 1.0)
     }
 
     var chromeElevated: NSColor {
-        surface.mixing(with: overlay, baseFraction: isLight ? 0.60 : 0.48)
+        isLight
+            ? overlay.mixing(with: .white, baseFraction: 0.74)
+            : NSColor(red: 0.180, green: 0.184, blue: 0.235, alpha: 1.0)
     }
 
     var chromePanel: NSColor {
-        chrome.mixing(with: overlay, baseFraction: isLight ? 0.74 : 0.68)
+        isLight
+            ? surface.mixing(with: .white, baseFraction: 0.86)
+            : NSColor(red: 0.176, green: 0.180, blue: 0.231, alpha: 1.0)
     }
 
     var selectionFill: NSColor {
-        accent.withAlphaComponent(isLight ? 0.12 : 0.16)
+        isLight
+            ? accent.withAlphaComponent(0.08)
+            : NSColor(white: 1.0, alpha: 0.045)
     }
 
     var selectionStroke: NSColor {
-        accent.withAlphaComponent(isLight ? 0.22 : 0.30)
+        isLight
+            ? accent.withAlphaComponent(0.16)
+            : NSColor(white: 1.0, alpha: 0.08)
     }
 
     var chromeStroke: NSColor {
-        border.scaledAlpha(isLight ? 0.90 : 1.0)
+        border.scaledAlpha(isLight ? 1.1 : 1.35)
     }
 
     var chromeHairline: NSColor {
-        borderSubtle.scaledAlpha(isLight ? 1.0 : 1.0)
+        border.scaledAlpha(isLight ? 1.35 : 1.75)
     }
 }
 
@@ -69,15 +76,15 @@ struct ThemeColors {
 extension ThemeColors {
     static let tokyonight = ThemeColors(
         name: "Tokyo Night",
-        base: NSColor(red: 0.102, green: 0.102, blue: 0.110, alpha: 1.0),
-        surface: NSColor(red: 0.118, green: 0.118, blue: 0.129, alpha: 1.0),
-        overlay: NSColor(red: 0.145, green: 0.145, blue: 0.161, alpha: 1.0),
-        accent: NSColor(red: 0.416, green: 0.557, blue: 1.0, alpha: 1.0),
-        textPrimary: NSColor(white: 0.92, alpha: 1.0),
-        textSecondary: NSColor(white: 0.52, alpha: 1.0),
-        textMuted: NSColor(white: 0.32, alpha: 1.0),
-        border: NSColor(white: 1.0, alpha: 0.06),
-        borderSubtle: NSColor(white: 1.0, alpha: 0.03),
+        base: NSColor(red: 0.118, green: 0.122, blue: 0.161, alpha: 1.0),
+        surface: NSColor(red: 0.145, green: 0.149, blue: 0.192, alpha: 1.0),
+        overlay: NSColor(red: 0.188, green: 0.192, blue: 0.243, alpha: 1.0),
+        accent: NSColor(red: 0.722, green: 0.639, blue: 0.988, alpha: 1.0),
+        textPrimary: NSColor(red: 0.938, green: 0.940, blue: 0.966, alpha: 1.0),
+        textSecondary: NSColor(red: 0.447, green: 0.486, blue: 0.706, alpha: 1.0),
+        textMuted: NSColor(red: 0.314, green: 0.345, blue: 0.522, alpha: 1.0),
+        border: NSColor(white: 1.0, alpha: 0.08),
+        borderSubtle: NSColor(white: 1.0, alpha: 0.045),
         ghosttyTheme: "tokyonight"
     )
 
@@ -393,16 +400,28 @@ enum Theme {
     static var accentGlow: NSColor { colors.accentGlow }
 
     // Text
+    static var textDisplay: NSColor {
+        colors.isLight
+            ? colors.textPrimary.mixing(with: .black, baseFraction: 0.78)
+            : colors.textPrimary.mixing(with: .white, baseFraction: 0.86)
+    }
     static var textPrimary: NSColor { colors.textPrimary }
     static var textSecondary: NSColor { colors.textSecondary }
     static var textMuted: NSColor { colors.textMuted }
+    static var textTertiary: NSColor {
+        colors.textMuted.mixing(with: colors.textSecondary, baseFraction: 0.55)
+    }
 
     // Border
-    static var border: NSColor { colors.border }
+    static var border: NSColor { colors.chromeStroke }
     static var borderSubtle: NSColor { colors.borderSubtle }
 
     // Hover
-    static var hoverOverlay: NSColor { colors.isLight ? NSColor(white: 0, alpha: 0.04) : NSColor(white: 1, alpha: 0.04) }
+    static var hoverOverlay: NSColor {
+        colors.isLight
+            ? colors.textPrimary.withAlphaComponent(0.035)
+            : NSColor(white: 1.0, alpha: 0.028)
+    }
 
     // Focus
     static var focusRing: NSColor { accent.withAlphaComponent(0.4) }
@@ -457,20 +476,12 @@ enum Theme {
 
     // Semantic colors
     static var success: NSColor {
-        colors.isLight
-            ? NSColor(red: 0.188, green: 0.557, blue: 0.216, alpha: 1.0)
-            : NSColor(red: 0.298, green: 0.686, blue: 0.314, alpha: 1.0)
+        NSColor(red: 0.290, green: 0.620, blue: 0.361, alpha: 1.0) // #4A9E5C
     }
     static var warning: NSColor {
-        colors.isLight
-            ? NSColor(red: 0.776, green: 0.600, blue: 0.082, alpha: 1.0)
-            : NSColor(red: 1.0, green: 0.757, blue: 0.027, alpha: 1.0)
+        NSColor(red: 0.831, green: 0.659, blue: 0.263, alpha: 1.0) // #D4A843
     }
-    static var destructive: NSColor {
-        colors.isLight
-            ? NSColor(red: 0.827, green: 0.184, blue: 0.184, alpha: 1.0)
-            : NSColor(red: 0.937, green: 0.325, blue: 0.314, alpha: 1.0)
-    }
+    static var destructive: NSColor { accent }
 
     // Divider
     static var divider: NSColor { colors.border }

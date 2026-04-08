@@ -166,6 +166,15 @@ final class StatusBarView: NSView {
         needsLayout = true
     }
 
+    func clear() {
+        cwdLabel.stringValue = "~"
+        updateGitBranch(nil)
+        updateProcess(nil)
+        sizeLabel.stringValue = ""
+        sizeCapsule.isHidden = true
+        needsLayout = true
+    }
+
     // MARK: - Layout
 
     override func layout() {

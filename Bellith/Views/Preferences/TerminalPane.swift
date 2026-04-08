@@ -7,46 +7,51 @@ final class TerminalPane: NSView {
     private let scroll = NSScrollView()
     private let content = FlippedView()
 
-    // Font card
-    private let fontCard = SettingsCard(title: "Font", subtitle: "Applied to new terminals")
-    private let fontLabel = CardRowLabel("Family")
+    private let heroCard = SettingsCard(title: "Live Preview", subtitle: "Typography drives the terminal hierarchy")
+    private let heroSizeLabel = NSTextField(labelWithString: "")
+    private let heroFamilyLabel = NSTextField(labelWithString: "")
+    private let heroPreviewLabel = NSTextField(labelWithString: "")
+    private let heroMetaLabel = NSTextField(labelWithString: "")
+
+    private let fontCard = SettingsCard(title: "Typography", subtitle: "Applied to new terminals")
+    private let fontSummaryLabel = NSTextField(labelWithString: "")
+    private let fontSizeHeroLabel = NSTextField(labelWithString: "")
+    private let fontPreviewNote = NSTextField(labelWithString: "Monospaced preview for new sessions")
+    private let fontLabel = CardRowLabel("Font Family")
     private var fontField: PrefTextField!
     private let fontPickerBtn = FontPickerButton()
-    private let sizeLabel = CardRowLabel("Size")
+    private let sizeLabel = CardRowLabel("Font Size")
     private var sizeMinus: StepButton!
     private let sizeValue = ValueBadge()
     private var sizePlus: StepButton!
 
-    // Cursor card
-    private let cursorCard = SettingsCard(title: "Cursor")
-    private let cursorLabel = CardRowLabel("Style")
+    private let cursorCard = SettingsCard(title: "Cursor", subtitle: "Shape and motion of the active insertion point")
+    private let cursorLabel = CardRowLabel("Cursor Style")
     private var cursorSegment: PrefSegment!
     private let blinkLabel = CardRowLabel("Blink")
     private var blinkToggle: PrefToggle!
-    private let cursorColorLabel = CardRowLabel("Color")
-    private let cursorColorNote = FooterNote("Inherited from theme")
+    private let cursorColorLabel = CardRowLabel("Cursor Color")
+    private let cursorColorNote = FooterNote("Inherited from the selected theme")
 
-    // Shell card
-    private let shellCard = SettingsCard(title: "Shell", subtitle: "Applied to new terminals")
-    private let shellLabel = CardRowLabel("Command")
+    private let sessionCard = SettingsCard(title: "Session Defaults", subtitle: "Shell, directory, scrollback, and bell behavior")
+    private let shellLabel = CardRowLabel("Shell Command")
     private var shellField: PrefTextField!
-    private let shellNote = FooterNote("Leave empty for default login shell")
-    private let cwdLabel = CardRowLabel("Directory")
+    private let shellNote = FooterNote("Leave empty to use the login shell")
+    private let cwdLabel = CardRowLabel("Start Directory")
     private var cwdField: PrefTextField!
-    private let cwdNote = FooterNote("Starting directory for new tabs")
+    private let cwdNote = FooterNote("Used for new tabs and restored sessions")
     private let scrollLabel = CardRowLabel("Scrollback")
     private var scrollField: MiniNumberField!
-    private let scrollUnit = SmallLabel("lines")
+    private let scrollUnit = SmallLabel("LINES")
     private let bellLabel = CardRowLabel("Bell")
     private var bellSegment: PrefSegment!
 
-    // Behavior card
-    private let behaviorCard = SettingsCard(title: "Behavior")
-    private let hideMouseLabel = CardRowLabel("Hide cursor while typing")
+    private let behaviorCard = SettingsCard(title: "Behavior", subtitle: "Session lifecycle and cursor visibility")
+    private let hideMouseLabel = CardRowLabel("Hide Cursor While Typing")
     private var hideMouseToggle: PrefToggle!
-    private let confirmLabel = CardRowLabel("Confirm before closing")
+    private let confirmLabel = CardRowLabel("Confirm Before Closing")
     private var confirmToggle: PrefToggle!
-    private let restoreLabel = CardRowLabel("Restore previous session")
+    private let restoreLabel = CardRowLabel("Restore Previous Session")
     private var restoreToggle: PrefToggle!
 
     override init(frame: NSRect) {
@@ -56,164 +61,241 @@ final class TerminalPane: NSView {
         scroll.autohidesScrollers = true
         scroll.scrollerStyle = .overlay
         scroll.automaticallyAdjustsContentInsets = false
-        scroll.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
         addSubview(scroll)
+
         content.wantsLayer = true
+        content.layer?.backgroundColor = Theme.base.cgColor
         scroll.documentView = content
 
-        // Font
-        fontField = PrefTextField(text: settings.fontFamily) { [weak self] v in self?.settings.fontFamily = v }
+        heroSizeLabel.font = BellithFont.display(42)
+        heroSizeLabel.textColor = Theme.textDisplay
+        heroFamilyLabel.font = BellithFont.mono(11, weight: .regular)
+        heroFamilyLabel.textColor = Theme.textSecondary
+        heroMetaLabel.font = BellithFont.mono(12, weight: .regular)
+        heroMetaLabel.textColor = Theme.textSecondary
+        heroPreviewLabel.lineBreakMode = .byTruncatingTail
+        heroPreviewLabel.textColor = Theme.textPrimary
+        content.addSubview(heroCard)
+        for view in [heroSizeLabel, heroFamilyLabel, heroPreviewLabel, heroMetaLabel] {
+            heroCard.addSubview(view)
+        }
+
+        fontSummaryLabel.font = BellithFont.mono(12, weight: .regular)
+        fontSummaryLabel.textColor = Theme.textPrimary
+        fontSummaryLabel.lineBreakMode = .byTruncatingTail
+        fontSizeHeroLabel.font = BellithFont.display(26)
+        fontSizeHeroLabel.textColor = Theme.textDisplay
+        fontSizeHeroLabel.alignment = .right
+        fontPreviewNote.font = BellithFont.ui(11, weight: .regular)
+        fontPreviewNote.textColor = Theme.textSecondary
+
+        fontField = PrefTextField(text: settings.fontFamily) { [weak self] value in
+            self?.settings.fontFamily = value
+            self?.updateHero()
+        }
         fontPickerBtn.onFontPicked = { [weak self] name in
             guard let self else { return }
             self.settings.fontFamily = name
             self.fontField.updateText(name)
+            self.updateHero()
         }
         sizeValue.stringValue = "\(settings.fontSize)"
         sizeMinus = StepButton(symbol: "minus") { [weak self] in
             guard let self else { return }
             self.settings.fontSize = max(8, self.settings.fontSize - 1)
             self.sizeValue.stringValue = "\(self.settings.fontSize)"
+            self.updateHero()
         }
         sizePlus = StepButton(symbol: "plus") { [weak self] in
             guard let self else { return }
             self.settings.fontSize = min(36, self.settings.fontSize + 1)
             self.sizeValue.stringValue = "\(self.settings.fontSize)"
+            self.updateHero()
         }
         content.addSubview(fontCard)
-        for v: NSView in [fontLabel, fontField, fontPickerBtn, sizeLabel, sizeMinus, sizeValue, sizePlus] {
-            fontCard.addSubview(v)
+        for view: NSView in [fontSummaryLabel, fontSizeHeroLabel, fontPreviewNote, fontLabel, fontField, fontPickerBtn, sizeLabel, sizeMinus, sizeValue, sizePlus] {
+            fontCard.addSubview(view)
         }
 
-        // Cursor
-        cursorSegment = PrefSegment(labels: ["Block", "Bar", "Underline"],
-                                    selected: ["block": 0, "bar": 1, "underline": 2][settings.cursorStyle] ?? 0) { [weak self] idx in
+        cursorSegment = PrefSegment(labels: ["Block", "Bar", "Underline"], selected: ["block": 0, "bar": 1, "underline": 2][settings.cursorStyle] ?? 0) { [weak self] idx in
             self?.settings.cursorStyle = ["block", "bar", "underline"][idx]
+            self?.updateHero()
         }
-        blinkToggle = PrefToggle(isOn: settings.cursorBlink) { [weak self] v in self?.settings.cursorBlink = v }
+        blinkToggle = PrefToggle(isOn: settings.cursorBlink) { [weak self] value in
+            self?.settings.cursorBlink = value
+            self?.updateHero()
+        }
         content.addSubview(cursorCard)
-        for v: NSView in [cursorLabel, cursorSegment, blinkLabel, blinkToggle, cursorColorLabel, cursorColorNote] {
-            cursorCard.addSubview(v)
+        for view: NSView in [cursorLabel, cursorSegment, blinkLabel, blinkToggle, cursorColorLabel, cursorColorNote] {
+            cursorCard.addSubview(view)
         }
 
-        // Shell
-        shellField = PrefTextField(text: settings.shell) { [weak self] v in self?.settings.shell = v }
-        cwdField = PrefTextField(text: settings.workingDirectory) { [weak self] v in self?.settings.workingDirectory = v }
-        scrollField = MiniNumberField(value: settings.scrollbackLines, range: 100...1_000_000) { [weak self] v in
-            self?.settings.scrollbackLines = v
+        shellField = PrefTextField(text: settings.shell) { [weak self] value in
+            self?.settings.shell = value
+            self?.updateHero()
         }
-        let bellIdx = ["system": 0, "visual": 1, "bounce": 2, "none": 3][settings.bellMode] ?? 0
-        bellSegment = PrefSegment(labels: ["Sound", "Visual", "Bounce", "None"], selected: bellIdx) { [weak self] idx in
+        cwdField = PrefTextField(text: settings.workingDirectory) { [weak self] value in
+            self?.settings.workingDirectory = value
+            self?.updateHero()
+        }
+        scrollField = MiniNumberField(value: settings.scrollbackLines, range: 100...1_000_000) { [weak self] value in
+            self?.settings.scrollbackLines = value
+            self?.updateHero()
+        }
+        bellSegment = PrefSegment(labels: ["Sound", "Visual", "Bounce", "None"], selected: ["system": 0, "visual": 1, "bounce": 2, "none": 3][settings.bellMode] ?? 0) { [weak self] idx in
             self?.settings.bellMode = ["system", "visual", "bounce", "none"][idx]
+            self?.updateHero()
         }
-        content.addSubview(shellCard)
-        for v: NSView in [shellLabel, shellField, shellNote, cwdLabel, cwdField, cwdNote, scrollLabel, scrollField, scrollUnit, bellLabel, bellSegment] {
-            shellCard.addSubview(v)
+        content.addSubview(sessionCard)
+        for view: NSView in [shellLabel, shellField, shellNote, cwdLabel, cwdField, cwdNote, scrollLabel, scrollField, scrollUnit, bellLabel, bellSegment] {
+            sessionCard.addSubview(view)
         }
 
-        // Behavior
-        hideMouseToggle = PrefToggle(isOn: settings.mouseHideWhileTyping) { [weak self] v in self?.settings.mouseHideWhileTyping = v }
-        confirmToggle = PrefToggle(isOn: settings.confirmClose) { [weak self] v in self?.settings.confirmClose = v }
-        restoreToggle = PrefToggle(isOn: settings.restoreSession) { [weak self] v in self?.settings.restoreSession = v }
+        hideMouseToggle = PrefToggle(isOn: settings.mouseHideWhileTyping) { [weak self] value in self?.settings.mouseHideWhileTyping = value }
+        confirmToggle = PrefToggle(isOn: settings.confirmClose) { [weak self] value in self?.settings.confirmClose = value }
+        restoreToggle = PrefToggle(isOn: settings.restoreSession) { [weak self] value in self?.settings.restoreSession = value }
         content.addSubview(behaviorCard)
-        for v: NSView in [hideMouseLabel, hideMouseToggle, confirmLabel, confirmToggle, restoreLabel, restoreToggle] {
-            behaviorCard.addSubview(v)
+        for view: NSView in [hideMouseLabel, hideMouseToggle, confirmLabel, confirmToggle, restoreLabel, restoreToggle] {
+            behaviorCard.addSubview(view)
         }
+
+        refresh()
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    func refresh() {
+        content.layer?.backgroundColor = Theme.base.cgColor
+        heroCard.refresh()
+        fontCard.refresh()
+        cursorCard.refresh()
+        sessionCard.refresh()
+        behaviorCard.refresh()
+        fontField.updateText(settings.fontFamily)
+        sizeValue.stringValue = "\(settings.fontSize)"
+        cursorSegment.setSelected(["block": 0, "bar": 1, "underline": 2][settings.cursorStyle] ?? 0)
+        blinkToggle.setOn(settings.cursorBlink)
+        shellField.updateText(settings.shell)
+        cwdField.updateText(settings.workingDirectory)
+        scrollField.setValue(settings.scrollbackLines)
+        bellSegment.setSelected(["system": 0, "visual": 1, "bounce": 2, "none": 3][settings.bellMode] ?? 0)
+        hideMouseToggle.setOn(settings.mouseHideWhileTyping)
+        confirmToggle.setOn(settings.confirmClose)
+        restoreToggle.setOn(settings.restoreSession)
+        updateHero()
+        needsLayout = true
+    }
+
+    private func updateHero() {
+        heroSizeLabel.stringValue = "\(settings.fontSize) PX"
+        heroFamilyLabel.stringValue = settings.fontFamily.uppercased()
+        heroMetaLabel.stringValue = "[ \(settings.cursorStyle.uppercased()) ]   [ \(settings.cursorBlink ? "BLINK" : "STATIC") ]   [ \(settings.scrollbackLines) LINES ]"
+        let prompt = settings.shell.isEmpty ? "$ bellith --new-session" : "$ \(settings.shell)"
+        heroPreviewLabel.stringValue = prompt
+        heroPreviewLabel.font = NSFont(name: settings.fontFamily, size: CGFloat(settings.fontSize))
+            ?? BellithFont.mono(CGFloat(settings.fontSize), weight: .regular)
+        heroPreviewLabel.textColor = Theme.textPrimary
+
+        fontSummaryLabel.stringValue = settings.fontFamily.uppercased()
+        fontSizeHeroLabel.stringValue = "\(settings.fontSize) PX"
+        fontSummaryLabel.textColor = Theme.textPrimary
+        fontSizeHeroLabel.textColor = Theme.textDisplay
+        fontPreviewNote.textColor = Theme.textSecondary
+    }
 
     override func layout() {
         super.layout()
         scroll.frame = bounds
 
-        let w = bounds.width
-        let cardW = w - PreferencesLayout.hPad * 2
+        let width = bounds.width
+        let cardW = width - PreferencesLayout.hPad * 2
         let innerW = cardW - PreferencesLayout.cardPad * 2
-        let ctlX: CGFloat = 90
-        let ctlW = innerW - ctlX
+        let labelW: CGFloat = 146
+        let controlX = PreferencesLayout.cardPad + labelW
+        let controlW = cardW - controlX - PreferencesLayout.cardPad
 
         var y: CGFloat = PreferencesLayout.hPad
 
-        // Font card (2 rows)
-        let fontCardH = fontCard.headerHeight + 2 * PreferencesLayout.rowH + PreferencesLayout.rowGap + PreferencesLayout.cardPad
-        fontCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: fontCardH)
+        let heroHeight: CGFloat = 172
+        heroCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: heroHeight)
+        heroSizeLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 68, width: innerW * 0.45, height: 46)
+        heroFamilyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 118, width: innerW * 0.45, height: 14)
+        heroPreviewLabel.frame = NSRect(x: PreferencesLayout.cardPad + innerW * 0.48, y: 78, width: innerW * 0.48, height: 24)
+        heroMetaLabel.frame = NSRect(x: PreferencesLayout.cardPad + innerW * 0.48, y: 106, width: innerW * 0.48, height: 16)
+        y += heroHeight + PreferencesLayout.sectionGap
 
-        // Row 0: Family (top row in card)
-        let fr0 = fontCardH - fontCard.headerHeight - PreferencesLayout.rowH
-        fontLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fr0 + (PreferencesLayout.rowH - 16) / 2, width: 80, height: 16)
-        let pickerW: CGFloat = 32
-        fontField.frame = NSRect(x: PreferencesLayout.cardPad + ctlX, y: fr0 + (PreferencesLayout.rowH - 28) / 2, width: ctlW - pickerW - 6, height: 28)
-        fontPickerBtn.frame = NSRect(x: PreferencesLayout.cardPad + ctlX + ctlW - pickerW, y: fr0 + (PreferencesLayout.rowH - 28) / 2, width: pickerW, height: 28)
-        // Row 1: Size
+        let fontHeroBlockH: CGFloat = 52
+        let fontCardHeight = fontCard.headerHeight + fontHeroBlockH + 2 * PreferencesLayout.rowH + PreferencesLayout.rowGap + PreferencesLayout.cardPad + 10
+        fontCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: fontCardHeight)
+        let fontHeroTop = fontCardHeight - fontCard.headerHeight - 14
+        fontSummaryLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fontHeroTop - 18, width: innerW - 110, height: 16)
+        fontSizeHeroLabel.frame = NSRect(x: cardW - PreferencesLayout.cardPad - 96, y: fontHeroTop - 34, width: 96, height: 30)
+        fontPreviewNote.frame = NSRect(x: PreferencesLayout.cardPad, y: fontHeroTop - 34, width: innerW - 110, height: 14)
+
+        let fr0 = fontHeroTop - fontHeroBlockH - 10
+        fontLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fr0, width: labelW - 12, height: PreferencesLayout.rowH)
+        let pickerW: CGFloat = 84
+        fontField.frame = NSRect(x: controlX, y: fr0 + 6, width: controlW - pickerW - 10, height: 28)
+        fontPickerBtn.frame = NSRect(x: controlX + controlW - pickerW, y: fr0 + 6, width: pickerW, height: 28)
         let fr1 = fr0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        sizeLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fr1 + (PreferencesLayout.rowH - 16) / 2, width: 80, height: 16)
-        let btnS: CGFloat = 28
-        sizeMinus.frame = NSRect(x: PreferencesLayout.cardPad + ctlX, y: fr1 + (PreferencesLayout.rowH - btnS) / 2, width: btnS, height: btnS)
-        sizeValue.frame = NSRect(x: PreferencesLayout.cardPad + ctlX + btnS + 6, y: fr1 + (PreferencesLayout.rowH - 20) / 2, width: 36, height: 20)
-        sizePlus.frame = NSRect(x: PreferencesLayout.cardPad + ctlX + btnS + 48, y: fr1 + (PreferencesLayout.rowH - btnS) / 2, width: btnS, height: btnS)
+        sizeLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fr1, width: labelW - 12, height: PreferencesLayout.rowH)
+        let stepSize: CGFloat = 28
+        sizeMinus.frame = NSRect(x: controlX, y: fr1 + 6, width: stepSize, height: stepSize)
+        sizeValue.frame = NSRect(x: controlX + 42, y: fr1 + 10, width: 54, height: 20)
+        sizePlus.frame = NSRect(x: controlX + 110, y: fr1 + 6, width: stepSize, height: stepSize)
+        y += fontCardHeight + PreferencesLayout.sectionGap
 
-        y += fontCardH + PreferencesLayout.sectionGap
-
-        // Cursor card (3 rows)
-        let cursorCardH = cursorCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
-        cursorCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: cursorCardH)
-
-        let cr0 = cursorCardH - cursorCard.headerHeight - PreferencesLayout.rowH
-        cursorLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: cr0 + (PreferencesLayout.rowH - 16) / 2, width: 80, height: 16)
-        cursorSegment.frame = NSRect(x: PreferencesLayout.cardPad + ctlX, y: cr0 + (PreferencesLayout.rowH - 28) / 2, width: min(220, ctlW), height: 28)
+        let cursorCardHeight = cursorCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        cursorCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: cursorCardHeight)
+        let cr0 = cursorCardHeight - cursorCard.headerHeight - PreferencesLayout.rowH
+        cursorLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: cr0, width: labelW - 12, height: PreferencesLayout.rowH)
+        cursorSegment.frame = NSRect(x: controlX, y: cr0 + 6, width: min(250, controlW), height: 28)
         let cr1 = cr0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        blinkLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: cr1 + (PreferencesLayout.rowH - 16) / 2, width: 80, height: 16)
-        blinkToggle.frame = NSRect(x: PreferencesLayout.cardPad + ctlX, y: cr1 + (PreferencesLayout.rowH - 22) / 2, width: 50, height: 28)
+        blinkLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: cr1, width: labelW - 12, height: PreferencesLayout.rowH)
+        blinkToggle.frame = NSRect(x: controlX, y: cr1 + 6, width: 50, height: 28)
         let cr2 = cr1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        cursorColorLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: cr2 + (PreferencesLayout.rowH - 16) / 2, width: 80, height: 16)
-        cursorColorNote.frame = NSRect(x: PreferencesLayout.cardPad + ctlX, y: cr2 + (PreferencesLayout.rowH - 14) / 2, width: ctlW, height: 14)
+        cursorColorLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: cr2, width: labelW - 12, height: PreferencesLayout.rowH)
+        cursorColorNote.frame = NSRect(x: controlX, y: cr2 + 12, width: controlW, height: 14)
+        y += cursorCardHeight + PreferencesLayout.sectionGap
 
-        y += cursorCardH + PreferencesLayout.sectionGap
-
-        // Shell card (4 rows + 2 notes)
-        let shellCardH = shellCard.headerHeight + 4 * PreferencesLayout.rowH + 2 * 14 + 3 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
-        shellCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: shellCardH)
-
-        let sr0 = shellCardH - shellCard.headerHeight - PreferencesLayout.rowH
-        shellLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr0 + (PreferencesLayout.rowH - 16) / 2, width: 80, height: 16)
-        shellField.frame = NSRect(x: PreferencesLayout.cardPad + ctlX, y: sr0 + (PreferencesLayout.rowH - 28) / 2, width: ctlW, height: 28)
-        let noteY = sr0 - 14
-        shellNote.frame = NSRect(x: PreferencesLayout.cardPad + ctlX, y: noteY, width: ctlW, height: 14)
-
-        let sr1 = noteY - PreferencesLayout.rowH
-        cwdLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr1 + (PreferencesLayout.rowH - 16) / 2, width: 80, height: 16)
-        cwdField.frame = NSRect(x: PreferencesLayout.cardPad + ctlX, y: sr1 + (PreferencesLayout.rowH - 28) / 2, width: ctlW, height: 28)
+        let sessionCardHeight = sessionCard.headerHeight + 4 * PreferencesLayout.rowH + 2 * 14 + 3 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        sessionCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: sessionCardHeight)
+        let sr0 = sessionCardHeight - sessionCard.headerHeight - PreferencesLayout.rowH
+        shellLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr0, width: labelW - 12, height: PreferencesLayout.rowH)
+        shellField.frame = NSRect(x: controlX, y: sr0 + 6, width: controlW, height: 28)
+        let shellNoteY = sr0 - 14
+        shellNote.frame = NSRect(x: controlX, y: shellNoteY, width: controlW, height: 14)
+        let sr1 = shellNoteY - PreferencesLayout.rowH
+        cwdLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr1, width: labelW - 12, height: PreferencesLayout.rowH)
+        cwdField.frame = NSRect(x: controlX, y: sr1 + 6, width: controlW, height: 28)
         let cwdNoteY = sr1 - 14
-        cwdNote.frame = NSRect(x: PreferencesLayout.cardPad + ctlX, y: cwdNoteY, width: ctlW, height: 14)
-
+        cwdNote.frame = NSRect(x: controlX, y: cwdNoteY, width: controlW, height: 14)
         let sr2 = cwdNoteY - PreferencesLayout.rowH
-        scrollLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr2 + (PreferencesLayout.rowH - 16) / 2, width: 80, height: 16)
-        scrollField.frame = NSRect(x: PreferencesLayout.cardPad + ctlX, y: sr2 + (PreferencesLayout.rowH - 28) / 2, width: 80, height: 28)
-        scrollUnit.frame = NSRect(x: PreferencesLayout.cardPad + ctlX + 86, y: sr2 + (PreferencesLayout.rowH - 14) / 2, width: 40, height: 14)
-
+        scrollLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr2, width: labelW - 12, height: PreferencesLayout.rowH)
+        scrollField.frame = NSRect(x: controlX, y: sr2 + 6, width: 96, height: 28)
+        scrollUnit.frame = NSRect(x: controlX + 106, y: sr2 + 12, width: 40, height: 12)
         let sr3 = sr2 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        bellLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr3 + (PreferencesLayout.rowH - 16) / 2, width: 80, height: 16)
-        bellSegment.frame = NSRect(x: PreferencesLayout.cardPad + ctlX, y: sr3 + (PreferencesLayout.rowH - 28) / 2, width: min(280, ctlW), height: 28)
+        bellLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr3, width: labelW - 12, height: PreferencesLayout.rowH)
+        bellSegment.frame = NSRect(x: controlX, y: sr3 + 6, width: min(320, controlW), height: 28)
+        y += sessionCardHeight + PreferencesLayout.sectionGap
 
-        y += shellCardH + PreferencesLayout.sectionGap
-
-        // Behavior card (3 rows)
-        let behaviorCardH = behaviorCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
-        behaviorCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: behaviorCardH)
-
-        let behaviorLabelW: CGFloat = 180
-        let br0 = behaviorCardH - behaviorCard.headerHeight - PreferencesLayout.rowH
-        hideMouseLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br0 + (PreferencesLayout.rowH - 16) / 2, width: behaviorLabelW, height: 16)
-        hideMouseToggle.frame = NSRect(x: PreferencesLayout.cardPad + behaviorLabelW + 8, y: br0 + (PreferencesLayout.rowH - 22) / 2, width: 50, height: 28)
+        let behaviorCardHeight = behaviorCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        behaviorCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: behaviorCardHeight)
+        let br0 = behaviorCardHeight - behaviorCard.headerHeight - PreferencesLayout.rowH
+        hideMouseLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br0, width: labelW + 54, height: PreferencesLayout.rowH)
+        hideMouseToggle.frame = NSRect(x: controlX, y: br0 + 6, width: 50, height: 28)
         let br1 = br0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        confirmLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br1 + (PreferencesLayout.rowH - 16) / 2, width: behaviorLabelW, height: 16)
-        confirmToggle.frame = NSRect(x: PreferencesLayout.cardPad + behaviorLabelW + 8, y: br1 + (PreferencesLayout.rowH - 22) / 2, width: 50, height: 28)
+        confirmLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br1, width: labelW + 54, height: PreferencesLayout.rowH)
+        confirmToggle.frame = NSRect(x: controlX, y: br1 + 6, width: 50, height: 28)
         let br2 = br1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        restoreLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br2 + (PreferencesLayout.rowH - 16) / 2, width: behaviorLabelW, height: 16)
-        restoreToggle.frame = NSRect(x: PreferencesLayout.cardPad + behaviorLabelW + 8, y: br2 + (PreferencesLayout.rowH - 22) / 2, width: 50, height: 28)
+        restoreLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br2, width: labelW + 54, height: PreferencesLayout.rowH)
+        restoreToggle.frame = NSRect(x: controlX, y: br2 + 6, width: 50, height: 28)
+        y += behaviorCardHeight + PreferencesLayout.hPad
 
-        y += behaviorCardH + PreferencesLayout.hPad
-
-        content.frame = NSRect(x: 0, y: 0, width: w, height: max(y, bounds.height))
+        content.frame = NSRect(x: 0, y: 0, width: width, height: max(y, bounds.height))
     }
+}
+
+extension TerminalPane: PreferencesPaneRefreshable {
+    func refreshPreferencesPane() { refresh() }
 }

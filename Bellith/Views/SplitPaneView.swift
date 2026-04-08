@@ -425,6 +425,8 @@ fileprivate final class SplitDividerView: NSView {
         self.orientation = orientation
         super.init(frame: .zero)
         wantsLayer = true
+        layer?.cornerRadius = 1
+        layer?.cornerCurve = .continuous
 
         // Accessibility
         setAccessibilityRole(.splitter)
@@ -458,16 +460,28 @@ fileprivate final class SplitDividerView: NSView {
             color = Theme.divider
         }
 
+        let opacity: Float = isDragging ? 0.95 : (isHovered ? 0.75 : 0.5)
+        let shadowColor = (isDragging ? Theme.accent.withAlphaComponent(0.35) : Theme.dividerHover.withAlphaComponent(isHovered ? 0.18 : 0)).cgColor
+        let shadowRadius: CGFloat = isDragging ? 10 : (isHovered ? 6 : 0)
+
         if animated {
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = Theme.animFast
                 ctx.allowsImplicitAnimation = true
                 self.layer?.backgroundColor = color.cgColor
-                self.layer?.opacity = self.isDragging ? 0.95 : (self.isHovered ? 0.75 : 0.5)
+                self.layer?.opacity = opacity
+                self.layer?.shadowColor = shadowColor
+                self.layer?.shadowOpacity = shadowRadius > 0 ? 1 : 0
+                self.layer?.shadowRadius = shadowRadius
+                self.layer?.shadowOffset = .zero
             }
         } else {
             layer?.backgroundColor = color.cgColor
-            layer?.opacity = isDragging ? 0.95 : (isHovered ? 0.75 : 0.5)
+            layer?.opacity = opacity
+            layer?.shadowColor = shadowColor
+            layer?.shadowOpacity = shadowRadius > 0 ? 1 : 0
+            layer?.shadowRadius = shadowRadius
+            layer?.shadowOffset = .zero
         }
     }
 

@@ -7,7 +7,7 @@ final class CommandPaletteView: NSView {
     private let inputField = NSTextField()
     private let iconView = NSImageView()
     private let separatorLine = NSView()
-    private let escHint = NSTextField(labelWithString: "esc")
+    private let escHint = NSTextField(labelWithString: "[ESC]")
     private let escHintPill = NSView()
     private var borderLayer: CALayer?
 
@@ -46,19 +46,22 @@ final class CommandPaletteView: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     func refreshTheme() {
-        borderLayer?.borderColor = Theme.border.cgColor
-        iconView.contentTintColor = Theme.accent
+        backdrop.layer?.backgroundColor = Theme.chromePanel.cgColor
+        borderLayer?.borderColor = Theme.chromeHairline.cgColor
+        iconView.contentTintColor = Theme.textSecondary
         inputField.textColor = Theme.textPrimary
+        inputField.font = BellithFont.mono(14, weight: .regular)
         inputField.placeholderAttributedString = NSAttributedString(
-            string: "Search commands\u{2026}",
+            string: "[COMMAND]",
             attributes: [
-                .foregroundColor: Theme.textMuted,
-                .font: NSFont.systemFont(ofSize: 15, weight: .regular),
+                .foregroundColor: Theme.textTertiary,
+                .font: BellithFont.mono(14, weight: .regular),
             ]
         )
-        separatorLine.layer?.backgroundColor = Theme.border.cgColor
-        escHintPill.layer?.backgroundColor = Theme.overlay.cgColor
-        escHint.textColor = Theme.textMuted
+        separatorLine.layer?.backgroundColor = Theme.chromeHairline.cgColor
+        escHintPill.layer?.backgroundColor = Theme.surface.cgColor
+        escHint.textColor = Theme.textSecondary
+        escHint.font = BellithFont.mono(10, weight: .regular)
         backdrop.appearance = Theme.overlayAppearance
         resultRows.forEach { $0.refreshTheme() }
     }
@@ -71,33 +74,31 @@ final class CommandPaletteView: NSView {
         setAccessibilityRole(.group)
         setAccessibilityLabel("Command Palette")
 
-        shadow = NSShadow()
-        layer?.shadowColor = NSColor.black.withAlphaComponent(0.5).cgColor
-        layer?.shadowOffset = CGSize(width: 0, height: -4)
-        layer?.shadowRadius = 20
-        layer?.shadowOpacity = 1
+        shadow = nil
+        layer?.shadowOpacity = 0
         layer?.cornerRadius = Theme.radiusPanel
 
-        // Frosted backdrop
-        backdrop.material = .sidebar
+        // Flatter backdrop
+        backdrop.material = .menu
         backdrop.blendingMode = .withinWindow
         backdrop.state = .active
         backdrop.wantsLayer = true
         backdrop.layer?.cornerRadius = Theme.radiusPanel
         backdrop.layer?.masksToBounds = true
+        backdrop.layer?.backgroundColor = Theme.chromePanel.cgColor
         backdrop.appearance = Theme.overlayAppearance
         addSubview(backdrop)
 
         let border = CALayer()
-        border.borderColor = Theme.border.cgColor
-        border.borderWidth = 0.5
+        border.borderColor = Theme.chromeHairline.cgColor
+        border.borderWidth = 1.0
         border.cornerRadius = Theme.radiusPanel
         backdrop.layer?.addSublayer(border)
         self.borderLayer = border
 
         // Search icon
-        iconView.image = NSImage(systemSymbolName: "sparkle", accessibilityDescription: nil)
-        iconView.contentTintColor = Theme.accent
+        iconView.image = NSImage(systemSymbolName: "terminal", accessibilityDescription: nil)
+        iconView.contentTintColor = Theme.textSecondary
         iconView.setFrameSize(NSSize(width: 18, height: 18))
         addSubview(iconView)
 
@@ -105,13 +106,13 @@ final class CommandPaletteView: NSView {
         inputField.isBezeled = false
         inputField.drawsBackground = false
         inputField.focusRingType = .none
-        inputField.font = .systemFont(ofSize: 15, weight: .regular)
+        inputField.font = BellithFont.mono(14, weight: .regular)
         inputField.textColor = Theme.textPrimary
         inputField.placeholderAttributedString = NSAttributedString(
-            string: "Search commands\u{2026}",
+            string: "[COMMAND]",
             attributes: [
-                .foregroundColor: Theme.textMuted,
-                .font: NSFont.systemFont(ofSize: 15, weight: .regular),
+                .foregroundColor: Theme.textTertiary,
+                .font: BellithFont.mono(14, weight: .regular),
             ]
         )
         inputField.cell?.sendsActionOnEndEditing = false
@@ -122,17 +123,17 @@ final class CommandPaletteView: NSView {
 
         // Separator between input and results
         separatorLine.wantsLayer = true
-        separatorLine.layer?.backgroundColor = Theme.border.cgColor
+        separatorLine.layer?.backgroundColor = Theme.chromeHairline.cgColor
         addSubview(separatorLine)
 
         // Esc hint keycap badge
         escHintPill.wantsLayer = true
-        escHintPill.layer?.backgroundColor = Theme.overlay.cgColor
+        escHintPill.layer?.backgroundColor = Theme.surface.cgColor
         escHintPill.layer?.cornerRadius = 4
         addSubview(escHintPill)
 
-        escHint.font = .systemFont(ofSize: 10, weight: .medium)
-        escHint.textColor = Theme.textMuted
+        escHint.font = BellithFont.mono(10, weight: .regular)
+        escHint.textColor = Theme.textSecondary
         escHint.isBezeled = false
         escHint.drawsBackground = false
         escHint.isEditable = false
@@ -312,7 +313,7 @@ final class CommandPaletteView: NSView {
     // MARK: - Show / Hide
 
     func show(in parent: NSView) {
-        let width: CGFloat = min(520, parent.bounds.width - 100)
+        let width: CGFloat = min(560, parent.bounds.width - 100)
         let x = (parent.bounds.width - width) / 2
         let y = parent.bounds.height - inputHeight - 50
 
@@ -431,23 +432,23 @@ private final class CommandRow: NSView {
         iconView.imageScaling = .scaleProportionallyDown
         addSubview(iconView)
 
-        labelField.font = .systemFont(ofSize: 13, weight: .medium)
+        labelField.font = BellithFont.ui(13, weight: .medium)
         labelField.textColor = Theme.textPrimary
         labelField.lineBreakMode = .byTruncatingTail
         applyLabelText()
         addSubview(labelField)
 
         descField.stringValue = description
-        descField.font = .systemFont(ofSize: 11)
-        descField.textColor = Theme.textMuted
+        descField.font = BellithFont.mono(10, weight: .regular)
+        descField.textColor = Theme.textSecondary
         descField.lineBreakMode = .byTruncatingTail
         addSubview(descField)
 
         // Keyboard shortcut display
         if let shortcut {
             shortcutField.stringValue = shortcut
-            shortcutField.font = .systemFont(ofSize: 11, weight: .medium)
-            shortcutField.textColor = Theme.textMuted
+            shortcutField.font = BellithFont.mono(10, weight: .regular)
+            shortcutField.textColor = Theme.textSecondary
             shortcutField.alignment = .right
             shortcutField.isEditable = false
             shortcutField.isBezeled = false
@@ -463,26 +464,26 @@ private final class CommandRow: NSView {
     func setSelected(_ selected: Bool) {
         isSelected = selected
         Theme.animate { _ in
-            self.iconView.animator().contentTintColor = selected ? Theme.accent : Theme.textSecondary
-            self.layer?.backgroundColor = selected ? Theme.accent.withAlphaComponent(0.1).cgColor : NSColor.clear.cgColor
+            self.iconView.animator().contentTintColor = selected ? Theme.textPrimary : Theme.textSecondary
+            self.layer?.backgroundColor = selected ? Theme.chromeElevated.withAlphaComponent(0.65).cgColor : NSColor.clear.cgColor
         }
         accentBar.isHidden = !selected
     }
 
     func refreshTheme() {
-        accentBar.backgroundColor = Theme.accent.withAlphaComponent(0.6).cgColor
+        accentBar.backgroundColor = Theme.accent.withAlphaComponent(0.45).cgColor
         applyLabelText()
-        descField.textColor = Theme.textMuted
-        shortcutField.textColor = Theme.textMuted
-        iconView.contentTintColor = isSelected ? Theme.accent : Theme.textSecondary
+        descField.textColor = Theme.textSecondary
+        shortcutField.textColor = Theme.textSecondary
+        iconView.contentTintColor = isSelected ? Theme.textPrimary : Theme.textSecondary
         updateAppearance()
     }
 
     private func updateAppearance() {
         if isSelected {
-            layer?.backgroundColor = Theme.accent.withAlphaComponent(0.1).cgColor
+            layer?.backgroundColor = Theme.chromeElevated.withAlphaComponent(0.65).cgColor
         } else if isHovered {
-            layer?.backgroundColor = Theme.hoverOverlay.cgColor
+            layer?.backgroundColor = Theme.chrome.withAlphaComponent(0.5).cgColor
         } else {
             layer?.backgroundColor = .clear
         }
@@ -491,20 +492,20 @@ private final class CommandRow: NSView {
     private func applyLabelText() {
         if !queryText.isEmpty, let range = labelText.lowercased().range(of: queryText.lowercased()) {
             let attr = NSMutableAttributedString(string: labelText, attributes: [
-                .font: NSFont.systemFont(ofSize: 13, weight: .medium),
+                .font: BellithFont.ui(13, weight: .medium),
                 .foregroundColor: Theme.textPrimary,
             ])
             let nsRange = NSRange(range, in: labelText)
             attr.addAttributes([
-                .foregroundColor: Theme.accent,
-                .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+                .foregroundColor: Theme.textDisplay,
+                .font: BellithFont.ui(13, weight: .medium),
             ], range: nsRange)
             labelField.attributedStringValue = attr
         } else {
             labelField.attributedStringValue = NSAttributedString(
                 string: labelText,
                 attributes: [
-                    .font: NSFont.systemFont(ofSize: 13, weight: .medium),
+                    .font: BellithFont.ui(13, weight: .medium),
                     .foregroundColor: Theme.textPrimary,
                 ]
             )

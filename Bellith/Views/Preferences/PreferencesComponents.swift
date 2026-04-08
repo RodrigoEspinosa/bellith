@@ -3,12 +3,12 @@ import AppKit
 // MARK: - Layout Constants
 
 enum PreferencesLayout {
-    static let hPad: CGFloat = 28
-    static let rowH: CGFloat = 38
-    static let sectionGap: CGFloat = 24
-    static let rowGap: CGFloat = 2
-    static let cardPad: CGFloat = 16
-    static let cardRadius: CGFloat = 12
+    static let hPad: CGFloat = 32
+    static let rowH: CGFloat = 40
+    static let sectionGap: CGFloat = 32
+    static let rowGap: CGFloat = 4
+    static let cardPad: CGFloat = 18
+    static let cardRadius: CGFloat = 14
 }
 
 // MARK: - Card Container (grouped section)
@@ -19,21 +19,21 @@ final class SettingsCard: NSView {
 
     init(title: String? = nil, subtitle: String? = nil) {
         if let title {
-            titleLabel = NSTextField(labelWithString: title)
-            titleLabel!.font = .systemFont(ofSize: 13, weight: .semibold)
-            titleLabel!.textColor = Theme.textPrimary
+            titleLabel = NSTextField(labelWithString: title.uppercased())
+            titleLabel!.font = BellithFont.mono(11, weight: .regular)
+            titleLabel!.textColor = Theme.textSecondary
         } else { titleLabel = nil }
         if let subtitle {
             subtitleLabel = NSTextField(labelWithString: subtitle)
-            subtitleLabel!.font = .systemFont(ofSize: 11)
-            subtitleLabel!.textColor = Theme.textMuted
+            subtitleLabel!.font = BellithFont.ui(11, weight: .regular)
+            subtitleLabel!.textColor = Theme.textTertiary
         } else { subtitleLabel = nil }
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = PreferencesLayout.cardRadius
         layer?.borderWidth = 0.5
-        layer?.borderColor = Theme.border.cgColor
-        layer?.backgroundColor = Theme.surface.withAlphaComponent(0.3).cgColor
+        layer?.borderColor = Theme.chromeHairline.cgColor
+        layer?.backgroundColor = Theme.chrome.cgColor
         if let t = titleLabel { addSubview(t) }
         if let s = subtitleLabel { addSubview(s) }
     }
@@ -47,10 +47,10 @@ final class SettingsCard: NSView {
     }
 
     func refresh() {
-        layer?.borderColor = Theme.border.cgColor
-        layer?.backgroundColor = Theme.surface.withAlphaComponent(0.3).cgColor
-        titleLabel?.textColor = Theme.textPrimary
-        subtitleLabel?.textColor = Theme.textMuted
+        layer?.borderColor = Theme.chromeHairline.cgColor
+        layer?.backgroundColor = Theme.chrome.cgColor
+        titleLabel?.textColor = Theme.textSecondary
+        subtitleLabel?.textColor = Theme.textTertiary
     }
 
     override func layout() {
@@ -64,12 +64,7 @@ final class SettingsCard: NSView {
         }
     }
 
-    override func draw(_ dirtyRect: NSRect) {
-        // Subtle inner top highlight
-        let highlightRect = NSRect(x: 1, y: bounds.height - 1, width: bounds.width - 2, height: 1)
-        NSColor(white: 1, alpha: 0.03).setFill()
-        highlightRect.fill()
-    }
+    override func draw(_ dirtyRect: NSRect) {}
 }
 
 // MARK: - Shortcut Badge (click to record)
@@ -87,7 +82,7 @@ final class ShortcutBadge: NSView {
         super.init(frame: .zero)
         wantsLayer = true
 
-        recordingLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        recordingLabel.font = BellithFont.mono(11, weight: .regular)
         recordingLabel.textColor = Theme.accent
         recordingLabel.alignment = .center
         recordingLabel.isEditable = false
@@ -119,7 +114,7 @@ final class ShortcutBadge: NSView {
         }
 
         let keys = shortcut.keycapStrings
-        let font = NSFont.systemFont(ofSize: 11, weight: .medium)
+        let font = BellithFont.mono(11, weight: .regular)
         let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: Theme.textSecondary]
 
         let capH: CGFloat = 22
@@ -212,8 +207,8 @@ final class ShortcutBadge: NSView {
 final class CardRowLabel: NSTextField {
     init(_ text: String) {
         super.init(frame: .zero)
-        stringValue = text
-        font = .systemFont(ofSize: 13)
+        stringValue = text.uppercased()
+        font = BellithFont.mono(11, weight: .regular)
         textColor = Theme.textSecondary
         isEditable = false; isBezeled = false; drawsBackground = false
     }
@@ -224,9 +219,9 @@ final class CardRowLabel: NSTextField {
 final class SmallLabel: NSTextField {
     init(_ text: String) {
         super.init(frame: .zero)
-        stringValue = text
-        font = .systemFont(ofSize: 11, weight: .medium)
-        textColor = Theme.textMuted
+        stringValue = text.uppercased()
+        font = BellithFont.mono(10, weight: .regular)
+        textColor = Theme.textTertiary
         isEditable = false; isBezeled = false; drawsBackground = false
     }
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -237,8 +232,8 @@ final class FooterNote: NSTextField {
     init(_ text: String) {
         super.init(frame: .zero)
         stringValue = text
-        font = .systemFont(ofSize: 11)
-        textColor = Theme.textMuted
+        font = BellithFont.mono(10, weight: .regular)
+        textColor = Theme.textTertiary
         isEditable = false; isBezeled = false; drawsBackground = false
     }
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -248,7 +243,7 @@ final class FooterNote: NSTextField {
 final class ValueBadge: NSTextField {
     init() {
         super.init(frame: .zero)
-        font = .monospacedDigitSystemFont(ofSize: 14, weight: .semibold)
+        font = BellithFont.mono(14, weight: .medium)
         textColor = Theme.textPrimary
         alignment = .center
         isEditable = false; isBezeled = false; drawsBackground = false
@@ -263,6 +258,8 @@ final class PrefSegment: NSView {
     private let onChange: (Int) -> Void
     private var buttons: [NSButton] = []
 
+    override var acceptsFirstResponder: Bool { true }
+
     init(labels: [String], selected: Int, onChange: @escaping (Int) -> Void) {
         self.selected = selected
         self.onChange = onChange
@@ -270,14 +267,14 @@ final class PrefSegment: NSView {
         wantsLayer = true
         layer?.cornerRadius = 8
         layer?.backgroundColor = Theme.base.cgColor
-        layer?.borderColor = Theme.border.cgColor
+        layer?.borderColor = Theme.chromeHairline.cgColor
         layer?.borderWidth = 0.5
 
         for (i, title) in labels.enumerated() {
-            let btn = NSButton(title: title, target: self, action: #selector(tapped(_:)))
+            let btn = NSButton(title: title.uppercased(), target: self, action: #selector(tapped(_:)))
             btn.tag = i
             btn.isBordered = false
-            btn.font = .systemFont(ofSize: 12, weight: .medium)
+            btn.font = BellithFont.mono(11, weight: .regular)
             btn.wantsLayer = true
             btn.layer?.cornerRadius = 6
             addSubview(btn)
@@ -304,11 +301,31 @@ final class PrefSegment: NSView {
         onChange(selected)
     }
 
+    func setSelected(_ newValue: Int) {
+        selected = newValue
+        updateAppearance()
+    }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 123:
+            setSelected(max(0, selected - 1))
+            onChange(selected)
+        case 124:
+            setSelected(min(buttons.count - 1, selected + 1))
+            onChange(selected)
+        case 49, 36:
+            onChange(selected)
+        default:
+            super.keyDown(with: event)
+        }
+    }
+
     private func updateAppearance() {
         for (i, btn) in buttons.enumerated() {
             if i == selected {
                 btn.contentTintColor = Theme.textPrimary
-                btn.layer?.backgroundColor = Theme.accent.withAlphaComponent(0.15).cgColor
+                btn.layer?.backgroundColor = Theme.chromeElevated.cgColor
             } else {
                 btn.contentTintColor = Theme.textSecondary
                 btn.layer?.backgroundColor = .clear
@@ -323,6 +340,8 @@ final class PrefToggle: NSView {
     private var isOn: Bool
     private let onChange: (Bool) -> Void
     private let trackLayer = CALayer()
+
+    override var acceptsFirstResponder: Bool { true }
     private let knobLayer = CALayer()
     private let knobShadowLayer = CALayer()
 
@@ -345,11 +364,11 @@ final class PrefToggle: NSView {
         layer?.addSublayer(trackLayer)
 
         // Knob shadow
-        knobShadowLayer.backgroundColor = NSColor(white: 0, alpha: 0.2).cgColor
+        knobShadowLayer.backgroundColor = NSColor.clear.cgColor
         layer?.addSublayer(knobShadowLayer)
 
         // Knob
-        knobLayer.backgroundColor = NSColor.white.cgColor
+        knobLayer.backgroundColor = Theme.base.cgColor
         layer?.addSublayer(knobLayer)
 
         updateLayers(animated: false)
@@ -365,23 +384,21 @@ final class PrefToggle: NSView {
     }
 
     private func updateLayers(animated: Bool) {
-        let color = isOn ? Theme.accent : Theme.overlay
+        let color = isOn ? Theme.textPrimary : Theme.surface
 
         if animated {
-            // Animate track color
             let colorAnim = CABasicAnimation(keyPath: "backgroundColor")
             colorAnim.fromValue = trackLayer.backgroundColor
             colorAnim.toValue = color.cgColor
-            colorAnim.duration = 0.2
-            colorAnim.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            colorAnim.duration = 0.18
+            colorAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
             trackLayer.add(colorAnim, forKey: "backgroundColor")
 
-            // Animate border
             let borderAnim = CABasicAnimation(keyPath: "borderWidth")
             borderAnim.fromValue = trackLayer.borderWidth
             borderAnim.toValue = isOn ? 0 : 0.5
-            borderAnim.duration = 0.2
-            borderAnim.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            borderAnim.duration = 0.18
+            borderAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
             trackLayer.add(borderAnim, forKey: "borderWidth")
         }
 
@@ -399,24 +416,12 @@ final class PrefToggle: NSView {
         let shadowFrame = NSRect(x: knobX, y: knobY - 1, width: knobD, height: knobD)
 
         if animated {
-            // Spring-like animation for the knob
-            let posAnim = CASpringAnimation(keyPath: "position")
+            let posAnim = CABasicAnimation(keyPath: "position")
             posAnim.fromValue = NSValue(point: NSPoint(x: knobLayer.frame.midX, y: knobLayer.frame.midY))
             posAnim.toValue = NSValue(point: NSPoint(x: knobFrame.midX, y: knobFrame.midY))
-            posAnim.damping = 15
-            posAnim.stiffness = 300
-            posAnim.mass = 0.8
-            posAnim.duration = posAnim.settlingDuration
+            posAnim.duration = 0.18
+            posAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
             knobLayer.add(posAnim, forKey: "position")
-
-            let shadowPosAnim = CASpringAnimation(keyPath: "position")
-            shadowPosAnim.fromValue = NSValue(point: NSPoint(x: knobShadowLayer.frame.midX, y: knobShadowLayer.frame.midY))
-            shadowPosAnim.toValue = NSValue(point: NSPoint(x: shadowFrame.midX, y: shadowFrame.midY))
-            shadowPosAnim.damping = 15
-            shadowPosAnim.stiffness = 300
-            shadowPosAnim.mass = 0.8
-            shadowPosAnim.duration = shadowPosAnim.settlingDuration
-            knobShadowLayer.add(shadowPosAnim, forKey: "position")
         }
 
         CATransaction.begin()
@@ -429,6 +434,24 @@ final class PrefToggle: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        toggle()
+    }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 49, 36:
+            toggle()
+        default:
+            super.keyDown(with: event)
+        }
+    }
+
+    func setOn(_ newValue: Bool, animated: Bool = false) {
+        isOn = newValue
+        updateLayers(animated: animated)
+    }
+
+    private func toggle() {
         isOn.toggle()
         onChange(isOn)
         updateLayers(animated: true)
@@ -442,14 +465,16 @@ final class OpacityTrackView: NSView {
     private let onChange: (Double) -> Void
     private let percentLabel: NSTextField
 
+    override var acceptsFirstResponder: Bool { true }
+
     init(value: Double, onChange: @escaping (Double) -> Void) {
         self.value = value
         self.onChange = onChange
         self.percentLabel = NSTextField(labelWithString: "\(Int(value * 100))%")
         super.init(frame: .zero)
         wantsLayer = true
-        percentLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-        percentLabel.textColor = Theme.textMuted
+        percentLabel.font = BellithFont.mono(10, weight: .regular)
+        percentLabel.textColor = Theme.textSecondary
         percentLabel.alignment = .right
         addSubview(percentLabel)
     }
@@ -462,40 +487,53 @@ final class OpacityTrackView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let trackW = bounds.width - 48
-        let trackH: CGFloat = 4
+        let trackW = bounds.width - 52
+        let segments = max(10, Int(trackW / 14))
+        let gap: CGFloat = 2
+        let segmentW = max(6, (trackW - CGFloat(segments - 1) * gap) / CGFloat(segments))
+        let trackH: CGFloat = 10
         let trackY = (bounds.height - trackH) / 2
+        let filledCount = Int(round(CGFloat(value) * CGFloat(segments)))
 
-        // Track background
-        Theme.base.setFill()
-        NSBezierPath(roundedRect: NSRect(x: 0, y: trackY, width: trackW, height: trackH), xRadius: 2, yRadius: 2).fill()
+        for index in 0..<segments {
+            let rect = NSRect(x: CGFloat(index) * (segmentW + gap), y: trackY, width: segmentW, height: trackH)
+            let color = index < filledCount ? Theme.textDisplay : Theme.border
+            color.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 1.5, yRadius: 1.5).fill()
+        }
 
-        // Filled portion
-        let fillW = trackW * CGFloat(value)
-        Theme.accent.withAlphaComponent(0.5).setFill()
-        NSBezierPath(roundedRect: NSRect(x: 0, y: trackY, width: fillW, height: trackH), xRadius: 2, yRadius: 2).fill()
-
-        // Thumb with glow
-        let thumbR: CGFloat = 7
-        let thumbCenter = NSPoint(x: fillW, y: bounds.height / 2)
-        Theme.accent.withAlphaComponent(0.2).setFill()
-        NSBezierPath(ovalIn: NSRect(x: thumbCenter.x - thumbR - 2, y: thumbCenter.y - thumbR - 2,
-                                     width: (thumbR + 2) * 2, height: (thumbR + 2) * 2)).fill()
-        NSColor(white: 0.9, alpha: 1).setFill()
-        NSBezierPath(ovalIn: NSRect(x: thumbCenter.x - thumbR, y: thumbCenter.y - thumbR,
-                                     width: thumbR * 2, height: thumbR * 2)).fill()
+        let markerX = min(trackW - 1, max(0, (segmentW + gap) * CGFloat(filledCount) - gap / 2))
+        Theme.textSecondary.withAlphaComponent(0.55).setFill()
+        NSBezierPath(rect: NSRect(x: markerX, y: trackY - 4, width: 1, height: trackH + 8)).fill()
     }
 
     override func mouseDown(with event: NSEvent) { updateValue(from: event) }
     override func mouseDragged(with event: NSEvent) { updateValue(from: event) }
 
-    private func updateValue(from event: NSEvent) {
-        let loc = convert(event.locationInWindow, from: nil)
-        let trackW = bounds.width - 48
-        value = min(1.0, max(0.3, Double(loc.x / trackW)))
-        onChange(value)
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 123:
+            setValue(value - 0.05)
+            onChange(value)
+        case 124:
+            setValue(value + 0.05)
+            onChange(value)
+        default:
+            super.keyDown(with: event)
+        }
+    }
+
+    func setValue(_ newValue: Double) {
+        value = min(1.0, max(0.3, newValue))
         percentLabel.stringValue = "\(Int(value * 100))%"
         needsDisplay = true
+    }
+
+    private func updateValue(from event: NSEvent) {
+        let loc = convert(event.locationInWindow, from: nil)
+        let trackW = bounds.width - 52
+        setValue(Double(loc.x / trackW))
+        onChange(value)
     }
 }
 
@@ -515,7 +553,7 @@ final class PrefTextField: NSView {
         layer?.borderColor = Theme.border.cgColor
         layer?.borderWidth = 0.5
 
-        field.font = .monospacedSystemFont(ofSize: 12.5, weight: .regular)
+        field.font = BellithFont.mono(12.5, weight: .regular)
         field.textColor = Theme.textPrimary
         field.backgroundColor = .clear
         field.drawsBackground = false
@@ -559,7 +597,7 @@ final class MiniNumberField: NSView {
         layer?.borderColor = Theme.border.cgColor
         layer?.borderWidth = 0.5
 
-        field.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        field.font = BellithFont.mono(12, weight: .regular)
         field.textColor = Theme.textPrimary
         field.backgroundColor = .clear
         field.drawsBackground = false
@@ -584,6 +622,10 @@ final class MiniNumberField: NSView {
         field.stringValue = "\(val)"
         onChange(val)
     }
+
+    func setValue(_ value: Int) {
+        field.stringValue = "\(max(range.lowerBound, min(range.upperBound, value)))"
+    }
 }
 
 // MARK: - Step Button
@@ -593,6 +635,8 @@ final class StepButton: NSView {
     private let symbol: NSImage?
     private var isHovered = false
     private var trackingArea: NSTrackingArea?
+
+    override var acceptsFirstResponder: Bool { true }
 
     init(symbol name: String, action: @escaping () -> Void) {
         self.action = action
@@ -620,6 +664,14 @@ final class StepButton: NSView {
     }
 
     override func mouseDown(with event: NSEvent) { action() }
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 49, 36:
+            action()
+        default:
+            super.keyDown(with: event)
+        }
+    }
     override func updateTrackingAreas() {
         if let a = trackingArea { removeTrackingArea(a) }
         trackingArea = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
@@ -638,17 +690,19 @@ final class LinkButton: NSView {
     private var trackingArea: NSTrackingArea?
     private var isHovered = false
 
+    override var acceptsFirstResponder: Bool { true }
+
     init(title: String) {
-        label = NSTextField(labelWithString: title)
+        label = NSTextField(labelWithString: title.uppercased())
         arrow = NSImageView()
         super.init(frame: .zero)
 
-        label.font = .systemFont(ofSize: 12, weight: .medium)
-        label.textColor = Theme.accent
+        label.font = BellithFont.mono(11, weight: .regular)
+        label.textColor = Theme.textSecondary
         addSubview(label)
 
         arrow.image = NSImage(systemSymbolName: "arrow.right", accessibilityDescription: nil)
-        arrow.contentTintColor = Theme.accent.withAlphaComponent(0.5)
+        arrow.contentTintColor = Theme.textTertiary
         arrow.imageScaling = .scaleProportionallyDown
         addSubview(arrow)
     }
@@ -663,14 +717,21 @@ final class LinkButton: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         if isHovered {
-            // Underline effect
-            Theme.accent.withAlphaComponent(0.3).setFill()
+            Theme.textSecondary.withAlphaComponent(0.3).setFill()
             let underline = NSRect(x: 0, y: 0, width: label.attributedStringValue.size().width, height: 1)
             underline.fill()
         }
     }
 
     override func mouseDown(with event: NSEvent) { onClick?() }
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 49, 36:
+            onClick?()
+        default:
+            super.keyDown(with: event)
+        }
+    }
     override func updateTrackingAreas() {
         if let a = trackingArea { removeTrackingArea(a) }
         trackingArea = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
@@ -678,15 +739,15 @@ final class LinkButton: NSView {
     }
     override func mouseEntered(with event: NSEvent) {
         isHovered = true
-        label.textColor = Theme.accent.withAlphaComponent(0.8)
-        arrow.contentTintColor = Theme.accent.withAlphaComponent(0.8)
+        label.textColor = Theme.textPrimary
+        arrow.contentTintColor = Theme.textSecondary
         NSCursor.pointingHand.push()
         needsDisplay = true
     }
     override func mouseExited(with event: NSEvent) {
         isHovered = false
-        label.textColor = Theme.accent
-        arrow.contentTintColor = Theme.accent.withAlphaComponent(0.5)
+        label.textColor = Theme.textSecondary
+        arrow.contentTintColor = Theme.textTertiary
         NSCursor.pop()
         needsDisplay = true
     }
@@ -698,6 +759,8 @@ final class FontPickerButton: NSView {
     var onFontPicked: ((String) -> Void)?
     private var isHovered = false
     private var trackingArea: NSTrackingArea?
+
+    override var acceptsFirstResponder: Bool { true }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -714,7 +777,16 @@ final class FontPickerButton: NSView {
         Theme.border.setStroke()
         NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7).stroke()
 
-        if let img = NSImage(systemSymbolName: "textformat", accessibilityDescription: "Choose font") {
+        if bounds.width >= 68 {
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: BellithFont.mono(10, weight: .regular),
+                .foregroundColor: isHovered ? Theme.textPrimary : Theme.textSecondary,
+            ]
+            let title = "CHOOSE" as NSString
+            let size = title.size(withAttributes: attrs)
+            let point = NSPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2)
+            title.draw(at: point, withAttributes: attrs)
+        } else if let img = NSImage(systemSymbolName: "textformat", accessibilityDescription: "Choose font") {
             let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
             let tinted = img.withSymbolConfiguration(config)
             let s: CGFloat = 14
@@ -724,6 +796,19 @@ final class FontPickerButton: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        presentFontPanel()
+    }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 49, 36:
+            presentFontPanel()
+        default:
+            super.keyDown(with: event)
+        }
+    }
+
+    private func presentFontPanel() {
         let panel = NSFontPanel.shared
         panel.setPanelFont(NSFont(name: BellithSettings.shared.fontFamily, size: CGFloat(BellithSettings.shared.fontSize))
                            ?? NSFont.monospacedSystemFont(ofSize: 13, weight: .regular), isMultiple: false)

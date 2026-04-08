@@ -1,18 +1,24 @@
 import AppKit
+import QuartzCore
 
-/// Zen-style vertical sidebar — a separate panel floating in the window frame.
-/// Slides in from the left with smooth content displacement.
-/// Shows terminal tabs and an inline tools inspector section.
+/// Monochrome utility sidebar with restrained chrome and strong type hierarchy.
 final class SidebarView: NSView {
     typealias TabModel = (id: UUID, title: String, kind: TerminalContainerView.TabKind)
 
-    static let expandedWidth: CGFloat = 208
+    static let expandedWidth: CGFloat = 216
 
     private var tabRows: [SidebarTabRow] = []
     private var tabRowSourceIndices: [Int] = []
     private let newTabButton = NSButton()
     private let headerLabel = NSTextField(labelWithString: "")
+    private let noiseView = SidebarNoiseView()
+    private let topBand = CAGradientLayer()
+    private let trafficLightDock = CALayer()
+    private let trafficLightHalo = CAGradientLayer()
+    private let topBandSeparator = CALayer()
+    private let innerStroke = CALayer()
     private let topHighlight = CALayer()
+    private let edgeBlend = CAGradientLayer()
 
     // Tools section
     private let toolsSeparator = CALayer()
@@ -49,70 +55,65 @@ final class SidebarView: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-
-        layer?.backgroundColor = Theme.chrome.cgColor
-        layer?.borderColor = Theme.chromeHairline.cgColor
-        layer?.borderWidth = 0.5
-        layer?.masksToBounds = true
         alphaValue = 1
+        appearance = Theme.overlayAppearance
 
-        headerLabel.stringValue = "Tabs"
-        headerLabel.font = .systemFont(ofSize: 11, weight: .semibold)
+        layer?.masksToBounds = true
+        layer?.cornerCurve = .continuous
+        layer?.borderWidth = 1
+
+        topBand.maskedCorners = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
+        layer?.addSublayer(topBand)
+        layer?.addSublayer(trafficLightDock)
+        layer?.addSublayer(trafficLightHalo)
+        layer?.addSublayer(topBandSeparator)
+        layer?.addSublayer(toolsSeparator)
+        layer?.addSublayer(innerStroke)
+        layer?.addSublayer(topHighlight)
+        layer?.addSublayer(edgeBlend)
+
+        noiseView.alphaValue = 0
+        addSubview(noiseView)
+
+        headerLabel.stringValue = "WORKSPACE"
+        headerLabel.font = BellithFont.mono(11, weight: .regular)
         headerLabel.textColor = Theme.textSecondary
         headerLabel.isEditable = false
         headerLabel.isBezeled = false
         headerLabel.drawsBackground = false
         addSubview(headerLabel)
 
-        // Pin button
-        pinButton.isBordered = false
+        toolsHeaderLabel.stringValue = "TOOLS"
+        toolsHeaderLabel.font = BellithFont.mono(11, weight: .regular)
+        toolsHeaderLabel.textColor = Theme.textMuted
+        toolsHeaderLabel.isEditable = false
+        toolsHeaderLabel.isBezeled = false
+        toolsHeaderLabel.drawsBackground = false
+        addSubview(toolsHeaderLabel)
+
+        newTabButton.title = ""
+        newTabButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "New Tab")
+        newTabButton.contentTintColor = Theme.textSecondary
+        newTabButton.target = self
+        newTabButton.action = #selector(handleNewTab)
+        configureHeaderButton(newTabButton)
+        addSubview(newTabButton)
+
         pinButton.title = ""
         updatePinButtonIcon()
-        pinButton.contentTintColor = isPinned ? Theme.accent : Theme.textMuted
-        pinButton.imageScaling = .scaleProportionallyDown
+        pinButton.contentTintColor = isPinned ? Theme.textPrimary : Theme.textMuted
         pinButton.target = self
         pinButton.action = #selector(handlePinToggle)
         pinButton.toolTip = isPinned ? "Unpin sidebar" : "Pin sidebar"
+        configureHeaderButton(pinButton)
         addSubview(pinButton)
-        pinButton.wantsLayer = true
-        pinButton.layer?.cornerRadius = 4
-        if isPinned {
-            pinButton.layer?.backgroundColor = Theme.accent.withAlphaComponent(0.1).cgColor
-        }
 
         // Start expanded if pinned
         if isPinned {
             isExpanded = true
         }
 
-        // Tools section
-        toolsSeparator.backgroundColor = Theme.chromeHairline.cgColor
-        layer?.addSublayer(toolsSeparator)
-
-        toolsHeaderLabel.font = .systemFont(ofSize: 10, weight: .semibold)
-        toolsHeaderLabel.textColor = Theme.textSecondary
-        toolsHeaderLabel.isEditable = false
-        toolsHeaderLabel.isBezeled = false
-        toolsHeaderLabel.drawsBackground = false
-        addSubview(toolsHeaderLabel)
-
-        newTabButton.isBordered = false
-        newTabButton.title = ""
-        newTabButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "New Tab")
-        newTabButton.contentTintColor = Theme.textSecondary
-        newTabButton.imageScaling = .scaleProportionallyDown
-        newTabButton.target = self
-        newTabButton.action = #selector(handleNewTab)
-        newTabButton.wantsLayer = true
-        newTabButton.layer?.cornerRadius = 6
-        newTabButton.setFrameSize(NSSize(width: 28, height: 28))
-        addSubview(newTabButton)
-
-        // Subtle top-edge highlight for visual depth
-        topHighlight.backgroundColor = Theme.borderSubtle.cgColor
-        topHighlight.frame = NSRect(x: 0, y: bounds.height - 0.5, width: bounds.width, height: 0.5)
-        topHighlight.autoresizingMask = [.layerWidthSizable, .layerMinYMargin]
-        layer?.addSublayer(topHighlight)
+        applySidebarChrome()
 
         // Rebuild tools from settings
         rebuildTools()
@@ -132,6 +133,70 @@ final class SidebarView: NSView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    private var headerButtonBaseColor: NSColor {
+        Theme.chromeElevated
+    }
+
+    private func configureHeaderButton(_ button: NSButton) {
+        button.isBordered = false
+        button.imageScaling = .scaleProportionallyDown
+        button.wantsLayer = true
+        button.layer?.cornerRadius = 7
+        button.layer?.cornerCurve = .continuous
+        button.layer?.borderWidth = 1
+    }
+
+    private func applySidebarChrome() {
+        appearance = Theme.overlayAppearance
+        layer?.backgroundColor = NSColor.clear.cgColor
+        layer?.borderWidth = 0
+        layer?.borderColor = NSColor.clear.cgColor
+        layer?.cornerRadius = 0
+
+        topBand.colors = [NSColor.clear.cgColor, NSColor.clear.cgColor]
+        topBand.locations = [0, 1]
+        topBand.startPoint = CGPoint(x: 0.5, y: 1)
+        topBand.endPoint = CGPoint(x: 0.5, y: 0)
+        topBand.cornerRadius = 0
+
+        trafficLightDock.backgroundColor = NSColor.clear.cgColor
+        trafficLightDock.borderWidth = 0
+        trafficLightDock.borderColor = NSColor.clear.cgColor
+        trafficLightDock.cornerRadius = 0
+
+        trafficLightHalo.colors = [NSColor.clear.cgColor, NSColor.clear.cgColor]
+        trafficLightHalo.locations = [0, 1]
+        trafficLightHalo.startPoint = CGPoint(x: 0, y: 0.5)
+        trafficLightHalo.endPoint = CGPoint(x: 1, y: 0.5)
+
+        topBandSeparator.backgroundColor = NSColor.clear.cgColor
+        toolsSeparator.backgroundColor = Theme.borderSubtle.cgColor
+
+        innerStroke.backgroundColor = NSColor.clear.cgColor
+        innerStroke.borderWidth = 0
+        innerStroke.borderColor = NSColor.clear.cgColor
+        innerStroke.cornerRadius = 0
+
+        topHighlight.backgroundColor = NSColor.clear.cgColor
+
+        edgeBlend.colors = [NSColor.clear.cgColor, NSColor.clear.cgColor]
+        edgeBlend.locations = [0, 1]
+        edgeBlend.startPoint = CGPoint(x: 0, y: 0.5)
+        edgeBlend.endPoint = CGPoint(x: 1, y: 0.5)
+        edgeBlend.cornerRadius = 0
+
+        headerLabel.textColor = Theme.textSecondary
+        toolsHeaderLabel.textColor = Theme.textMuted
+        noiseView.alphaValue = 0
+        noiseView.refreshTheme()
+        newTabButton.contentTintColor = Theme.textSecondary
+        newTabButton.layer?.backgroundColor = NSColor.clear.cgColor
+        newTabButton.layer?.borderColor = Theme.borderSubtle.cgColor
+        pinButton.contentTintColor = isPinned ? Theme.textPrimary : Theme.textMuted
+        pinButton.layer?.backgroundColor = (isPinned ? Theme.selectionFill.withAlphaComponent(0.65) : NSColor.clear).cgColor
+        pinButton.layer?.borderColor = Theme.borderSubtle.cgColor
+    }
 
     func update(tabs: [(id: UUID, title: String, kind: TerminalContainerView.TabKind)], selectedIndex: Int) {
         self.tabs = tabs
@@ -245,11 +310,9 @@ final class SidebarView: NSView {
         isPinned.toggle()
         BellithSettings.shared.sidebarPinned = isPinned
         updatePinButtonIcon()
-        pinButton.contentTintColor = isPinned ? Theme.accent : Theme.textMuted
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = Theme.animFast
-            ctx.allowsImplicitAnimation = true
-            pinButton.layer?.backgroundColor = isPinned ? Theme.accent.withAlphaComponent(0.1).cgColor : NSColor.clear.cgColor
+        pinButton.contentTintColor = isPinned ? Theme.textPrimary : Theme.textMuted
+        Theme.animate { _ in
+            self.pinButton.layer?.backgroundColor = (self.isPinned ? Theme.selectionFill.withAlphaComponent(0.65) : NSColor.clear).cgColor
         }
         pinButton.toolTip = isPinned ? "Unpin sidebar" : "Pin sidebar"
         if !isPinned && isExpanded {
@@ -259,77 +322,94 @@ final class SidebarView: NSView {
 
     override func layout() {
         super.layout()
-        let sideInset: CGFloat = 12
-        let topInset: CGFloat = 34
+        let sideInset: CGFloat = 14
+        let topBandHeight: CGFloat = 0
+        let headerTopInset: CGFloat = 42
         let rowHeight: CGFloat = 34
-        let rowSpacing: CGFloat = 3
-        let toolRowHeight: CGFloat = 28
-        let toolRowSpacing: CGFloat = 3
+        let rowSpacing: CGFloat = 6
+        let toolRowHeight: CGFloat = 30
+        let toolRowSpacing: CGFloat = 6
 
-        // Update tab count in header (visible tab rows only).
+        noiseView.frame = bounds
+        topBand.frame = NSRect(x: 0, y: bounds.height - topBandHeight, width: bounds.width, height: topBandHeight)
+        trafficLightDock.frame = .zero
+        trafficLightHalo.frame = .zero
+        topBandSeparator.frame = NSRect(x: sideInset, y: bounds.height - topBandHeight, width: max(0, bounds.width - sideInset * 2), height: 1)
+        innerStroke.frame = bounds.insetBy(dx: 1, dy: 1)
+        innerStroke.cornerRadius = max(0, (layer?.cornerRadius ?? 12) - 1)
+        topHighlight.frame = .zero
+        edgeBlend.frame = .zero
+
         let visibleTabCount = tabRows.count
-        headerLabel.stringValue = visibleTabCount > 0 ? "Workspace (\(visibleTabCount))" : "Workspace"
-
+        headerLabel.stringValue = visibleTabCount > 0 ? "WORKSPACE (\(visibleTabCount))" : "WORKSPACE"
         headerLabel.frame = NSRect(
             x: sideInset,
-            y: bounds.height - topInset - 14,
+            y: bounds.height - headerTopInset,
             width: bounds.width - sideInset * 2 - 68,
             height: 14
         )
 
         newTabButton.frame = NSRect(
             x: bounds.width - sideInset - 50,
-            y: bounds.height - topInset - 22,
-            width: 22,
-            height: 22
+            y: bounds.height - headerTopInset - 6,
+            width: 24,
+            height: 24
         )
         pinButton.frame = NSRect(
             x: bounds.width - sideInset - 24,
-            y: bounds.height - topInset - 22,
-            width: 20,
-            height: 20
+            y: bounds.height - headerTopInset - 6,
+            width: 24,
+            height: 24
         )
 
         let showTools = BellithSettings.shared.sidebarShowTools && !enabledTools.isEmpty
         let contentWidth = bounds.width - sideInset * 2
-        var y = bounds.height - topInset - 28
+
+        let tabBottomLimit: CGFloat
+        if showTools {
+            let toolsBottomInset: CGFloat = 18
+            let toolRowsHeight = CGFloat(toolRows.count) * toolRowHeight
+                + CGFloat(max(0, toolRows.count - 1)) * toolRowSpacing
+            let toolRowsTopY = toolsBottomInset + toolRowsHeight
+
+            var toolRowY = toolRowsTopY
+            for row in toolRows {
+                row.isHidden = false
+                row.frame = NSRect(x: sideInset, y: toolRowY - toolRowHeight, width: contentWidth, height: toolRowHeight)
+                toolRowY -= toolRowHeight + toolRowSpacing
+            }
+
+            toolsHeaderLabel.frame = NSRect(
+                x: sideInset,
+                y: toolRowsTopY + 10,
+                width: contentWidth,
+                height: 13
+            )
+            toolsSeparator.frame = NSRect(
+                x: sideInset,
+                y: toolsHeaderLabel.frame.maxY + 9,
+                width: contentWidth,
+                height: 1
+            )
+            tabBottomLimit = toolsSeparator.frame.maxY + 18
+        } else {
+            toolsSeparator.frame = .zero
+            toolsHeaderLabel.frame = .zero
+            for row in toolRows {
+                row.isHidden = true
+            }
+            tabBottomLimit = 16
+        }
+
+        var y = headerLabel.frame.minY - 18
         for row in tabRows {
-            if y - rowHeight < 16 {
+            if y - rowHeight < tabBottomLimit {
                 row.isHidden = true
             } else {
                 row.isHidden = false
                 row.frame = NSRect(x: sideInset, y: y - rowHeight, width: contentWidth, height: rowHeight)
             }
             y -= rowHeight + rowSpacing
-        }
-
-        if showTools {
-            y -= 14
-            toolsSeparator.frame = NSRect(
-                x: sideInset,
-                y: y,
-                width: contentWidth,
-                height: 0.5
-            )
-            y -= 18
-            toolsHeaderLabel.stringValue = "Tools"
-            toolsHeaderLabel.frame = NSRect(
-                x: sideInset,
-                y: y,
-                width: contentWidth,
-                height: 14
-            )
-            y -= 10
-
-            for row in toolRows {
-                if y - toolRowHeight < 10 {
-                    row.isHidden = true
-                } else {
-                    row.isHidden = false
-                    row.frame = NSRect(x: sideInset, y: y - toolRowHeight, width: contentWidth, height: toolRowHeight)
-                }
-                y -= toolRowHeight + toolRowSpacing
-            }
         }
     }
 
@@ -432,8 +512,9 @@ final class SidebarView: NSView {
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = Theme.animFast
                 ctx.allowsImplicitAnimation = true
-                self.newTabButton.layer?.backgroundColor = Theme.selectionFill.cgColor
-                self.newTabButton.contentTintColor = Theme.accent
+                self.newTabButton.layer?.backgroundColor = Theme.hoverOverlay.cgColor
+                self.newTabButton.layer?.borderColor = Theme.border.cgColor
+                self.newTabButton.contentTintColor = Theme.textPrimary
             }
         }
     }
@@ -444,6 +525,7 @@ final class SidebarView: NSView {
             ctx.duration = Theme.animFast
             ctx.allowsImplicitAnimation = true
             self.newTabButton.layer?.backgroundColor = NSColor.clear.cgColor
+            self.newTabButton.layer?.borderColor = Theme.borderSubtle.cgColor
             self.newTabButton.contentTintColor = Theme.textSecondary
         }
     }
@@ -465,15 +547,7 @@ final class SidebarView: NSView {
     // MARK: - Theme Update
 
     func refreshTheme() {
-        layer?.backgroundColor = Theme.chrome.cgColor
-        layer?.borderColor = Theme.chromeHairline.cgColor
-        topHighlight.backgroundColor = Theme.borderSubtle.cgColor
-        headerLabel.textColor = Theme.textSecondary
-        toolsHeaderLabel.textColor = Theme.textSecondary
-        toolsSeparator.backgroundColor = Theme.chromeHairline.cgColor
-        pinButton.contentTintColor = isPinned ? Theme.accent : Theme.textMuted
-        pinButton.layer?.backgroundColor = isPinned ? Theme.accent.withAlphaComponent(0.1).cgColor : NSColor.clear.cgColor
-        newTabButton.contentTintColor = Theme.textSecondary
+        applySidebarChrome()
         rebuildTabs()
         rebuildTools()
     }
@@ -491,10 +565,11 @@ fileprivate final class SidebarTabRow: NSView {
     private var isDragging = false
     private var mouseDownLocation: NSPoint?
 
+    private let selectionIndicator = CALayer()
+    private let iconPlate = CALayer()
     private let iconView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
     private let closeButton = NSButton()
-    private let selectionIndicator = CALayer()
     private let isSelected: Bool
     private let kind: TerminalContainerView.TabKind
     private var isHovered = false
@@ -509,37 +584,37 @@ fileprivate final class SidebarTabRow: NSView {
         self.kind = kind
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = 9
-        layer?.borderWidth = 0.5
+        layer?.cornerRadius = 10
+        layer?.cornerCurve = .continuous
+        layer?.borderWidth = 1
+        layer?.masksToBounds = false
 
-        // Accessibility
         setAccessibilityRole(.button)
         setAccessibilityLabel("Tab: \(title)")
         setAccessibilityValue(isSelected ? "selected" : "")
 
-        // Accent bar on the left edge of selected tab
-        if isSelected {
-            selectionIndicator.backgroundColor = Theme.accent.cgColor
-            selectionIndicator.cornerRadius = 2
-            layer?.addSublayer(selectionIndicator)
-        }
+        selectionIndicator.cornerRadius = 1.5
+        selectionIndicator.cornerCurve = .continuous
+        layer?.addSublayer(selectionIndicator)
 
-        // Icon
+        iconPlate.cornerRadius = 6
+        iconPlate.cornerCurve = .continuous
+        iconPlate.borderWidth = 1
+        layer?.addSublayer(iconPlate)
+
         let symbolName: String
         if case .smart(let pluginID) = kind,
            let plugin = SmartPanelRegistry.shared.plugin(for: pluginID) {
             symbolName = plugin.iconName
         } else {
-            symbolName = isSelected ? "terminal.fill" : "terminal"
+            symbolName = "folder.fill"
         }
         iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
-        iconView.contentTintColor = isSelected ? Theme.textPrimary : Theme.textMuted.withAlphaComponent(0.8)
         iconView.imageScaling = .scaleProportionallyDown
         addSubview(iconView)
 
         titleLabel.stringValue = title
-        titleLabel.font = .systemFont(ofSize: 13, weight: isSelected ? .semibold : .regular)
-        titleLabel.textColor = isSelected ? Theme.textPrimary : Theme.textSecondary
+        titleLabel.font = BellithFont.ui(12, weight: isSelected ? .semibold : .medium)
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.maximumNumberOfLines = 1
         addSubview(titleLabel)
@@ -547,11 +622,13 @@ fileprivate final class SidebarTabRow: NSView {
         closeButton.isBordered = false
         closeButton.title = ""
         closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close")
-        closeButton.contentTintColor = Theme.textMuted
         closeButton.imageScaling = .scaleProportionallyDown
         closeButton.target = self
         closeButton.action = #selector(handleClose)
         closeButton.alphaValue = 0
+        closeButton.wantsLayer = true
+        closeButton.layer?.cornerRadius = 6
+        closeButton.layer?.cornerCurve = .continuous
         addSubview(closeButton)
 
         updateAppearance()
@@ -563,11 +640,12 @@ fileprivate final class SidebarTabRow: NSView {
     override func layout() {
         super.layout()
         let h = bounds.height
-        selectionIndicator.frame = NSRect(x: 4, y: (h - 16) / 2, width: 3, height: 16)
-        let iconX: CGFloat = isSelected ? 16 : 12
-        iconView.frame = NSRect(x: iconX, y: (h - 18) / 2, width: 18, height: 18)
-        titleLabel.frame = NSRect(x: iconX + 24, y: (h - 16) / 2, width: bounds.width - iconX - 50, height: 16)
-        closeButton.frame = NSRect(x: bounds.width - 26, y: (h - 16) / 2, width: 16, height: 16)
+        selectionIndicator.frame = NSRect(x: 6, y: (h - 16) / 2, width: 3, height: 16)
+        iconPlate.frame = NSRect(x: 14, y: (h - 20) / 2, width: 20, height: 20)
+        let iconX: CGFloat = 18
+        iconView.frame = NSRect(x: iconX, y: (h - 12) / 2, width: 12, height: 12)
+        titleLabel.frame = NSRect(x: 42, y: (h - 16) / 2, width: bounds.width - 74, height: 16)
+        closeButton.frame = NSRect(x: bounds.width - 28, y: (h - 18) / 2, width: 18, height: 18)
     }
 
     override func updateTrackingAreas() {
@@ -627,25 +705,59 @@ fileprivate final class SidebarTabRow: NSView {
     @objc private func handleClose() { onClose?() }
 
     private func updateAppearance() {
-        let bgColor: CGColor
-        let borderColor: CGColor
+        let backgroundColor: NSColor
+        let borderColor: NSColor
+        let iconPlateColor: NSColor
+        let iconPlateBorder: NSColor
+        let iconColor: NSColor
+        let titleColor: NSColor
+        let indicatorColor: NSColor
+
         if isSelected {
-            bgColor = isSmartTab
-                ? Theme.selectionFill.withAlphaComponent(0.75).cgColor
-                : Theme.chromeElevated.withAlphaComponent(0.85).cgColor
-            borderColor = isSmartTab ? Theme.selectionStroke.cgColor : Theme.chromeHairline.cgColor
+            backgroundColor = NSColor(white: 1.0, alpha: 0.035)
+            borderColor = NSColor.clear
+            iconPlateColor = NSColor.clear
+            iconPlateBorder = NSColor.clear
+            iconColor = Theme.textPrimary
+            titleColor = Theme.textDisplay
+            indicatorColor = Theme.accent.withAlphaComponent(0.92)
+            layer?.shadowOpacity = 0
         } else if isHovered {
-            bgColor = Theme.hoverOverlay.cgColor
-            borderColor = NSColor.clear.cgColor
+            backgroundColor = Theme.hoverOverlay
+            borderColor = NSColor.clear
+            iconPlateColor = NSColor.clear
+            iconPlateBorder = NSColor.clear
+            iconColor = Theme.textPrimary
+            titleColor = Theme.textPrimary
+            indicatorColor = NSColor.clear
+            layer?.shadowOpacity = 0
         } else {
-            bgColor = NSColor.clear.cgColor
-            borderColor = NSColor.clear.cgColor
+            backgroundColor = NSColor.clear
+            borderColor = NSColor.clear
+            iconPlateColor = NSColor.clear
+            iconPlateBorder = NSColor.clear
+            iconColor = Theme.textSecondary
+            titleColor = Theme.textSecondary
+            indicatorColor = NSColor.clear
+            layer?.shadowOpacity = 0
         }
+
+        closeButton.contentTintColor = isHovered ? Theme.textPrimary : Theme.textSecondary
+        closeButton.layer?.backgroundColor = NSColor.clear.cgColor
+        closeButton.layer?.borderColor = NSColor.clear.cgColor
+        closeButton.layer?.borderWidth = 0
+
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = Theme.animFast
             ctx.allowsImplicitAnimation = true
-            self.layer?.backgroundColor = bgColor
-            self.layer?.borderColor = borderColor
+            self.layer?.backgroundColor = backgroundColor.cgColor
+            self.layer?.borderColor = borderColor.cgColor
+            self.selectionIndicator.backgroundColor = indicatorColor.cgColor
+            self.iconPlate.backgroundColor = iconPlateColor.cgColor
+            self.iconPlate.borderColor = iconPlateBorder.cgColor
+            self.iconView.animator().contentTintColor = iconColor
+            self.titleLabel.animator().textColor = titleColor
+            self.closeButton.animator().contentTintColor = self.closeButton.contentTintColor
         }
     }
 }
@@ -655,6 +767,7 @@ fileprivate final class SidebarTabRow: NSView {
 fileprivate final class SidebarToolRow: NSView {
     var onSelect: (() -> Void)?
     private let plugin: SmartPanelPlugin
+    private let iconPlate = CALayer()
     private let iconView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
     private var isHovered = false
@@ -665,15 +778,21 @@ fileprivate final class SidebarToolRow: NSView {
         self.isActive = isActive
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = 7
-        layer?.borderWidth = 0.5
+        layer?.cornerRadius = 9
+        layer?.cornerCurve = .continuous
+        layer?.borderWidth = 1
+
+        iconPlate.cornerRadius = 6
+        iconPlate.cornerCurve = .continuous
+        iconPlate.borderWidth = 1
+        layer?.addSublayer(iconPlate)
 
         iconView.image = NSImage(systemSymbolName: plugin.iconName, accessibilityDescription: plugin.title)
         iconView.imageScaling = .scaleProportionallyDown
         addSubview(iconView)
 
         titleLabel.stringValue = plugin.title
-        titleLabel.font = .systemFont(ofSize: 12, weight: .medium)
+        titleLabel.font = BellithFont.ui(12, weight: .medium)
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.maximumNumberOfLines = 1
         addSubview(titleLabel)
@@ -694,24 +813,53 @@ fileprivate final class SidebarToolRow: NSView {
     }
 
     private func applyStyle() {
+        let backgroundColor: NSColor
+        let borderColor: NSColor
+        let iconPlateColor: NSColor
+        let iconPlateBorder: NSColor
+        let iconColor: NSColor
+        let titleColor: NSColor
+
         if isActive {
-            iconView.contentTintColor = Theme.accent
-            titleLabel.textColor = Theme.textPrimary
-            layer?.backgroundColor = Theme.selectionFill.withAlphaComponent(0.7).cgColor
-            layer?.borderColor = Theme.selectionStroke.withAlphaComponent(0.7).cgColor
+            backgroundColor = NSColor(white: 1.0, alpha: 0.028)
+            borderColor = NSColor.clear
+            iconPlateColor = NSColor.clear
+            iconPlateBorder = NSColor.clear
+            iconColor = Theme.textPrimary
+            titleColor = Theme.textPrimary
+            layer?.shadowOpacity = 0
+        } else if isHovered {
+            backgroundColor = Theme.hoverOverlay
+            borderColor = NSColor.clear
+            iconPlateColor = NSColor.clear
+            iconPlateBorder = NSColor.clear
+            iconColor = Theme.textPrimary
+            titleColor = Theme.textPrimary
+            layer?.shadowOpacity = 0
         } else {
-            iconView.contentTintColor = Theme.textMuted
-            titleLabel.textColor = Theme.textSecondary
-            layer?.backgroundColor = NSColor.clear.cgColor
-            layer?.borderColor = NSColor.clear.cgColor
+            backgroundColor = NSColor.clear
+            borderColor = NSColor.clear
+            iconPlateColor = NSColor.clear
+            iconPlateBorder = NSColor.clear
+            iconColor = Theme.textSecondary
+            titleColor = Theme.textSecondary
+            layer?.shadowOpacity = 0
         }
+
+        iconView.contentTintColor = iconColor
+        titleLabel.textColor = titleColor
+        iconPlate.backgroundColor = iconPlateColor.cgColor
+        iconPlate.borderColor = iconPlateBorder.cgColor
+        layer?.backgroundColor = backgroundColor.cgColor
+        layer?.borderColor = borderColor.cgColor
     }
 
     override func layout() {
         super.layout()
         let h = bounds.height
-        iconView.frame = NSRect(x: 8, y: (h - 14) / 2, width: 14, height: 14)
-        titleLabel.frame = NSRect(x: 28, y: (h - 14) / 2, width: bounds.width - 36, height: 14)
+        iconPlate.frame = NSRect(x: 10, y: (h - 18) / 2, width: 18, height: 18)
+        iconView.frame = NSRect(x: 14, y: (h - 10) / 2, width: 10, height: 10)
+        titleLabel.frame = NSRect(x: 36, y: (h - 16) / 2, width: bounds.width - 44, height: 16)
     }
 
     override func updateTrackingAreas() {
@@ -726,10 +874,7 @@ fileprivate final class SidebarToolRow: NSView {
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = Theme.animFast
             ctx.allowsImplicitAnimation = true
-            self.iconView.animator().contentTintColor = Theme.accent
-            self.titleLabel.animator().textColor = Theme.textPrimary
-            self.layer?.backgroundColor = self.isActive ? Theme.selectionFill.withAlphaComponent(0.8).cgColor : Theme.hoverOverlay.cgColor
-            self.layer?.borderColor = self.isActive ? Theme.selectionStroke.withAlphaComponent(0.7).cgColor : NSColor.clear.cgColor
+            self.applyStyle()
         }
     }
 
@@ -738,14 +883,90 @@ fileprivate final class SidebarToolRow: NSView {
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = Theme.animFast
             ctx.allowsImplicitAnimation = true
-            self.iconView.animator().contentTintColor = self.isActive ? Theme.accent : Theme.textMuted
-            self.titleLabel.animator().textColor = self.isActive ? Theme.textPrimary : Theme.textSecondary
-            self.layer?.backgroundColor = self.isActive ? Theme.selectionFill.withAlphaComponent(0.7).cgColor : NSColor.clear.cgColor
-            self.layer?.borderColor = self.isActive ? Theme.selectionStroke.withAlphaComponent(0.7).cgColor : NSColor.clear.cgColor
+            self.applyStyle()
         }
     }
 
     override func mouseDown(with event: NSEvent) {
         onSelect?()
+    }
+}
+
+// MARK: - Noise Overlay
+
+fileprivate final class SidebarNoiseView: NSView {
+    private var cachedSize: CGSize = .zero
+    private var cachedIsLight = false
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.masksToBounds = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func layout() {
+        super.layout()
+        refreshTheme()
+    }
+
+    func refreshTheme() {
+        let size = bounds.size
+        let isLight = Theme.colors.isLight
+        guard size.width > 0, size.height > 0 else { return }
+        guard size != cachedSize || isLight != cachedIsLight || layer?.contents == nil else { return }
+
+        cachedSize = size
+        cachedIsLight = isLight
+        layer?.contents = makeNoiseImage(tileSize: NSSize(width: 72, height: 72), isLight: isLight)
+        layer?.contentsCenter = CGRect(x: 0.49, y: 0.49, width: 0.02, height: 0.02)
+        layer?.contentsGravity = .resizeAspectFill
+        layer?.opacity = isLight ? 0.055 : 0.08
+    }
+
+    private func makeNoiseImage(tileSize: NSSize, isLight: Bool) -> CGImage? {
+        let width = max(1, Int(tileSize.width))
+        let height = max(1, Int(tileSize.height))
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return nil
+        }
+
+        context.setFillColor(NSColor.clear.cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+
+        let base = isLight ? 0.0 : 1.0
+        let majorCount = 320
+        let minorCount = 110
+
+        for _ in 0..<majorCount {
+            let x = CGFloat(Int.random(in: 0..<width))
+            let y = CGFloat(Int.random(in: 0..<height))
+            let alpha = CGFloat.random(in: isLight ? 0.006...0.016 : 0.008...0.02)
+            context.setFillColor(NSColor(white: base, alpha: alpha).cgColor)
+            context.fill(CGRect(x: x, y: y, width: 1, height: 1))
+        }
+
+        for _ in 0..<minorCount {
+            let x = CGFloat(Int.random(in: 0..<width))
+            let y = CGFloat(Int.random(in: 0..<height))
+            let alpha = CGFloat.random(in: isLight ? 0.002...0.008 : 0.003...0.01)
+            context.setFillColor(Theme.accent.withAlphaComponent(alpha).cgColor)
+            context.fill(CGRect(x: x, y: y, width: 1, height: 1))
+        }
+
+        return context.makeImage()
     }
 }

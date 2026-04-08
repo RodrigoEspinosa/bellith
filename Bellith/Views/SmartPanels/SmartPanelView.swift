@@ -134,22 +134,22 @@ class SmartPanelView: NSView {
 
     private func setupHeader() {
         headerView.wantsLayer = true
-        headerView.layer?.backgroundColor = Theme.surface.cgColor
+        headerView.layer?.backgroundColor = Theme.chrome.cgColor
         addSubview(headerView)
 
         let border = CALayer()
-        border.backgroundColor = Theme.border.cgColor
+        border.backgroundColor = Theme.chromeHairline.cgColor
         border.frame = CGRect(x: 0, y: 0, width: 10000, height: 0.5)
         headerView.layer?.addSublayer(border)
 
         headerIcon.image = NSImage(systemSymbolName: panelIconName, accessibilityDescription: nil)
-        headerIcon.contentTintColor = Theme.accent
+        headerIcon.contentTintColor = Theme.textSecondary
         headerIcon.imageScaling = .scaleProportionallyDown
         headerView.addSubview(headerIcon)
 
-        headerLabel.stringValue = panelTitle
-        headerLabel.font = .systemFont(ofSize: 12, weight: .semibold)
-        headerLabel.textColor = Theme.textPrimary
+        headerLabel.stringValue = panelTitle.uppercased()
+        headerLabel.font = BellithFont.mono(11, weight: .regular)
+        headerLabel.textColor = Theme.textSecondary
         headerView.addSubview(headerLabel)
     }
 

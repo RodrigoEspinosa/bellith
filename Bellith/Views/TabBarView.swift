@@ -50,7 +50,7 @@ final class TabBarView: NSView {
         newTabButton.isBordered = false
         newTabButton.title = ""
         newTabButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "New Tab")
-        newTabButton.contentTintColor = Theme.textMuted
+        newTabButton.contentTintColor = Theme.textSecondary
         newTabButton.target = self
         newTabButton.action = #selector(handleNewTab)
         newTabButton.setFrameSize(NSSize(width: 24, height: 24))
@@ -60,7 +60,7 @@ final class TabBarView: NSView {
     }
 
     private func setupSingleTabLabel() {
-        singleTabLabel.font = .systemFont(ofSize: 12.5, weight: .medium)
+        singleTabLabel.font = BellithFont.ui(12.5, weight: .medium)
         singleTabLabel.textColor = Theme.textSecondary
         singleTabLabel.isEditable = false
         singleTabLabel.isSelectable = false
@@ -84,7 +84,7 @@ final class TabBarView: NSView {
     }
 
     func refreshTheme() {
-        newTabButton.contentTintColor = Theme.textMuted
+        newTabButton.contentTintColor = Theme.textSecondary
         singleTabLabel.textColor = Theme.textSecondary
         dragIndicatorLayer?.backgroundColor = Theme.accent.withAlphaComponent(0.5).cgColor
         rebuildTabViews()
@@ -245,14 +245,14 @@ fileprivate final class TabPillView: NSView {
         if case .smart(let pluginID) = kind,
            let plugin = SmartPanelRegistry.shared.plugin(for: pluginID) {
             iconView.image = NSImage(systemSymbolName: plugin.iconName, accessibilityDescription: nil)
-            iconView.contentTintColor = isSelected ? Theme.accent : Theme.textMuted
+            iconView.contentTintColor = isSelected ? Theme.textPrimary : Theme.textTertiary
             iconView.imageScaling = .scaleProportionallyDown
             addSubview(iconView)
         }
 
         titleLabel.stringValue = title
-        titleLabel.font = .systemFont(ofSize: 12, weight: isSelected ? .semibold : .regular)
-        titleLabel.textColor = isSelected ? Theme.textPrimary : Theme.textMuted.withAlphaComponent(0.9)
+        titleLabel.font = BellithFont.ui(12, weight: isSelected ? .medium : .regular)
+        titleLabel.textColor = isSelected ? Theme.textPrimary : Theme.textSecondary
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.maximumNumberOfLines = 1
         addSubview(titleLabel)
@@ -260,7 +260,7 @@ fileprivate final class TabPillView: NSView {
         closeButton.isBordered = false
         closeButton.title = ""
         closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close")
-        closeButton.contentTintColor = Theme.textMuted
+        closeButton.contentTintColor = Theme.textTertiary
         closeButton.setFrameSize(NSSize(width: 18, height: 18))
         closeButton.target = self
         closeButton.action = #selector(handleClose)
@@ -355,10 +355,8 @@ fileprivate final class TabPillView: NSView {
         let bgColor: CGColor
         let borderColor: CGColor
         if isSelected {
-            bgColor = isSmartTab
-                ? Theme.selectionFill.cgColor
-                : Theme.chromeElevated.cgColor
-            borderColor = isSmartTab ? Theme.selectionStroke.cgColor : Theme.chromeStroke.cgColor
+            bgColor = Theme.chromeElevated.withAlphaComponent(0.58).cgColor
+            borderColor = Theme.chromeHairline.cgColor
         } else if isHovered {
             bgColor = Theme.hoverOverlay.cgColor
             borderColor = Theme.chromeHairline.cgColor

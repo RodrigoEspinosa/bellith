@@ -72,6 +72,8 @@ final class TerminalWindow: NSWindow {
     private func applyThemeBackground() {
         backgroundColor = Theme.colors.frame
         contentView?.layer?.backgroundColor = Theme.colors.frame.cgColor
+        contentView?.layer?.borderWidth = 0
+        contentView?.layer?.borderColor = NSColor.clear.cgColor
     }
 
     private func applyThemeAppearance() {
@@ -187,8 +189,8 @@ final class TerminalWindow: NSWindow {
         }
 
         let trackingOriginX: CGFloat = trafficLightDisplayMode == .automatic ? 0 : 8
-        let trackingWidth: CGFloat = trafficLightDisplayMode == .automatic ? 120 : 136
-        let trackingRect = NSRect(x: trackingOriginX, y: contentView.bounds.height - 60, width: trackingWidth, height: 60)
+        let trackingWidth: CGFloat = trafficLightDisplayMode == .automatic ? 120 : 164
+        let trackingRect = NSRect(x: trackingOriginX, y: contentView.bounds.height - 64, width: trackingWidth, height: 64)
         let area = NSTrackingArea(
             rect: trackingRect,
             options: [.mouseEnteredAndExited, .activeAlways],
@@ -208,9 +210,9 @@ final class TerminalWindow: NSWindow {
         let buttons = [close, mini, zoom]
         let buttonHeight = close.frame.height
         let usesSidebarPlacement = trafficLightDisplayMode != .automatic
-        let originY = round((container.bounds.height - buttonHeight) / 2) + (usesSidebarPlacement ? 0 : -1)
-        let originX: CGFloat = usesSidebarPlacement ? 20 : 14
-        let spacing: CGFloat = 6
+        let originY = round((container.bounds.height - buttonHeight) / 2) + (usesSidebarPlacement ? 2 : -1)
+        let originX: CGFloat = usesSidebarPlacement ? 16 : 14
+        let spacing: CGFloat = usesSidebarPlacement ? 6.5 : 6
         var x = originX
 
         for button in buttons {
