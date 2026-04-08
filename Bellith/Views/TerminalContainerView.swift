@@ -394,70 +394,111 @@ final class TerminalContainerView: NSView {
 
         for surface in entry.surfaces {
             if let root = entry.splitRoot, let leaf = root.leaf(containing: surface) {
-                leaf.wantsLayer = true
-
-                // Reset border properties (used only for broadcast mode)
-                leaf.layer?.borderColor = nil
-                leaf.layer?.borderWidth = 0
-                leaf.layer?.cornerRadius = 0
-
-                if isBroadcasting && hasSplits {
-                    // Broadcast mode: full border on all panes
-                    leaf.layer?.borderColor = Theme.accent.withAlphaComponent(0.6).cgColor
-                    leaf.layer?.borderWidth = 1.5
-                    leaf.layer?.cornerRadius = 4
+                let state: PaneDecorationState
+                if !hasSplits {
+                    state = .hidden
+                } else if isBroadcasting {
+                    state = .broadcast
+                } else if surface === activeSurface {
+                    state = .active
+                } else {
+                    state = .inactive
                 }
-
-                let existingIndicator = leaf.layer?.sublayers?.first { $0.name == "focusIndicator" }
-                let shouldShow = hasSplits && surface === activeSurface && !isBroadcasting
-
-                if shouldShow {
-                    let margin: CGFloat = 6
-                    let targetFrame = CGRect(
-                        x: margin,
-                        y: leaf.bounds.height - 2.5,
-                        width: leaf.bounds.width - margin * 2,
-                        height: 2.5
-                    )
-                    if let existing = existingIndicator {
-                        // Update position of existing indicator
-                        existing.frame = targetFrame
-                    } else {
-                        // Add new indicator with fade-in
-                        let indicator = CALayer()
-                        indicator.name = "focusIndicator"
-                        indicator.backgroundColor = Theme.accent.withAlphaComponent(0.7).cgColor
-                        indicator.cornerRadius = 1.25
-                        indicator.frame = targetFrame
-                        indicator.autoresizingMask = [.layerWidthSizable, .layerMinYMargin]
-                        indicator.opacity = 0
-                        leaf.layer?.addSublayer(indicator)
-
-                        let fadeIn = CABasicAnimation(keyPath: "opacity")
-                        fadeIn.fromValue = 0
-                        fadeIn.toValue = 1
-                        fadeIn.duration = Theme.animFast
-                        fadeIn.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                        indicator.add(fadeIn, forKey: "fadeIn")
-                        indicator.opacity = 1
-                    }
-                } else if let existing = existingIndicator {
-                    // Fade out and remove
-                    let fadeOut = CABasicAnimation(keyPath: "opacity")
-                    fadeOut.fromValue = existing.presentation()?.opacity ?? 1
-                    fadeOut.toValue = 0
-                    fadeOut.duration = Theme.animFast
-                    fadeOut.timingFunction = CAMediaTimingFunction(name: .easeIn)
-                    fadeOut.isRemovedOnCompletion = false
-                    fadeOut.fillMode = .forwards
-                    existing.add(fadeOut, forKey: "fadeOut")
-
-                    DispatchQueue.main.asyncAfter(deadline: .now() + Theme.animFast) {
-                        existing.removeFromSuperlayer()
-                    }
-                }
+                applyPaneDecoration(to: leaf, state: state)
             }
         }
+    }
+
+    private enum PaneDecorationState {
+        case hidden
+        case inactive
+        case active
+        case broadcast
+    }
+
+    private enum PaneDecoration {
+        static let border = "paneBorder"
+        static let glow = "paneGlow"
+        static let inset: CGFloat = 5
+        static let cornerRadius: CGFloat = 10
+    }
+
+    private func applyPaneDecoration(to leaf: NSView, state: PaneDecorationState) {
+        leaf.wantsLayer = true
+        leaf.layer?.borderColor = nil
+        leaf.layer?.borderWidth = 0
+        leaf.layer?.cornerRadius = 0
+        leaf.layer?.masksToBounds = false
+
+        guard let layer = leaf.layer else { return }
+        let frame = leaf.bounds.insetBy(dx: PaneDecoration.inset, dy: PaneDecoration.inset)
+        let borderLayer = paneDecorationLayer(
+            named: PaneDecoration.border,
+            on: layer,
+            frame: frame
+        )
+        let glowLayer = paneDecorationLayer(
+            named: PaneDecoration.glow,
+            on: layer,
+            frame: frame
+        )
+
+        borderLayer.cornerRadius = PaneDecoration.cornerRadius
+        borderLayer.cornerCurve = .continuous
+        borderLayer.backgroundColor = NSColor.clear.cgColor
+        borderLayer.masksToBounds = false
+        glowLayer.cornerRadius = PaneDecoration.cornerRadius
+        glowLayer.cornerCurve = .continuous
+        glowLayer.backgroundColor = NSColor.clear.cgColor
+        glowLayer.borderWidth = 0
+
+        switch state {
+        case .hidden:
+            borderLayer.opacity = 0
+            glowLayer.opacity = 0
+            glowLayer.shadowOpacity = 0
+
+        case .inactive:
+            borderLayer.opacity = 1
+            borderLayer.borderWidth = 1
+            borderLayer.borderColor = Theme.chromeHairline.withAlphaComponent(Theme.colors.isLight ? 0.32 : 0.24).cgColor
+            glowLayer.opacity = 0
+            glowLayer.shadowOpacity = 0
+
+        case .active:
+            borderLayer.opacity = 1
+            borderLayer.borderWidth = 1.5
+            borderLayer.borderColor = Theme.accent.withAlphaComponent(0.6).cgColor
+            glowLayer.opacity = 1
+            glowLayer.shadowColor = Theme.accent.withAlphaComponent(0.22).cgColor
+            glowLayer.shadowOpacity = 1
+            glowLayer.shadowRadius = 14
+            glowLayer.shadowOffset = .zero
+
+        case .broadcast:
+            borderLayer.opacity = 1
+            borderLayer.borderWidth = 1.5
+            borderLayer.borderColor = Theme.accent.withAlphaComponent(0.52).cgColor
+            glowLayer.opacity = 1
+            glowLayer.shadowColor = Theme.accent.withAlphaComponent(0.12).cgColor
+            glowLayer.shadowOpacity = 1
+            glowLayer.shadowRadius = 8
+            glowLayer.shadowOffset = .zero
+        }
+    }
+
+    private func paneDecorationLayer(named name: String, on parent: CALayer, frame: CGRect) -> CALayer {
+        if let existing = parent.sublayers?.first(where: { $0.name == name }) {
+            existing.frame = frame
+            return existing
+        }
+
+        let layer = CALayer()
+        layer.name = name
+        layer.frame = frame
+        layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        parent.addSublayer(layer)
+        return layer
     }
 
     // MARK: - Tab Mode
@@ -1538,6 +1579,7 @@ final class TerminalContainerView: NSView {
         (zoomBadge as? ZoomBadge)?.refreshTheme()
         (broadcastBadge as? BroadcastBadge)?.refreshTheme()
         updateChromeFrames(animated: false)
+        updateFocusIndicator()
         reloadConfig()
         terminalApp?.setColorScheme(Theme.colors.isLight ? GHOSTTY_COLOR_SCHEME_LIGHT : GHOSTTY_COLOR_SCHEME_DARK)
         needsDisplay = true
@@ -1933,6 +1975,18 @@ final class TerminalContainerView: NSView {
     /// Centralized surface creation — wires up all callbacks (onClose, onTextInserted).
     private func makeSurface(tabId: UUID, app: TerminalApp) -> TerminalSurfaceView {
         let surface = TerminalSurfaceView(app: app)
+        surface.onFocus = { [weak self, weak surface] focusedSurface in
+            guard let self, let surface, focusedSurface === surface else { return }
+            guard let tabIndex = self.tabs.firstIndex(where: { tab in
+                tab.surfaces.contains { $0 === surface }
+            }) else { return }
+
+            self.tabs[tabIndex].focusedSurface = surface
+            if tabIndex == self.selectedTabIndex {
+                self.updateFocusIndicator()
+                surface.refreshReportedSize()
+            }
+        }
         surface.onClose = { [weak self, weak surface] _ in
             guard let self, let surface else { return }
             self.handleSurfaceClosed(id: tabId, surface: surface)

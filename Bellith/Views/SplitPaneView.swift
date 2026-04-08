@@ -357,8 +357,8 @@ final class SplitPaneView: NSView {
 
     // MARK: - Layout
 
-    private let dividerThickness: CGFloat = 1
-    private let dividerHitArea: CGFloat = 8
+    private let dividerThickness: CGFloat = 8
+    private let dividerHitArea: CGFloat = 14
 
     override func layout() {
         super.layout()
@@ -425,7 +425,7 @@ fileprivate final class SplitDividerView: NSView {
         self.orientation = orientation
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = 1
+        layer?.cornerRadius = 4
         layer?.cornerCurve = .continuous
 
         // Accessibility
@@ -452,34 +452,53 @@ fileprivate final class SplitDividerView: NSView {
 
     private func updateAppearance(animated: Bool = true) {
         let color: NSColor
-        if isDragging {
-            color = Theme.dividerActive
-        } else if isHovered {
-            color = Theme.dividerHover
-        } else {
-            color = Theme.divider
-        }
+        let borderColor: CGColor
+        let borderWidth: CGFloat
+        let shadowColor: CGColor
+        let shadowOpacity: Float
+        let shadowRadius: CGFloat
 
-        let opacity: Float = isDragging ? 0.95 : (isHovered ? 0.75 : 0.5)
-        let shadowColor = (isDragging ? Theme.accent.withAlphaComponent(0.35) : Theme.dividerHover.withAlphaComponent(isHovered ? 0.18 : 0)).cgColor
-        let shadowRadius: CGFloat = isDragging ? 10 : (isHovered ? 6 : 0)
+        if isDragging {
+            color = Theme.accentSubtle.withAlphaComponent(Theme.colors.isLight ? 0.92 : 0.78)
+            borderColor = Theme.dividerActive.cgColor
+            borderWidth = 1
+            shadowColor = Theme.accent.withAlphaComponent(0.28).cgColor
+            shadowOpacity = 1
+            shadowRadius = 12
+        } else if isHovered {
+            color = Theme.chromeElevated.withAlphaComponent(Theme.colors.isLight ? 0.92 : 0.78)
+            borderColor = Theme.dividerHover.cgColor
+            borderWidth = 1
+            shadowColor = Theme.dividerHover.withAlphaComponent(0.22).cgColor
+            shadowOpacity = 1
+            shadowRadius = 8
+        } else {
+            color = Theme.chromePanel.withAlphaComponent(Theme.colors.isLight ? 0.9 : 0.72)
+            borderColor = Theme.chromeHairline.withAlphaComponent(Theme.colors.isLight ? 0.42 : 0.32).cgColor
+            borderWidth = 1
+            shadowColor = NSColor.clear.cgColor
+            shadowOpacity = 0
+            shadowRadius = 0
+        }
 
         if animated {
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = Theme.animFast
                 ctx.allowsImplicitAnimation = true
                 self.layer?.backgroundColor = color.cgColor
-                self.layer?.opacity = opacity
+                self.layer?.borderColor = borderColor
+                self.layer?.borderWidth = borderWidth
                 self.layer?.shadowColor = shadowColor
-                self.layer?.shadowOpacity = shadowRadius > 0 ? 1 : 0
+                self.layer?.shadowOpacity = shadowOpacity
                 self.layer?.shadowRadius = shadowRadius
                 self.layer?.shadowOffset = .zero
             }
         } else {
             layer?.backgroundColor = color.cgColor
-            layer?.opacity = opacity
+            layer?.borderColor = borderColor
+            layer?.borderWidth = borderWidth
             layer?.shadowColor = shadowColor
-            layer?.shadowOpacity = shadowRadius > 0 ? 1 : 0
+            layer?.shadowOpacity = shadowOpacity
             layer?.shadowRadius = shadowRadius
             layer?.shadowOffset = .zero
         }
@@ -488,12 +507,13 @@ fileprivate final class SplitDividerView: NSView {
     override func updateTrackingAreas() {
         if let area = trackingArea { removeTrackingArea(area) }
         // Track on the expanded hit area
+        let inset = dividerHitInset
         let expandedRect: NSRect
         switch orientation {
         case .vertical:
-            expandedRect = bounds.insetBy(dx: -4, dy: 0)
+            expandedRect = bounds.insetBy(dx: -inset, dy: 0)
         case .horizontal:
-            expandedRect = bounds.insetBy(dx: 0, dy: -4)
+            expandedRect = bounds.insetBy(dx: 0, dy: -inset)
         }
         let area = NSTrackingArea(
             rect: expandedRect,
@@ -517,12 +537,13 @@ fileprivate final class SplitDividerView: NSView {
 
     override func resetCursorRects() {
         let cursor: NSCursor = orientation == .vertical ? .resizeLeftRight : .resizeUpDown
+        let inset = dividerHitInset
         let hitRect: NSRect
         switch orientation {
         case .vertical:
-            hitRect = bounds.insetBy(dx: -4, dy: 0)
+            hitRect = bounds.insetBy(dx: -inset, dy: 0)
         case .horizontal:
-            hitRect = bounds.insetBy(dx: 0, dy: -4)
+            hitRect = bounds.insetBy(dx: 0, dy: -inset)
         }
         addCursorRect(hitRect, cursor: cursor)
     }
@@ -557,12 +578,13 @@ fileprivate final class SplitDividerView: NSView {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
+        let inset = dividerHitInset
         let expanded: NSRect
         switch orientation {
         case .vertical:
-            expanded = bounds.insetBy(dx: -4, dy: 0)
+            expanded = bounds.insetBy(dx: -inset, dy: 0)
         case .horizontal:
-            expanded = bounds.insetBy(dx: 0, dy: -4)
+            expanded = bounds.insetBy(dx: 0, dy: -inset)
         }
         if expanded.contains(point) { return self }
         return nil
@@ -570,5 +592,9 @@ fileprivate final class SplitDividerView: NSView {
 
     func refreshTheme() {
         updateAppearance(animated: false)
+    }
+
+    private var dividerHitInset: CGFloat {
+        orientation == .vertical ? 5 : 4
     }
 }

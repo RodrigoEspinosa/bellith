@@ -25,6 +25,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     /// Called after text is inserted, for broadcast mode.
     var onTextInserted: ((String, TerminalSurfaceView) -> Void)?
     var onSizeChanged: ((Int, Int) -> Void)?
+    var onFocus: ((TerminalSurfaceView) -> Void)?
 
     init(app: TerminalApp, baseConfig: ghostty_surface_config_s? = nil) {
         self.terminalApp = app
@@ -78,15 +79,20 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     override var acceptsFirstResponder: Bool { true }
 
     override func becomeFirstResponder() -> Bool {
+        let becameFirstResponder = super.becomeFirstResponder()
+        guard becameFirstResponder else { return false }
         focused = true
         if let surface { ghostty_surface_set_focus(surface, true) }
-        return super.becomeFirstResponder()
+        onFocus?(self)
+        return true
     }
 
     override func resignFirstResponder() -> Bool {
+        let resignedFirstResponder = super.resignFirstResponder()
+        guard resignedFirstResponder else { return false }
         focused = false
         if let surface { ghostty_surface_set_focus(surface, false) }
-        return super.resignFirstResponder()
+        return true
     }
 
     override func viewDidMoveToWindow() {
