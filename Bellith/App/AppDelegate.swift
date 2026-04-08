@@ -593,9 +593,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case GHOSTTY_ACTION_OPEN_URL:
             if let urlPtr = action.action.open_url.url {
                 let str = String(cString: urlPtr)
-                if let url = URL(string: str) {
-                    NSWorkspace.shared.open(url)
-                }
+                _ = HyperlinkRouter.open(str)
             }
             return true
 

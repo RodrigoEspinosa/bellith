@@ -383,6 +383,10 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         key_ev.composing = false
         key_ev.unshifted_codepoint = 0
         ghostty_surface_key(surface, key_ev)
+
+        // Hyperlink activation on macOS is modifier-sensitive, so hovering a
+        // stationary pointer while pressing Command still needs a fresh update.
+        sendMousePos(event)
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
@@ -458,26 +462,40 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     override func mouseDown(with event: NSEvent) {
         guard let surface else { return }
         window?.makeFirstResponder(self)
+        sendMousePos(event)
         ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_PRESS, GHOSTTY_MOUSE_LEFT,
                                      InputHelpers.ghosttyMods(event.modifierFlags))
     }
 
     override func mouseUp(with event: NSEvent) {
         guard let surface else { return }
+        sendMousePos(event)
         ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_RELEASE, GHOSTTY_MOUSE_LEFT,
                                      InputHelpers.ghosttyMods(event.modifierFlags))
     }
 
     override func rightMouseDown(with event: NSEvent) {
         guard let surface else { return }
+        sendMousePos(event)
         ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_PRESS, GHOSTTY_MOUSE_RIGHT,
                                      InputHelpers.ghosttyMods(event.modifierFlags))
     }
 
     override func rightMouseUp(with event: NSEvent) {
         guard let surface else { return }
+        sendMousePos(event)
         ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_RELEASE, GHOSTTY_MOUSE_RIGHT,
                                      InputHelpers.ghosttyMods(event.modifierFlags))
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        sendMousePos(event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        sendMousePos(event)
     }
 
     override func mouseMoved(with event: NSEvent) { sendMousePos(event) }

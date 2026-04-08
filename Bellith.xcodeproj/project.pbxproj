@@ -29,6 +29,8 @@
 		459FB063C7F788F4E0E549A5 /* TerminalPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89FDA87579791818D3A6718 /* TerminalPane.swift */; };
 		4859630C40EA72D0F6A13448 /* SSHLaunchBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A6320778E024E8ABCDF2A6 /* SSHLaunchBuilder.swift */; };
 		4C6D7ECB973811FC8DA4121C /* ProcessMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39A46EAB948FDDFB1C12E4B9 /* ProcessMonitor.swift */; };
+		4DDD96881F2A1409729CD580 /* HyperlinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2088BFA03DDDC079DE5DB8C /* HyperlinkRouter.swift */; };
+		5863C9295DF764ABD02BC958 /* HyperlinkRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CDC1927EB617093208667D9 /* HyperlinkRouterTests.swift */; };
 		5DD63722AB2EE526EB096050 /* GhosttyKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1E2025F109793353C35658F9 /* GhosttyKit.xcframework */; };
 		6798D6E2D3D556D644A18E41 /* SSHProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879EFDEE63113B30DD38B6EA /* SSHProfileStore.swift */; };
 		6D65D2902B34E20D77196A44 /* TerminalSurfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41878447E775AEA363F6EF96 /* TerminalSurfaceView.swift */; };
@@ -106,6 +108,7 @@
 		7AF3EFCA4440E50031AF178C /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		7B6A4E8E8C5D7B65BB385570 /* ContextBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextBadgeView.swift; sourceTree = "<group>"; };
 		7B73776D795BE3450D431B7B /* NetworkPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPanel.swift; sourceTree = "<group>"; };
+		7CDC1927EB617093208667D9 /* HyperlinkRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyperlinkRouterTests.swift; sourceTree = "<group>"; };
 		84F589203C90A72C2C4DA09C /* SSHPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHPane.swift; sourceTree = "<group>"; };
 		879EFDEE63113B30DD38B6EA /* SSHProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHProfileStore.swift; sourceTree = "<group>"; };
 		8932FC29FCA31DEBC5C25A11 /* ProcessMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMonitorTests.swift; sourceTree = "<group>"; };
@@ -139,6 +142,7 @@
 		EA87F2112E9FD1A9C106D8F2 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		EC69484808B270DA784451B1 /* SearchBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchBarView.swift; sourceTree = "<group>"; };
 		F00EF9188ECCF6928DD41F54 /* StatusBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarView.swift; sourceTree = "<group>"; };
+		F2088BFA03DDDC079DE5DB8C /* HyperlinkRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyperlinkRouter.swift; sourceTree = "<group>"; };
 		FC5966D19E6F059737E8B875 /* TerminalContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalContext.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -181,6 +185,7 @@
 			isa = PBXGroup;
 			children = (
 				A97FAFCF93CCB562713620EE /* BellithFont.swift */,
+				F2088BFA03DDDC079DE5DB8C /* HyperlinkRouter.swift */,
 				7AF3EFCA4440E50031AF178C /* Logger.swift */,
 			);
 			path = Utilities;
@@ -190,6 +195,7 @@
 			isa = PBXGroup;
 			children = (
 				4FD22E965C6F1A921DC3AFFA /* BellithSettingsTests.swift */,
+				7CDC1927EB617093208667D9 /* HyperlinkRouterTests.swift */,
 				9CB945FE301FBB1B34329681 /* KeyShortcutTests.swift */,
 				8932FC29FCA31DEBC5C25A11 /* ProcessMonitorTests.swift */,
 				1B08540536C434953689D04D /* SessionStateTests.swift */,
@@ -427,6 +433,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				84920B35B7A5167C2AAE9985 /* BellithSettingsTests.swift in Sources */,
+				5863C9295DF764ABD02BC958 /* HyperlinkRouterTests.swift in Sources */,
 				1FE6195879EE4D4D65B24CC1 /* KeyShortcutTests.swift in Sources */,
 				B80E5D2747AB50B714189BC4 /* ProcessMonitorTests.swift in Sources */,
 				196EB5C6360D08B30D2E9D84 /* SSHLaunchBuilderTests.swift in Sources */,
@@ -453,6 +460,7 @@
 				18245BFE622B231108C45FFC /* ContextBadgeView.swift in Sources */,
 				3F81E95CDC0FF4142056C98A /* EnvironmentPanel.swift in Sources */,
 				FA077AEA422D8D9128490402 /* FileActivityPanel.swift in Sources */,
+				4DDD96881F2A1409729CD580 /* HyperlinkRouter.swift in Sources */,
 				A58FC4DBB6D1A65B63DEEC49 /* InputHelpers.swift in Sources */,
 				FE9D5CEE859363C51ADCC2CF /* KeyBindings.swift in Sources */,
 				A39350253246932A3A4CB068 /* KeybindingsPane.swift in Sources */,

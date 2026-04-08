@@ -20,6 +20,7 @@ final class TerminalConfigTests: XCTestCase {
         XCTAssertTrue(contents.contains("background-opacity"), "Config should contain background-opacity")
         XCTAssertTrue(contents.contains("cursor-style"), "Config should contain cursor-style")
         XCTAssertTrue(contents.contains("scrollback-limit"), "Config should contain scrollback-limit")
+        XCTAssertTrue(contents.contains("link-url = true"), "Config should enable clickable links")
         XCTAssertTrue(contents.contains("keybind = clear"), "Config should clear keybinds")
     }
 
