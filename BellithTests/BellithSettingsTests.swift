@@ -71,6 +71,15 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertFalse(settings.cursorBlink)
     }
 
+    func testDefaultShellIntegrationSettings() {
+        XCTAssertTrue(settings.shellIntegrationEnabled)
+        XCTAssertTrue(settings.shellIntegrationCursor)
+        XCTAssertTrue(settings.shellIntegrationTitle)
+        XCTAssertTrue(settings.shellIntegrationPath)
+        XCTAssertTrue(settings.shellIntegrationSSHEnv)
+        XCTAssertFalse(settings.shellIntegrationSSHTerminfo)
+    }
+
     func testDefaultWindowPadding() {
         XCTAssertEqual(settings.windowPaddingX, 10)
         XCTAssertEqual(settings.windowPaddingY, 38)
@@ -115,6 +124,27 @@ final class BellithSettingsTests: XCTestCase {
 
         settings.cursorBlink = false
         XCTAssertFalse(settings.cursorBlink)
+    }
+
+    func testShellIntegrationRoundtrip() {
+        settings.shellIntegrationEnabled = false
+        settings.shellIntegrationCursor = false
+        settings.shellIntegrationTitle = false
+        settings.shellIntegrationPath = false
+        settings.shellIntegrationSSHEnv = false
+        settings.shellIntegrationSSHTerminfo = true
+
+        XCTAssertFalse(settings.shellIntegrationEnabled)
+        XCTAssertFalse(settings.shellIntegrationCursor)
+        XCTAssertFalse(settings.shellIntegrationTitle)
+        XCTAssertFalse(settings.shellIntegrationPath)
+        XCTAssertFalse(settings.shellIntegrationSSHEnv)
+        XCTAssertTrue(settings.shellIntegrationSSHTerminfo)
+        XCTAssertEqual(settings.shellIntegrationMode, "none")
+        XCTAssertEqual(
+            settings.shellIntegrationFeatures,
+            "no-cursor,no-title,no-path,no-ssh-env,ssh-terminfo"
+        )
     }
 
     // MARK: - Keybindings

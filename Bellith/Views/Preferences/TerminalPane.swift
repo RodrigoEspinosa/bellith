@@ -46,6 +46,21 @@ final class TerminalPane: NSView {
     private let bellLabel = CardRowLabel("Bell")
     private var bellSegment: PrefSegment!
 
+    private let shellIntegrationCard = SettingsCard(title: "Shell Integration", subtitle: "Prompt marks, command tracking, and remote shell compatibility")
+    private let shellIntegrationEnabledLabel = CardRowLabel("Enable Shell Integration")
+    private var shellIntegrationEnabledToggle: PrefToggle!
+    private let shellIntegrationCursorLabel = CardRowLabel("Cursor At Prompt")
+    private var shellIntegrationCursorToggle: PrefToggle!
+    private let shellIntegrationTitleLabel = CardRowLabel("Update Window Title")
+    private var shellIntegrationTitleToggle: PrefToggle!
+    private let shellIntegrationPathLabel = CardRowLabel("Add Ghostty To PATH")
+    private var shellIntegrationPathToggle: PrefToggle!
+    private let shellIntegrationSSHEnvLabel = CardRowLabel("SSH Env Compatibility")
+    private var shellIntegrationSSHEnvToggle: PrefToggle!
+    private let shellIntegrationSSHTerminfoLabel = CardRowLabel("SSH Terminfo Install")
+    private var shellIntegrationSSHTerminfoToggle: PrefToggle!
+    private let shellIntegrationNote = FooterNote("Prompt marks, command timing, and completion notifications require shell integration.")
+
     private let behaviorCard = SettingsCard(title: "Behavior", subtitle: "Session lifecycle and cursor visibility")
     private let hideMouseLabel = CardRowLabel("Hide Cursor While Typing")
     private var hideMouseToggle: PrefToggle!
@@ -151,6 +166,43 @@ final class TerminalPane: NSView {
             sessionCard.addSubview(view)
         }
 
+        shellIntegrationEnabledToggle = PrefToggle(isOn: settings.shellIntegrationEnabled) { [weak self] value in
+            self?.settings.shellIntegrationEnabled = value
+        }
+        shellIntegrationCursorToggle = PrefToggle(isOn: settings.shellIntegrationCursor) { [weak self] value in
+            self?.settings.shellIntegrationCursor = value
+        }
+        shellIntegrationTitleToggle = PrefToggle(isOn: settings.shellIntegrationTitle) { [weak self] value in
+            self?.settings.shellIntegrationTitle = value
+        }
+        shellIntegrationPathToggle = PrefToggle(isOn: settings.shellIntegrationPath) { [weak self] value in
+            self?.settings.shellIntegrationPath = value
+        }
+        shellIntegrationSSHEnvToggle = PrefToggle(isOn: settings.shellIntegrationSSHEnv) { [weak self] value in
+            self?.settings.shellIntegrationSSHEnv = value
+        }
+        shellIntegrationSSHTerminfoToggle = PrefToggle(isOn: settings.shellIntegrationSSHTerminfo) { [weak self] value in
+            self?.settings.shellIntegrationSSHTerminfo = value
+        }
+        content.addSubview(shellIntegrationCard)
+        for view: NSView in [
+            shellIntegrationEnabledLabel,
+            shellIntegrationEnabledToggle,
+            shellIntegrationCursorLabel,
+            shellIntegrationCursorToggle,
+            shellIntegrationTitleLabel,
+            shellIntegrationTitleToggle,
+            shellIntegrationPathLabel,
+            shellIntegrationPathToggle,
+            shellIntegrationSSHEnvLabel,
+            shellIntegrationSSHEnvToggle,
+            shellIntegrationSSHTerminfoLabel,
+            shellIntegrationSSHTerminfoToggle,
+            shellIntegrationNote
+        ] {
+            shellIntegrationCard.addSubview(view)
+        }
+
         hideMouseToggle = PrefToggle(isOn: settings.mouseHideWhileTyping) { [weak self] value in self?.settings.mouseHideWhileTyping = value }
         confirmToggle = PrefToggle(isOn: settings.confirmClose) { [weak self] value in self?.settings.confirmClose = value }
         restoreToggle = PrefToggle(isOn: settings.restoreSession) { [weak self] value in self?.settings.restoreSession = value }
@@ -170,6 +222,7 @@ final class TerminalPane: NSView {
         fontCard.refresh()
         cursorCard.refresh()
         sessionCard.refresh()
+        shellIntegrationCard.refresh()
         behaviorCard.refresh()
         fontField.updateText(settings.fontFamily)
         sizeValue.stringValue = "\(settings.fontSize)"
@@ -179,6 +232,12 @@ final class TerminalPane: NSView {
         cwdField.updateText(settings.workingDirectory)
         scrollField.setValue(settings.scrollbackLines)
         bellSegment.setSelected(["system": 0, "visual": 1, "bounce": 2, "none": 3][settings.bellMode] ?? 0)
+        shellIntegrationEnabledToggle.setOn(settings.shellIntegrationEnabled)
+        shellIntegrationCursorToggle.setOn(settings.shellIntegrationCursor)
+        shellIntegrationTitleToggle.setOn(settings.shellIntegrationTitle)
+        shellIntegrationPathToggle.setOn(settings.shellIntegrationPath)
+        shellIntegrationSSHEnvToggle.setOn(settings.shellIntegrationSSHEnv)
+        shellIntegrationSSHTerminfoToggle.setOn(settings.shellIntegrationSSHTerminfo)
         hideMouseToggle.setOn(settings.mouseHideWhileTyping)
         confirmToggle.setOn(settings.confirmClose)
         restoreToggle.setOn(settings.restoreSession)
@@ -278,6 +337,31 @@ final class TerminalPane: NSView {
         bellLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr3, width: labelW - 12, height: PreferencesLayout.rowH)
         bellSegment.frame = NSRect(x: controlX, y: sr3 + 6, width: min(320, controlW), height: 28)
         y += sessionCardHeight + PreferencesLayout.sectionGap
+
+        let shellToggleX = cardW - PreferencesLayout.cardPad - 50
+        let shellLabelW = shellToggleX - PreferencesLayout.cardPad - 8
+        let shellIntegrationCardHeight = shellIntegrationCard.headerHeight + 6 * PreferencesLayout.rowH + 5 * PreferencesLayout.rowGap + PreferencesLayout.cardPad + 14
+        shellIntegrationCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: shellIntegrationCardHeight)
+        let ir0 = shellIntegrationCardHeight - shellIntegrationCard.headerHeight - PreferencesLayout.rowH
+        shellIntegrationEnabledLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir0, width: shellLabelW, height: PreferencesLayout.rowH)
+        shellIntegrationEnabledToggle.frame = NSRect(x: shellToggleX, y: ir0 + 6, width: 50, height: 28)
+        let ir1 = ir0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        shellIntegrationCursorLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir1, width: shellLabelW, height: PreferencesLayout.rowH)
+        shellIntegrationCursorToggle.frame = NSRect(x: shellToggleX, y: ir1 + 6, width: 50, height: 28)
+        let ir2 = ir1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        shellIntegrationTitleLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir2, width: shellLabelW, height: PreferencesLayout.rowH)
+        shellIntegrationTitleToggle.frame = NSRect(x: shellToggleX, y: ir2 + 6, width: 50, height: 28)
+        let ir3 = ir2 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        shellIntegrationPathLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir3, width: shellLabelW, height: PreferencesLayout.rowH)
+        shellIntegrationPathToggle.frame = NSRect(x: shellToggleX, y: ir3 + 6, width: 50, height: 28)
+        let ir4 = ir3 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        shellIntegrationSSHEnvLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir4, width: shellLabelW, height: PreferencesLayout.rowH)
+        shellIntegrationSSHEnvToggle.frame = NSRect(x: shellToggleX, y: ir4 + 6, width: 50, height: 28)
+        let ir5 = ir4 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        shellIntegrationSSHTerminfoLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir5, width: shellLabelW, height: PreferencesLayout.rowH)
+        shellIntegrationSSHTerminfoToggle.frame = NSRect(x: shellToggleX, y: ir5 + 6, width: 50, height: 28)
+        shellIntegrationNote.frame = NSRect(x: PreferencesLayout.cardPad, y: PreferencesLayout.cardPad - 2, width: innerW, height: 14)
+        y += shellIntegrationCardHeight + PreferencesLayout.sectionGap
 
         let behaviorCardHeight = behaviorCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
         behaviorCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: behaviorCardHeight)
