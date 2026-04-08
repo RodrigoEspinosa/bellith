@@ -20,28 +20,41 @@ final class ProcessMonitor {
         var taskInfo = proc_taskinfo()
         let size = MemoryLayout<proc_taskinfo>.size
         let ret = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &taskInfo, Int32(size))
-        guard ret == size else { return nil }
 
         var bsdInfo = proc_bsdinfo()
         let bsdSize = MemoryLayout<proc_bsdinfo>.size
         let bsdRet = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &bsdInfo, Int32(bsdSize))
 
-        let name = processName(pid: pid)
-        let ppid: pid_t = bsdRet == bsdSize ? pid_t(bsdInfo.pbi_ppid) : 0
+        if ret == size {
+            let name = processName(pid: pid)
+            let ppid: pid_t = bsdRet == bsdSize ? pid_t(bsdInfo.pbi_ppid) : (fallbackProcMetadata(pid: pid)?.ppid ?? 0)
 
-        let cpuTime = Double(taskInfo.pti_total_user + taskInfo.pti_total_system) / 1_000_000_000.0
-        let residentMem = UInt64(taskInfo.pti_resident_size)
+            let cpuTime = Double(taskInfo.pti_total_user + taskInfo.pti_total_system) / 1_000_000_000.0
+            let residentMem = UInt64(taskInfo.pti_resident_size)
 
-        var startDate: Date?
-        if bsdRet == bsdSize {
-            let sec = Double(bsdInfo.pbi_start_tvsec) + Double(bsdInfo.pbi_start_tvusec) / 1_000_000.0
-            if sec > 0 { startDate = Date(timeIntervalSince1970: sec) }
+            var startDate: Date?
+            if bsdRet == bsdSize {
+                let sec = Double(bsdInfo.pbi_start_tvsec) + Double(bsdInfo.pbi_start_tvusec) / 1_000_000.0
+                if sec > 0 { startDate = Date(timeIntervalSince1970: sec) }
+            }
+
+            return TerminalProcessInfo(
+                pid: pid, ppid: ppid, name: name,
+                cpuUsage: cpuTime, memoryBytes: residentMem,
+                startTime: startDate
+            )
         }
 
+        // login/PTY intermediaries may reject proc_pidinfo task access. Fall back to
+        // KERN_PROC_PID so the tree still preserves parent-child relationships.
+        guard let fallback = fallbackProcMetadata(pid: pid) else { return nil }
         return TerminalProcessInfo(
-            pid: pid, ppid: ppid, name: name,
-            cpuUsage: cpuTime, memoryBytes: residentMem,
-            startTime: startDate
+            pid: pid,
+            ppid: fallback.ppid,
+            name: fallback.name,
+            cpuUsage: 0,
+            memoryBytes: 0,
+            startTime: fallback.startTime
         )
     }
 
@@ -115,6 +128,30 @@ final class ProcessMonitor {
         guard let nullIdx = pathBytes.firstIndex(of: 0) else { return nil }
         let path = String(bytes: buffer[pathStart..<nullIdx], encoding: .utf8) ?? ""
         return (path as NSString).lastPathComponent
+    }
+
+    private static func fallbackProcMetadata(pid: pid_t) -> (ppid: pid_t, name: String, startTime: Date?)? {
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.size
+        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0, size == MemoryLayout<kinfo_proc>.size else {
+            return nil
+        }
+
+        let name = withUnsafePointer(to: &info.kp_proc.p_comm) { ptr in
+            ptr.withMemoryRebound(to: CChar.self, capacity: Int(MAXCOMLEN) + 1) {
+                String(cString: $0)
+            }
+        }
+
+        let start = info.kp_proc.p_un.__p_starttime
+        let startSeconds = Double(start.tv_sec) + Double(start.tv_usec) / 1_000_000.0
+
+        return (
+            ppid: info.kp_eproc.e_ppid,
+            name: name.isEmpty ? "pid:\(pid)" : name,
+            startTime: startSeconds > 0 ? Date(timeIntervalSince1970: startSeconds) : nil
+        )
     }
 
     /// Get the current working directory for a process.

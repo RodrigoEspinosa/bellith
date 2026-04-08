@@ -100,6 +100,7 @@ final class TerminalContainerView: NSView {
     private var isAnimatingLayout = false
     private var isZoomed = false
     private var zoomedSurface: TerminalSurfaceView?
+    private var lastSelectedTerminalTabID: UUID?
     private var isBroadcasting = false
     private var recentlyClosedTabs: [(title: String, cwd: String?)] = []
     private static let maxRecentlyClosed = 10
@@ -669,6 +670,9 @@ final class TerminalContainerView: NSView {
             // Re-resolve index by tab ID in case array changed during animation
             guard let resolvedIndex = self.tabs.firstIndex(where: { $0.id == tabId }) else { return }
             self.tabs.remove(at: resolvedIndex)
+            if self.lastSelectedTerminalTabID == tabId {
+                self.lastSelectedTerminalTabID = nil
+            }
 
             if self.tabs.isEmpty {
                 DispatchQueue.main.async { [weak self] in self?.window?.close() }
@@ -723,6 +727,10 @@ final class TerminalContainerView: NSView {
         root.isHidden = false
         root.frame = contentRect
         applyChrome(to: root)
+        if entry.isTerminal {
+            lastSelectedTerminalTabID = entry.id
+        }
+        updateSmartPanelContexts()
 
         // Subtle fade-in when switching between tabs
         if previousIndex != index && previousIndex < tabs.count {
@@ -799,6 +807,7 @@ final class TerminalContainerView: NSView {
                 statusBar.updateProcess(nil)
                 refreshStatusBarAsync(cwd: cwd)
             }
+            updateSmartPanelContexts()
         }
     }
 
@@ -1210,28 +1219,63 @@ final class TerminalContainerView: NSView {
         }
     }
 
-    /// Find the shell PID for the current terminal by looking up the Bellith app's
-    /// child processes and matching against the active tab's CWD.
+    private func toolContextTerminalIndex() -> Int? {
+        if selectedTabIndex < tabs.count, tabs[selectedTabIndex].isTerminal {
+            return selectedTabIndex
+        }
+
+        if let lastSelectedTerminalTabID,
+           let index = tabs.firstIndex(where: { $0.id == lastSelectedTerminalTabID && $0.isTerminal }) {
+            return index
+        }
+
+        return tabs.firstIndex(where: \.isTerminal)
+    }
+
+    private func updateSmartPanelContexts() {
+        let shellPID = findShellPID()
+        for tab in tabs {
+            guard case .smart(let panel) = tab.content else { continue }
+            panel.shellPID = shellPID
+        }
+    }
+
+    /// Find the shell PID for the most relevant terminal context by looking up the
+    /// Bellith app's child processes and matching against the current or last active
+    /// terminal tab's working directory. When only one shell is present, use it as a
+    /// fallback even if the shell has not reported its cwd yet.
     private func findShellPID() -> pid_t? {
-        guard let surface = activeSurface, let cwd = surface.currentCwd else { return nil }
+        guard let terminalIndex = toolContextTerminalIndex() else { return nil }
+        let terminalEntry = tabs[terminalIndex]
+        let surface = terminalEntry.focusedSurface ?? terminalEntry.surfaces.first
+        let cwd = surface?.currentCwd ?? terminalEntry.cwd
         let appPID = ProcessInfo.processInfo.processIdentifier
         guard let tree = ProcessMonitor.processTree(rootPID: appPID) else { return nil }
 
         let shellNames: Set<String> = ["zsh", "bash", "fish", "sh", "dash", "nu", "elvish", "nushell"]
+        var shellPIDs: [pid_t] = []
 
-        // Walk children looking for a shell whose CWD matches the active surface
+        // Walk children looking for shells in the process tree and prefer a cwd match.
         func findMatchingChild(_ node: TerminalProcessInfo) -> pid_t? {
-            if shellNames.contains(node.name.lowercased()),
-               let childCwd = ProcessMonitor.workingDirectory(for: node.pid),
-               childCwd == cwd {
-                return node.pid
+            if shellNames.contains(node.name.lowercased()) {
+                shellPIDs.append(node.pid)
+                if let cwd,
+                   let childCwd = ProcessMonitor.workingDirectory(for: node.pid),
+                   childCwd == cwd {
+                    return node.pid
+                }
             }
             for child in node.children {
                 if let found = findMatchingChild(child) { return found }
             }
             return nil
         }
-        return findMatchingChild(tree)
+
+        if let matchedPID = findMatchingChild(tree) {
+            return matchedPID
+        }
+
+        return shellPIDs.count == 1 ? shellPIDs[0] : nil
     }
 
     private func handleSurfaceClosed(id: UUID, surface: TerminalSurfaceView) {
@@ -1925,6 +1969,7 @@ final class TerminalContainerView: NSView {
                 statusBar.updateProcess(nil)
                 refreshStatusBarAsync(cwd: cwd)
             }
+            updateSmartPanelContexts()
             refreshTabUI()
         }
         sendCdWhenReady(surface: surface, cwd: cwd)
