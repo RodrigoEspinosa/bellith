@@ -32,12 +32,12 @@ final class TerminalConfig {
         }
     }
 
-    static func writeConfigFile() -> String? {
+    static func writeConfigFile(settings: BellithSettings = .shared) -> String? {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
             .appendingPathComponent("com.rec.bellith", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
-        let s = BellithSettings.shared
+        let s = settings
         let file = dir.appendingPathComponent("config.conf")
         var lines = [
             "font-family = \(s.fontFamily)",
@@ -50,7 +50,8 @@ final class TerminalConfig {
             "cursor-style = \(s.cursorStyle)",
             "cursor-style-blink = \(s.cursorBlink)",
             "scrollback-limit = \(s.scrollbackLines)",
-            "shell-integration-features = no-cursor",
+            "shell-integration = \(s.shellIntegrationMode)",
+            "shell-integration-features = \(s.shellIntegrationFeatures)",
             "window-decoration = false",
             "window-save-state = never",
             "mouse-hide-while-typing = \(s.mouseHideWhileTyping)",

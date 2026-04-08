@@ -160,7 +160,10 @@ final class TerminalContainerView: NSView {
 
         settingsObserver = NotificationCenter.default.addObserver(
             forName: BellithSettings.didChangeNotification, object: nil, queue: .main
-        ) { [weak self] _ in self?.applyFrameColor() }
+        ) { [weak self] _ in
+            self?.applyFrameColor()
+            self?.reloadConfig()
+        }
 
         startContextRefreshTimer()
         createTab()

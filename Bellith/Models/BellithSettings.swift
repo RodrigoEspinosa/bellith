@@ -94,6 +94,66 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "cursorBlink"); notify() }
     }
 
+    var shellIntegrationEnabled: Bool {
+        get {
+            if defaults.object(forKey: "shellIntegrationEnabled") != nil {
+                return defaults.bool(forKey: "shellIntegrationEnabled")
+            }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "shellIntegrationEnabled"); notify() }
+    }
+
+    var shellIntegrationCursor: Bool {
+        get {
+            if defaults.object(forKey: "shellIntegrationCursor") != nil {
+                return defaults.bool(forKey: "shellIntegrationCursor")
+            }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "shellIntegrationCursor"); notify() }
+    }
+
+    var shellIntegrationTitle: Bool {
+        get {
+            if defaults.object(forKey: "shellIntegrationTitle") != nil {
+                return defaults.bool(forKey: "shellIntegrationTitle")
+            }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "shellIntegrationTitle"); notify() }
+    }
+
+    var shellIntegrationPath: Bool {
+        get {
+            if defaults.object(forKey: "shellIntegrationPath") != nil {
+                return defaults.bool(forKey: "shellIntegrationPath")
+            }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "shellIntegrationPath"); notify() }
+    }
+
+    var shellIntegrationSSHEnv: Bool {
+        get {
+            if defaults.object(forKey: "shellIntegrationSSHEnv") != nil {
+                return defaults.bool(forKey: "shellIntegrationSSHEnv")
+            }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "shellIntegrationSSHEnv"); notify() }
+    }
+
+    var shellIntegrationSSHTerminfo: Bool {
+        get {
+            if defaults.object(forKey: "shellIntegrationSSHTerminfo") != nil {
+                return defaults.bool(forKey: "shellIntegrationSSHTerminfo")
+            }
+            return false
+        }
+        set { defaults.set(newValue, forKey: "shellIntegrationSSHTerminfo"); notify() }
+    }
+
     // Sidebar
     var sidebarPinned: Bool {
         get {
@@ -325,5 +385,21 @@ final class BellithSettings {
     var resolvedTheme: ThemeColors {
         let name = systemIsDark ? darkThemeName : lightThemeName
         return ThemeColors.allThemes.first { $0.name == name } ?? .tokyonight
+    }
+
+    var shellIntegrationMode: String {
+        shellIntegrationEnabled ? "detect" : "none"
+    }
+
+    var shellIntegrationFeatures: String {
+        [
+            (shellIntegrationCursor, "cursor"),
+            (shellIntegrationTitle, "title"),
+            (shellIntegrationPath, "path"),
+            (shellIntegrationSSHEnv, "ssh-env"),
+            (shellIntegrationSSHTerminfo, "ssh-terminfo")
+        ]
+        .map { $0.0 ? $0.1 : "no-\($0.1)" }
+        .joined(separator: ",")
     }
 }
