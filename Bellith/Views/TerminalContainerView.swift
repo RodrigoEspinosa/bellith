@@ -3,6 +3,12 @@ import GhosttyKit
 import QuartzCore
 import os
 
+struct GitRepositoryInfo: Equatable {
+    let branch: String?
+    let worktreeName: String?
+    let isWorktree: Bool
+}
+
 /// Container that hosts multiple terminal tabs (each with optional split panes),
 /// smart inspector tabs, a sidebar or tab bar, and the command palette.
 final class TerminalContainerView: NSView {
@@ -655,7 +661,11 @@ final class TerminalContainerView: NSView {
             statusBar.updateCwd(initialCwd)
             titleBar.updatePath(initialCwd)
             titleBar.updateGitBranch(nil)
+            titleBar.updateGitWorktree(nil)
             titleBar.updateProcess(nil)
+            statusBar.updateGitBranch(nil)
+            statusBar.updateGitWorktree(nil)
+            statusBar.updateProcess(nil)
             refreshStatusBarAsync(cwd: initialCwd)
         }
 
@@ -821,17 +831,21 @@ final class TerminalContainerView: NSView {
             titleBar.updatePath(entry.cwd)
             if let cwd = entry.cwd {
                 titleBar.updateGitBranch(nil)
+                titleBar.updateGitWorktree(nil)
                 titleBar.updateProcess(nil)
                 statusBar.updateCwd(cwd)
                 statusBar.updateGitBranch(nil)
+                statusBar.updateGitWorktree(nil)
                 statusBar.updateProcess(nil)
                 refreshStatusBarAsync(cwd: cwd)
             } else {
                 titleBar.updateGitBranch(nil)
+                titleBar.updateGitWorktree(nil)
                 titleBar.updateProcess(nil)
                 statusBar.updateContext(context)
                 statusBar.updateCwd(nil)
                 statusBar.updateGitBranch(nil)
+                statusBar.updateGitWorktree(nil)
                 statusBar.updateProcess(nil)
             }
             sidebar.setActiveToolID(nil)
@@ -841,6 +855,7 @@ final class TerminalContainerView: NSView {
             titleBar.updateContext(nil)
             titleBar.updatePath(nil)
             titleBar.updateGitBranch(nil)
+            titleBar.updateGitWorktree(nil)
             titleBar.updateProcess(nil)
             titleBar.clearSize()
             statusBar.clear()
@@ -872,9 +887,11 @@ final class TerminalContainerView: NSView {
                 statusBar.updateContext(surface.displayContext)
                 titleBar.updatePath(cwd)
                 titleBar.updateGitBranch(nil)
+                titleBar.updateGitWorktree(nil)
                 titleBar.updateProcess(nil)
                 statusBar.updateCwd(cwd)
                 statusBar.updateGitBranch(nil)
+                statusBar.updateGitWorktree(nil)
                 statusBar.updateProcess(nil)
                 refreshStatusBarAsync(cwd: cwd)
             }
@@ -887,8 +904,7 @@ final class TerminalContainerView: NSView {
         let pid = findShellPID()
         let activeSurface = activeSurface
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            // Git branch
-            let branch = Self.gitBranch(in: cwd)
+            let gitInfo = Self.gitRepositoryInfo(in: cwd)
             let runtimeStatus = Self.runtimeStatus(for: pid)
 
             DispatchQueue.main.async {
@@ -901,10 +917,12 @@ final class TerminalContainerView: NSView {
                     self.titleBar.updateContext(context)
                     self.statusBar.updateContext(context)
                 }
-                self.titleBar.updateGitBranch(branch)
+                self.titleBar.updateGitBranch(gitInfo?.branch)
+                self.titleBar.updateGitWorktree(gitInfo?.worktreeName)
                 self.titleBar.updateProcess(runtimeStatus.foregroundProcess)
                 self.statusBar.updateCwd(cwd)
-                self.statusBar.updateGitBranch(branch)
+                self.statusBar.updateGitBranch(gitInfo?.branch)
+                self.statusBar.updateGitWorktree(gitInfo?.worktreeName)
                 self.statusBar.updateProcess(runtimeStatus.foregroundProcess)
             }
         }
@@ -961,20 +979,55 @@ final class TerminalContainerView: NSView {
         return RuntimeStatus(foregroundProcess: foregroundName, detectedContext: detectedContext)
     }
 
-    private static func gitBranch(in directory: String) -> String? {
+    static func gitRepositoryInfo(in directory: String) -> GitRepositoryInfo? {
         let pipe = Pipe()
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["-C", directory, "branch", "--show-current"]
+        process.arguments = [
+            "-C", directory,
+            "rev-parse",
+            "--abbrev-ref", "HEAD",
+            "--git-dir",
+            "--git-common-dir",
+            "--show-toplevel",
+        ]
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
         do {
             try process.run()
             process.waitUntilExit()
+            guard process.terminationStatus == 0 else { return nil }
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            return output?.isEmpty == false ? output : nil
+            let output = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let output, !output.isEmpty else { return nil }
+
+            let lines = output.components(separatedBy: .newlines)
+            guard lines.count >= 4 else { return nil }
+
+            let branch = normalizedGitOutput(lines[0])
+            let gitDir = resolvedGitURL(for: lines[1], relativeTo: directory)
+            let commonDir = resolvedGitURL(for: lines[2], relativeTo: directory)
+            let topLevel = resolvedGitURL(for: lines[3], relativeTo: directory)
+            let isWorktree = gitDir.resolvingSymlinksInPath().path != commonDir.resolvingSymlinksInPath().path
+            let worktreeName = isWorktree ? topLevel.lastPathComponent : nil
+            return GitRepositoryInfo(branch: branch, worktreeName: worktreeName, isWorktree: isWorktree)
         } catch { return nil }
+    }
+
+    private static func resolvedGitURL(for path: String, relativeTo directory: String) -> URL {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("/") {
+            return URL(fileURLWithPath: trimmed).standardizedFileURL
+        }
+        return URL(fileURLWithPath: directory, isDirectory: true)
+            .appendingPathComponent(trimmed)
+            .standardizedFileURL
+    }
+
+    private static func normalizedGitOutput(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func persistedContext(for entry: TabEntry) -> TerminalContext? {
@@ -2190,9 +2243,11 @@ final class TerminalContainerView: NSView {
                 statusBar.updateContext(surface.displayContext)
                 titleBar.updatePath(cwd)
                 titleBar.updateGitBranch(nil)
+                titleBar.updateGitWorktree(nil)
                 titleBar.updateProcess(nil)
                 statusBar.updateCwd(cwd)
                 statusBar.updateGitBranch(nil)
+                statusBar.updateGitWorktree(nil)
                 statusBar.updateProcess(nil)
                 refreshStatusBarAsync(cwd: cwd)
             }

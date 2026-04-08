@@ -9,6 +9,7 @@ final class StatusBarView: NSView {
     // Left items
     private let hostBadge = ContextBadgeView()
     private let environmentBadge = ContextBadgeView()
+    private let worktreeBadge = ContextBadgeView()
     private let cwdIcon = NSImageView()
     private let cwdLabel = NSTextField(labelWithString: "~")
     private let separator1 = NSTextField(labelWithString: "·")
@@ -48,6 +49,9 @@ final class StatusBarView: NSView {
 
         environmentBadge.isHidden = true
         addSubview(environmentBadge)
+
+        worktreeBadge.isHidden = true
+        addSubview(worktreeBadge)
 
         setupIcon(cwdIcon, symbol: "folder.fill", tint: Theme.accent)
         setupLabel(cwdLabel, size: 12, weight: .medium, color: Theme.textPrimary)
@@ -110,6 +114,8 @@ final class StatusBarView: NSView {
         guard let context else {
             hostBadge.text = ""
             environmentBadge.text = ""
+            worktreeBadge.text = ""
+            worktreeBadge.iconName = nil
             needsLayout = true
             return
         }
@@ -127,6 +133,15 @@ final class StatusBarView: NSView {
             environmentBadge.iconName = nil
         }
 
+        needsLayout = true
+    }
+
+    func updateGitWorktree(_ worktreeName: String?) {
+        let normalizedName = worktreeName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = (normalizedName?.isEmpty == false) ? normalizedName : nil
+        worktreeBadge.text = value ?? ""
+        worktreeBadge.iconName = value == nil ? nil : "folder.badge.gearshape"
+        worktreeBadge.tone = .neutral
         needsLayout = true
     }
 
@@ -202,6 +217,7 @@ final class StatusBarView: NSView {
         updateContext(nil)
         cwdLabel.stringValue = "~"
         updateGitBranch(nil)
+        updateGitWorktree(nil)
         updateProcess(nil)
         sizeLabel.stringValue = ""
         sizeCapsule.isHidden = true
@@ -240,6 +256,14 @@ final class StatusBarView: NSView {
             x += badgeSize.width + 10
         } else {
             environmentBadge.frame = .zero
+        }
+
+        if !worktreeBadge.isHidden {
+            let badgeSize = worktreeBadge.intrinsicContentSize
+            worktreeBadge.frame = NSRect(x: x, y: (h - badgeSize.height) / 2, width: badgeSize.width, height: badgeSize.height)
+            x += badgeSize.width + 8
+        } else {
+            worktreeBadge.frame = .zero
         }
 
         // CWD
@@ -297,6 +321,7 @@ final class StatusBarView: NSView {
         sizeCapsule.layer?.borderColor = Theme.chromeHairline.cgColor
         hostBadge.refreshTheme()
         environmentBadge.refreshTheme()
+        worktreeBadge.refreshTheme()
         cwdIcon.contentTintColor = Theme.accent
         cwdLabel.textColor = Theme.textPrimary
         separator1.textColor = Theme.textMuted.withAlphaComponent(0.5)
