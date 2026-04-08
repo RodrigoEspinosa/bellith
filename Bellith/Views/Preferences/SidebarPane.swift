@@ -3,7 +3,8 @@ import AppKit
 // MARK: - Sidebar Pane
 
 final class SidebarPane: NSView {
-    private let settings = BellithSettings.shared
+    private let settings: BellithSettings
+    private let smartPanelRegistry: SmartPanelRegistry
     private let scroll = NSScrollView()
     private let content = FlippedView()
 
@@ -21,8 +22,14 @@ final class SidebarPane: NSView {
     private var showToolsToggle: PrefToggle!
     private var toolToggles: [(plugin: SmartPanelPlugin, label: CardRowLabel, toggle: PrefToggle)] = []
 
-    override init(frame: NSRect) {
-        super.init(frame: frame)
+    init(
+        frame frameRect: NSRect = .zero,
+        settings: BellithSettings = .shared,
+        smartPanelRegistry: SmartPanelRegistry = .shared
+    ) {
+        self.settings = settings
+        self.smartPanelRegistry = smartPanelRegistry
+        super.init(frame: frameRect)
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         scroll.autohidesScrollers = true
@@ -63,7 +70,7 @@ final class SidebarPane: NSView {
         toolsCard.addSubview(showToolsToggle)
 
         let enabledTools = settings.sidebarTools
-        for plugin in SmartPanelRegistry.shared.allPlugins {
+        for plugin in smartPanelRegistry.allPlugins {
             let label = CardRowLabel(plugin.title)
             let toggle = PrefToggle(isOn: enabledTools.contains(plugin.id)) { [weak self] enabled in
                 self?.handleToolToggle(plugin: plugin, enabled: enabled)

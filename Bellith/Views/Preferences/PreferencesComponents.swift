@@ -767,12 +767,14 @@ final class FontPickerButton: NSView {
     var onFontPicked: ((String) -> Void)?
     private var isHovered = false
     private var trackingArea: NSTrackingArea?
+    private let settings: BellithSettings
 
     override var acceptsFirstResponder: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
-    override init(frame: NSRect) {
-        super.init(frame: frame)
+    init(frame frameRect: NSRect = .zero, settings: BellithSettings = .shared) {
+        self.settings = settings
+        super.init(frame: frameRect)
         wantsLayer = true
         layer?.cornerRadius = 7
         toolTip = "Choose font\u{2026}"
@@ -819,7 +821,7 @@ final class FontPickerButton: NSView {
 
     private func presentFontPanel() {
         let panel = NSFontPanel.shared
-        panel.setPanelFont(NSFont(name: BellithSettings.shared.fontFamily, size: CGFloat(BellithSettings.shared.fontSize))
+        panel.setPanelFont(NSFont(name: settings.fontFamily, size: CGFloat(settings.fontSize))
                            ?? NSFont.monospacedSystemFont(ofSize: 13, weight: .regular), isMultiple: false)
         panel.makeKeyAndOrderFront(nil)
 

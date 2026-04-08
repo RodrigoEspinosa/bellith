@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import GhosttyKit
 import QuartzCore
 import os
@@ -16,15 +17,20 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     typealias TabKind = TerminalTabKind
     typealias TabEntry = TerminalTabEntry
 
+    private let dependencies: BellithDependencies
     private weak var terminalApp: TerminalApp?
 
     private var tabs: [TabEntry] = []
     private(set) var selectedTabIndex: Int = 0
-    let sidebar = SidebarView()
-    let tabBar = TabBarView()
+    let sidebar: SidebarView
+    let tabBar: TabBarView
     let statusBar = StatusBarView()
     let titleBar = TitleBarView()
-    private lazy var overlayController = TerminalOverlayController(host: self)
+    private lazy var overlayController = TerminalOverlayController(
+        host: self,
+        commandRegistry: dependencies.commandRegistry,
+        settings: dependencies.settings
+    )
     private lazy var sessionCoordinator = TerminalSessionCoordinator(host: self)
 
     var overlayContainerView: NSView { self }
@@ -35,8 +41,6 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private var isClosingTab = false
     private var isClosingPane = false
     private var edgeTrackingArea: NSTrackingArea?
-    private var themeObserver: NSObjectProtocol?
-    private var settingsObserver: NSObjectProtocol?
     private var isAnimatingLayout = false
     private var isZoomed = false
     private var zoomedSurface: TerminalSurfaceView?
@@ -45,8 +49,8 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private var recentlyClosedTabs: [(title: String, cwd: String?, context: TerminalContext?)] = []
     private static let maxRecentlyClosed = 10
     private var zoomBadge: NSView?
-    private var contextRefreshTimer: Timer?
-    private var runtimeStatusObservers: [NSObjectProtocol] = []
+    private var observationCancellables = Set<AnyCancellable>()
+    private var windowObservationCancellables = Set<AnyCancellable>()
 
     private let noiseLayer = CALayer()
     private let contentBackdropLayer = CALayer()
@@ -56,8 +60,14 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private let sidebarGlowLayer = CAGradientLayer()
     private let sidebarBridgeLayer = CAGradientLayer()
 
-    init(terminalApp: TerminalApp) {
+    init(terminalApp: TerminalApp, dependencies: BellithDependencies = .live) {
+        self.dependencies = dependencies
         self.terminalApp = terminalApp
+        self.sidebar = SidebarView(
+            settings: dependencies.settings,
+            smartPanelRegistry: dependencies.smartPanelRegistry
+        )
+        self.tabBar = TabBarView(smartPanelRegistry: dependencies.smartPanelRegistry)
         super.init(frame: .zero)
         wantsLayer = true
         applyFrameColor()
@@ -95,55 +105,32 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         applyTabMode()
 
         // Theme change observer
-        themeObserver = NotificationCenter.default.addObserver(
-            forName: ThemeManager.didChangeNotification, object: nil, queue: .main
-        ) { [weak self] _ in self?.handleThemeChange() }
+        NotificationCenter.default.publisher(for: ThemeManager.didChangeNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.handleThemeChange()
+            }
+            .store(in: &observationCancellables)
 
-        settingsObserver = NotificationCenter.default.addObserver(
-            forName: BellithSettings.didChangeNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            self?.applyFrameColor()
-            self?.reloadConfig()
-        }
+        NotificationCenter.default.publisher(for: BellithSettings.didChangeNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.applyFrameColor()
+                self?.reloadConfig()
+            }
+            .store(in: &observationCancellables)
 
-        startContextRefreshTimer()
+        Timer.publish(every: Metrics.runtimeRefreshInterval, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.refreshActiveRuntimeStatusIfNeeded()
+            }
+            .store(in: &observationCancellables)
+
         createTab()
     }
 
-    deinit {
-        teardown()
-    }
-
-    /// Explicitly release resources — call before dropping the last reference
-    /// to break retain cycles and stop background work.
-    func teardown() {
-        // Remove observers
-        if let themeObserver {
-            NotificationCenter.default.removeObserver(themeObserver)
-            self.themeObserver = nil
-        }
-        if let settingsObserver {
-            NotificationCenter.default.removeObserver(settingsObserver)
-            self.settingsObserver = nil
-        }
-        removeRuntimeStatusObservers()
-        contextRefreshTimer?.invalidate()
-        contextRefreshTimer = nil
-
-        // Disconnect all surface callbacks to break retain cycles
-        for tab in tabs {
-            for surface in tab.surfaces {
-                surface.onClose = nil
-                surface.onTextInserted = nil
-            }
-            // Stop smart panel refresh timers
-            if case .smart(let panel) = tab.content {
-                panel.stopRefreshing()
-            }
-        }
-
-        terminalApp = nil
-    }
+    deinit {}
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
@@ -333,14 +320,6 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         return tabs[selectedTabIndex].focusedSurface ?? tabs[selectedTabIndex].surfaces.first
     }
 
-    private func startContextRefreshTimer() {
-        let timer = Timer(timeInterval: Metrics.runtimeRefreshInterval, repeats: true) { [weak self] _ in
-            self?.refreshActiveRuntimeStatusIfNeeded()
-        }
-        contextRefreshTimer = timer
-        RunLoop.main.add(timer, forMode: .common)
-    }
-
     private func refreshActiveRuntimeStatusIfNeeded() {
         guard shouldPollRuntimeStatus else { return }
         refreshActiveRuntimeStatusAsync()
@@ -360,35 +339,22 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     private func updateRuntimeStatusObservers() {
-        removeRuntimeStatusObservers()
+        windowObservationCancellables.removeAll()
         guard let window else { return }
 
-        runtimeStatusObservers.append(
-            NotificationCenter.default.addObserver(
-                forName: NSWindow.didBecomeKeyNotification,
-                object: window,
-                queue: .main
-            ) { [weak self] _ in
+        NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification, object: window)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
                 self?.refreshActiveRuntimeStatusIfNeeded()
             }
-        )
+            .store(in: &windowObservationCancellables)
 
-        runtimeStatusObservers.append(
-            NotificationCenter.default.addObserver(
-                forName: NSWindow.didChangeOcclusionStateNotification,
-                object: window,
-                queue: .main
-            ) { [weak self] _ in
+        NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification, object: window)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
                 self?.refreshActiveRuntimeStatusIfNeeded()
             }
-        )
-    }
-
-    private func removeRuntimeStatusObservers() {
-        for observer in runtimeStatusObservers {
-            NotificationCenter.default.removeObserver(observer)
-        }
-        runtimeStatusObservers.removeAll()
+            .store(in: &windowObservationCancellables)
     }
 
     // MARK: - Focus Indicator
@@ -510,7 +476,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     // MARK: - Tab Mode
 
-    private var useSidebar: Bool { BellithSettings.shared.tabMode == "sidebar" }
+    private var useSidebar: Bool { dependencies.settings.tabMode == "sidebar" }
 
     func applyTabMode() {
         let isSidebar = useSidebar
@@ -522,7 +488,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     func toggleTabMode() {
-        let s = BellithSettings.shared
+        let s = dependencies.settings
         s.tabMode = s.tabMode == "sidebar" ? "tabbar" : "sidebar"
         applyTabMode()
     }
@@ -530,7 +496,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     // MARK: - Key Interception
 
     private func matches(_ event: NSEvent, action actionId: String) -> Bool {
-        guard let shortcut = BellithSettings.shared.shortcut(for: actionId) else { return false }
+        guard let shortcut = dependencies.settings.shortcut(for: actionId) else { return false }
         let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let key = event.charactersIgnoringModifiers ?? ""
         return mods == shortcut.modifierFlags && key == shortcut.key
@@ -661,8 +627,8 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     // MARK: - Smart Tab Management
 
     func createSmartTab(pluginID: String) {
-        guard let plugin = SmartPanelRegistry.shared.plugin(for: pluginID),
-              let panel = SmartPanelView.create(pluginID: pluginID) else { return }
+        guard let plugin = dependencies.smartPanelRegistry.plugin(for: pluginID),
+              let panel = makeSmartPanel(pluginID: pluginID) else { return }
 
         // Find the shell PID from the current terminal's CWD
         panel.shellPID = findShellPID()
@@ -676,6 +642,10 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
         selectTab(tabs.count - 1)
         refreshTabUI()
+    }
+
+    func makeSmartPanel(pluginID: String) -> SmartPanelView? {
+        SmartPanelView.create(pluginID: pluginID, registry: dependencies.smartPanelRegistry)
     }
 
     /// Open a tool panel, or switch to an existing one with the same plugin identifier.
@@ -899,6 +869,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                       self.tabs[self.selectedTabIndex].cwd == cwd else { return }
                 if let activeSurface, self.activeSurface === activeSurface {
                     activeSurface.detectedContext = runtimeStatus.detectedContext
+                    activeSurface.lastForegroundPresentation = runtimeStatus.foregroundProcess
                     let context = activeSurface.displayContext
                     self.titleBar.updateContext(context)
                     self.statusBar.updateContext(context)
@@ -931,6 +902,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                       self.activeSurface === surface else { return }
 
                 surface.detectedContext = runtimeStatus.detectedContext
+                surface.lastForegroundPresentation = runtimeStatus.foregroundProcess
                 let context = surface.displayContext
                 self.titleBar.updateContext(context)
                 self.statusBar.updateContext(context)
@@ -942,7 +914,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     func connectSSHProfile(id: UUID) {
         guard let profile = SSHProfileStore.shared.profile(id: id) else {
-            PreferencesWindowController.shared.showWindow(selecting: "ssh")
+            dependencies.preferencesWindowController.showWindow(selecting: "ssh")
             return
         }
 
@@ -956,6 +928,24 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             return cwd
         }
         return FileManager.default.currentDirectoryPath
+    }
+
+    func owns(surface: TerminalSurfaceView) -> Bool {
+        tabs.contains { tab in
+            tab.surfaces.contains { $0 === surface }
+        }
+    }
+
+    func isSurfaceVisible(_ surface: TerminalSurfaceView) -> Bool {
+        guard selectedTabIndex < tabs.count else { return false }
+        let activeTab = tabs[selectedTabIndex]
+        return activeTab.surfaces.contains { $0 === surface } && activeSurface === surface
+    }
+
+    func tabTitle(for surface: TerminalSurfaceView) -> String? {
+        tabs.first(where: { entry in
+            entry.surfaces.contains { $0 === surface }
+        })?.title
     }
 
     private func refreshTabUI() {
@@ -1617,7 +1607,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         layer?.backgroundColor = Theme.colors.frame.cgColor
         // Slider 0–1 maps to 0–0.08 (dark) or 0–0.12 (light) actual opacity
         let maxOpacity: Double = Theme.colors.isLight ? 0.12 : 0.08
-        noiseLayer.opacity = Float(BellithSettings.shared.noiseIntensity * maxOpacity)
+        noiseLayer.opacity = Float(dependencies.settings.noiseIntensity * maxOpacity)
     }
 
     private func handleThemeChange() {
@@ -1692,7 +1682,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     func performCommandPaletteCommand(_ text: String) {
         let cmd = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        if let command = CommandRegistry.shared.command(matching: cmd) {
+        if let command = dependencies.commandRegistry.command(matching: cmd) {
             _ = command.perform(self, cmd)
             return
         }
@@ -1711,12 +1701,12 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         let normalizedThemeName = cmd.lowercased()
         if let theme = ThemeColors.allThemes.first(where: { $0.name.lowercased() == normalizedThemeName }) {
             if theme.isLight {
-                BellithSettings.shared.lightThemeName = theme.name
+                dependencies.settings.lightThemeName = theme.name
             } else {
-                BellithSettings.shared.darkThemeName = theme.name
+                dependencies.settings.darkThemeName = theme.name
             }
-            let resolved = BellithSettings.shared.resolvedTheme
-            ThemeManager.shared.apply(resolved)
+            let resolved = dependencies.settings.resolvedTheme
+            dependencies.themeManager.apply(resolved)
         } else {
             Logger.ui.warning("Unknown command: \(text)")
         }
@@ -1794,7 +1784,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     func resetFontSizePublic() { resetFontSize() }
 
     private func adjustFontSize(delta: Int) {
-        let settings = BellithSettings.shared
+        let settings = dependencies.settings
         let newSize = max(Metrics.minimumFontSize, min(Metrics.maximumFontSize, settings.fontSize + delta))
         guard newSize != settings.fontSize else { return }
         settings.fontSize = newSize
@@ -1802,7 +1792,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     private func resetFontSize() {
-        BellithSettings.shared.fontSize = 15
+        dependencies.settings.fontSize = 15
         reloadConfig()
     }
 

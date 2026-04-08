@@ -5,6 +5,7 @@ import os
 
 protocol TerminalSessionCoordinatorHost: AnyObject {
     func makeSurface(tabId: UUID, context: TerminalContext) -> TerminalSurfaceView
+    func makeSmartPanel(pluginID: String) -> SmartPanelView?
     func addRestoredTabRootView(_ view: NSView)
     func refreshSmartPanelContexts()
 }
@@ -126,7 +127,7 @@ final class TerminalSessionCoordinator {
 
             case .smart:
                 guard let pluginID = tabState.smartPanelID,
-                      let panel = SmartPanelView.create(pluginID: pluginID) else { continue }
+                      let panel = host.makeSmartPanel(pluginID: pluginID) else { continue }
 
                 let entry = TerminalTabEntry(
                     id: id,

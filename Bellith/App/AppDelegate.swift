@@ -15,6 +15,7 @@ struct BellithApp {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+    private let dependencies: BellithDependencies
     private var terminalApp: TerminalApp?
     private var windows: [WindowEntry] = []
     private var newWindowObserver: NSObjectProtocol?
@@ -33,6 +34,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return windows.first { $0.window === keyWindow }
         }
         return windows.last
+    }
+
+    override init() {
+        self.dependencies = .live
+        super.init()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -76,9 +82,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         // Restore saved theme for current system appearance
-        ThemeManager.shared.apply(BellithSettings.shared.resolvedTheme)
+        dependencies.themeManager.apply(dependencies.settings.resolvedTheme)
 
-        let isDark = BellithSettings.shared.systemIsDark
+        let isDark = dependencies.settings.systemIsDark
         app.setColorScheme(isDark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
 
         // Observe system appearance changes to switch themes
@@ -102,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         // Setup quick terminal (visor)
-        QuickTerminalController.shared.setup(terminalApp: app)
+        QuickTerminalController.shared.setup(terminalApp: app, dependencies: dependencies)
 
         // Try to restore previous session(s)
         if !restoreSavedWindows() {
@@ -113,7 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         // Save all window sessions if enabled
-        if BellithSettings.shared.restoreSession {
+        if dependencies.settings.restoreSession {
             let savedWindows = windows.map {
                 WindowSessionState(
                     session: $0.container.saveSession(),
@@ -150,10 +156,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         // Tear down all windows
-        for entry in windows {
-            entry.container.teardown()
-        }
-
         // Clean up quick terminal
         QuickTerminalController.shared.cleanup()
     }
@@ -170,7 +172,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
             styleMask: [],
             backing: .buffered,
-            defer: false
+            defer: false,
+            settings: dependencies.settings
         )
         if let frameDescriptor {
             let restoredFrame = NSRectFromString(frameDescriptor)
@@ -185,7 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         window.isReleasedWhenClosed = false
         window.delegate = self
 
-        let container = TerminalContainerView(terminalApp: terminalApp)
+        let container = TerminalContainerView(terminalApp: terminalApp, dependencies: dependencies)
         window.contentView = container
 
         let entry = WindowEntry(window: window, container: container)
@@ -204,7 +207,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func restoreSavedWindows() -> Bool {
-        guard BellithSettings.shared.restoreSession else { return false }
+        guard dependencies.settings.restoreSession else { return false }
 
         if let data = UserDefaults.standard.data(forKey: "savedWindowSessions"),
            let savedWindows = try? JSONDecoder().decode([WindowSessionState].self, from: data),
@@ -246,6 +249,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return entry.container
         }
         return activeEntry?.container
+    }
+
+    private func surfaceView(for target: ghostty_target_s) -> TerminalSurfaceView? {
+        guard target.tag == GHOSTTY_TARGET_SURFACE,
+              let surfaceUD = ghostty_surface_userdata(target.target.surface) else {
+            return nil
+        }
+
+        return Unmanaged<TerminalSurfaceView>.fromOpaque(surfaceUD).takeUnretainedValue()
+    }
+
+    private func shouldNotifyForCompletedCommand(
+        on surfaceView: TerminalSurfaceView?,
+        durationSeconds: Double
+    ) -> Bool {
+        guard dependencies.settings.commandCompletionNotificationsEnabled else { return false }
+        guard dependencies.settings.shellIntegrationEnabled else { return false }
+        guard durationSeconds >= Double(dependencies.settings.commandCompletionNotificationThreshold) else { return false }
+
+        guard let surfaceView,
+              let container = container(for: surfaceView) else {
+            return !NSApp.isActive
+        }
+
+        let appIsFocused = NSApp.isActive
+        let surfaceIsVisible = container.isSurfaceVisible(surfaceView)
+        let windowIsKey = surfaceView.window?.isKeyWindow ?? false
+        return !appIsFocused || !windowIsKey || !surfaceIsVisible
+    }
+
+    private func notifyCompletedCommand(on surfaceView: TerminalSurfaceView?, durationSeconds: Double, exitCode: Int16) {
+        let content = UNMutableNotificationContent()
+        let tabTitle = surfaceView.flatMap { container(for: $0)?.tabTitle(for: $0) }
+        let processText = surfaceView?.lastForegroundPresentation?.text
+        let titleParts = [processText, tabTitle].compactMap { $0 }.filter { !$0.isEmpty }
+        content.title = titleParts.first.map { "\($0) finished" } ?? "Command finished"
+
+        if exitCode == 0 {
+            content.body = String(format: "Completed successfully in %.0fs", durationSeconds)
+        } else if exitCode > 0 {
+            content.body = String(format: "Exited with code %d after %.0fs", exitCode, durationSeconds)
+        } else {
+            content.body = String(format: "Completed in %.0fs", durationSeconds)
+        }
+
+        if let tabTitle, !tabTitle.isEmpty, titleParts.count <= 1 {
+            content.subtitle = tabTitle
+        }
+
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
     }
 
     private func setupMenus() {
@@ -361,7 +416,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // Tools menu — built-in smart panel plugins
         let toolsMenu = NSMenu(title: "Tools")
-        for plugin in SmartPanelRegistry.shared.allPlugins {
+        for plugin in dependencies.smartPanelRegistry.allPlugins {
             let item = NSMenuItem(title: plugin.title, action: #selector(handleSmartToolMenuItem(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = plugin.id
@@ -416,7 +471,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if profiles.count == 1, let profile = profiles.first {
             activeEntry?.container.connectSSHProfile(id: profile.id)
         } else {
-            PreferencesWindowController.shared.showWindow(selecting: "ssh")
+            dependencies.preferencesWindowController.showWindow(selecting: "ssh")
         }
     }
     @objc private func handleSplitRight() { activeEntry?.container.splitPane(direction: .vertical) }
@@ -439,7 +494,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func handleFontSmaller() { activeEntry?.container.adjustFontSizePublic(delta: -1) }
     @objc private func handleFontReset() { activeEntry?.container.resetFontSizePublic() }
     @objc private func handleFullscreen() { NSApp.keyWindow?.toggleFullScreen(nil) }
-    @objc private func handlePreferences() { PreferencesWindowController.shared.showWindow() }
+    @objc private func handlePreferences() { dependencies.preferencesWindowController.showWindow() }
     @objc private func handleAbout() {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
@@ -466,13 +521,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func handleThemeSelection(_ sender: NSMenuItem) {
         guard let theme = sender.representedObject as? ThemeColors else { return }
         if theme.isLight {
-            BellithSettings.shared.lightThemeName = theme.name
+            dependencies.settings.lightThemeName = theme.name
         } else {
-            BellithSettings.shared.darkThemeName = theme.name
+            dependencies.settings.darkThemeName = theme.name
         }
         // Apply immediately if it matches the current system appearance
-        let resolved = BellithSettings.shared.resolvedTheme
-        ThemeManager.shared.apply(resolved)
+        let resolved = dependencies.settings.resolvedTheme
+        dependencies.themeManager.apply(resolved)
         let appearance = resolved.isLight ? NSAppearance(named: .aqua) : NSAppearance(named: .darkAqua)
         for entry in windows { entry.window.appearance = appearance }
     }
@@ -483,7 +538,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func rebuildThemeMenu() {
         themeMenu.removeAllItems()
-        let settings = BellithSettings.shared
+        let settings = dependencies.settings
         let darkHeader = NSMenuItem(title: "Dark", action: nil, keyEquivalent: "")
         darkHeader.isEnabled = false
         themeMenu.addItem(darkHeader)
@@ -508,12 +563,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func handleSystemAppearanceChanged() {
         // Small delay to let NSApp.effectiveAppearance update
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            let theme = BellithSettings.shared.resolvedTheme
-            ThemeManager.shared.apply(theme)
+            guard let self else { return }
+            let theme = self.dependencies.settings.resolvedTheme
+            self.dependencies.themeManager.apply(theme)
             let appearance = theme.isLight ? NSAppearance(named: .aqua) : NSAppearance(named: .darkAqua)
-            if let self {
-                for entry in self.windows { entry.window.appearance = appearance }
-            }
+            for entry in self.windows { entry.window.appearance = appearance }
         }
     }
 
@@ -562,9 +616,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case GHOSTTY_ACTION_SET_TITLE:
             if let titlePtr = action.action.set_title.title {
                 let title = String(cString: titlePtr)
-                if target.tag == GHOSTTY_TARGET_SURFACE,
-                   let surfaceUD = ghostty_surface_userdata(target.target.surface) {
-                    let surfaceView = Unmanaged<TerminalSurfaceView>.fromOpaque(surfaceUD).takeUnretainedValue()
+                if let surfaceView = surfaceView(for: target) {
                     container(for: surfaceView)?.updateTabTitle(title, for: surfaceView)
                     // Update window title for Mission Control / Cmd+Tab
                     surfaceView.window?.title = title
@@ -575,9 +627,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case GHOSTTY_ACTION_PWD:
             if let pwdPtr = action.action.pwd.pwd {
                 let pwd = String(cString: pwdPtr)
-                if target.tag == GHOSTTY_TARGET_SURFACE,
-                   let surfaceUD = ghostty_surface_userdata(target.target.surface) {
-                    let surfaceView = Unmanaged<TerminalSurfaceView>.fromOpaque(surfaceUD).takeUnretainedValue()
+                if let surfaceView = surfaceView(for: target) {
                     container(for: surfaceView)?.updateTabCwd(pwd, for: surfaceView)
                 }
             }
@@ -671,20 +721,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case GHOSTTY_ACTION_COMMAND_FINISHED:
             let info = action.action.command_finished
             let durationSec = Double(info.duration) / 1_000_000_000
-            // Only notify for long-running commands when app is not focused
-            if durationSec >= 10 && !NSApp.isActive {
-                let content = UNMutableNotificationContent()
-                content.title = "Command finished"
-                if info.exit_code == 0 {
-                    content.body = String(format: "Completed successfully (%.0fs)", durationSec)
-                } else if info.exit_code > 0 {
-                    content.body = String(format: "Exited with code %d (%.0fs)", info.exit_code, durationSec)
-                } else {
-                    content.body = String(format: "Completed (%.0fs)", durationSec)
-                }
-                content.sound = .default
-                let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-                UNUserNotificationCenter.current().add(request)
+            let surfaceView = surfaceView(for: target)
+            if shouldNotifyForCompletedCommand(on: surfaceView, durationSeconds: durationSec) {
+                notifyCompletedCommand(on: surfaceView, durationSeconds: durationSec, exitCode: info.exit_code)
             }
             return true
 
@@ -758,10 +797,6 @@ extension AppDelegate: NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? TerminalWindow else { return }
-        // Tear down the container's resources before dropping references
-        if let entry = windows.first(where: { $0.window === window }) {
-            entry.container.teardown()
-        }
         windows.removeAll { $0.window === window }
     }
 }

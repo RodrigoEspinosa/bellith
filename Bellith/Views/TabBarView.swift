@@ -20,14 +20,17 @@ final class TabBarView: NSView {
     var onReorderTab: ((Int, Int) -> Void)?
 
     private var dragSourceIndex: Int?
+    private var dragTargetIndex: Int?
     private var dragIndicatorLayer: CALayer?
+    private let smartPanelRegistry: SmartPanelRegistry
 
     private let newTabButton = NSButton()
     private let singleTabLabel = NSTextField(labelWithString: "")
     private var themeObserver: NSObjectProtocol?
 
-    override init(frame: NSRect) {
-        super.init(frame: frame)
+    init(frame frameRect: NSRect = .zero, smartPanelRegistry: SmartPanelRegistry = .shared) {
+        self.smartPanelRegistry = smartPanelRegistry
+        super.init(frame: frameRect)
         setupNewTabButton()
         setupSingleTabLabel()
         themeObserver = NotificationCenter.default.addObserver(
@@ -95,7 +98,12 @@ final class TabBarView: NSView {
         tabViews.removeAll()
 
         for (i, tab) in tabs.enumerated() {
-            let pill = TabPillView(title: tab.title, isSelected: i == selectedIndex, kind: tab.kind)
+            let pill = TabPillView(
+                title: tab.title,
+                isSelected: i == selectedIndex,
+                kind: tab.kind,
+                smartPanelRegistry: smartPanelRegistry
+            )
             pill.onSelect = { [weak self] in self?.onSelectTab?(i) }
             pill.onClose = { [weak self] in self?.onCloseTab?(i) }
             pill.onDragBegan = { [weak self] in self?.beginDrag(fromIndex: i) }
@@ -140,6 +148,7 @@ final class TabBarView: NSView {
 
     private func beginDrag(fromIndex: Int) {
         dragSourceIndex = fromIndex
+        dragTargetIndex = nil
         if dragIndicatorLayer == nil {
             let indicator = CALayer()
             indicator.backgroundColor = Theme.accent.withAlphaComponent(0.5).cgColor
@@ -163,11 +172,13 @@ final class TabBarView: NSView {
         }
 
         if let target = targetIdx, target != sourceIdx {
+            dragTargetIndex = target
             let pill = tabViews[target]
             let indicatorX = target < sourceIdx ? pill.frame.minX - 1 : pill.frame.maxX + 1
             dragIndicatorLayer?.frame = NSRect(x: indicatorX, y: pill.frame.minY + 4, width: 2, height: pill.frame.height - 8)
             dragIndicatorLayer?.isHidden = false
         } else {
+            dragTargetIndex = nil
             dragIndicatorLayer?.isHidden = true
         }
     }
@@ -177,18 +188,9 @@ final class TabBarView: NSView {
         dragIndicatorLayer?.removeFromSuperlayer()
         dragIndicatorLayer = nil
 
-        var targetIdx = sourceIdx
-        if let window = window {
-            let loc = convert(window.mouseLocationOutsideOfEventStream, from: nil)
-            for (i, pill) in tabViews.enumerated() {
-                if loc.x >= pill.frame.minX && loc.x <= pill.frame.maxX && i != sourceIdx {
-                    targetIdx = i
-                    break
-                }
-            }
-        }
-
+        let targetIdx = dragTargetIndex ?? sourceIdx
         dragSourceIndex = nil
+        dragTargetIndex = nil
         if targetIdx != sourceIdx {
             onReorderTab?(sourceIdx, targetIdx)
         }
@@ -217,6 +219,7 @@ fileprivate final class TabPillView: NSView {
     private let closeButton = NSButton()
     private let isSelected: Bool
     private let kind: TerminalContainerView.TabKind
+    private let smartPanelRegistry: SmartPanelRegistry
     private var trackingArea: NSTrackingArea?
     private var isHovered = false
 
@@ -230,9 +233,15 @@ fileprivate final class TabPillView: NSView {
         return false
     }
 
-    init(title: String, isSelected: Bool, kind: TerminalContainerView.TabKind) {
+    init(
+        title: String,
+        isSelected: Bool,
+        kind: TerminalContainerView.TabKind,
+        smartPanelRegistry: SmartPanelRegistry
+    ) {
         self.isSelected = isSelected
         self.kind = kind
+        self.smartPanelRegistry = smartPanelRegistry
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = 7
@@ -245,7 +254,7 @@ fileprivate final class TabPillView: NSView {
 
         // Icon for smart tabs
         if case .smart(let pluginID) = kind,
-           let plugin = SmartPanelRegistry.shared.plugin(for: pluginID) {
+           let plugin = smartPanelRegistry.plugin(for: pluginID) {
             iconView.image = NSImage(systemSymbolName: plugin.iconName, accessibilityDescription: nil)
             iconView.contentTintColor = isSelected ? Theme.textPrimary : Theme.textTertiary
             iconView.imageScaling = .scaleProportionallyDown

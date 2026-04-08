@@ -16,22 +16,30 @@ final class CommandPaletteView: NSView {
     private var resultRows: [CommandRow] = []
     private var selectedResultIndex: Int = -1
     private var isShowingResults = false
+    private let commandRegistry: CommandRegistry
+    private let settings: BellithSettings
 
     var onSubmit: ((String) -> Void)?
     var onDismiss: (() -> Void)?
 
     typealias CommandItem = (id: String, label: String, description: String, icon: String, shortcutId: String?)
 
-    static var commands: [CommandItem] {
-        CommandRegistry.shared.allCommands.map { command in
+    static func commands(using commandRegistry: CommandRegistry = .shared) -> [CommandItem] {
+        commandRegistry.allCommands.map { command in
             (command.id, command.title, command.description, command.iconName, command.shortcutID)
         }
     }
 
     private var themeObserver: NSObjectProtocol?
 
-    override init(frame: NSRect) {
-        super.init(frame: frame)
+    init(
+        frame frameRect: NSRect = .zero,
+        commandRegistry: CommandRegistry = .shared,
+        settings: BellithSettings = .shared
+    ) {
+        self.commandRegistry = commandRegistry
+        self.settings = settings
+        super.init(frame: frameRect)
         setupViews()
         themeObserver = NotificationCenter.default.addObserver(
             forName: ThemeManager.didChangeNotification, object: nil, queue: .main
@@ -220,7 +228,7 @@ final class CommandPaletteView: NSView {
 
     /// Shared filtering logic — returns commands ranked by fuzzy relevance.
     static func filteredCommands(for query: String, limit: Int, commands: [CommandItem]? = nil) -> [CommandItem] {
-        let sourceCommands = commands ?? Self.commands
+        let sourceCommands = commands ?? Self.commands()
         if query.isEmpty {
             return Array(sourceCommands.prefix(limit))
         }
@@ -236,7 +244,11 @@ final class CommandPaletteView: NSView {
     }
 
     private func updateResults(for query: String) {
-        let filtered = Self.filteredCommands(for: query, limit: maxVisibleResults)
+        let filtered = Self.filteredCommands(
+            for: query,
+            limit: maxVisibleResults,
+            commands: Self.commands(using: commandRegistry)
+        )
 
         // Remove old rows
         resultRows.forEach { $0.removeFromSuperview() }
@@ -246,7 +258,7 @@ final class CommandPaletteView: NSView {
         for (i, cmd) in filtered.prefix(maxVisibleResults).enumerated() {
             // Look up keyboard shortcut
             let shortcutStr: String?
-            if let sid = cmd.shortcutId, let shortcut = BellithSettings.shared.shortcut(for: sid) {
+            if let sid = cmd.shortcutId, let shortcut = settings.shortcut(for: sid) {
                 shortcutStr = shortcut.displayString
             } else {
                 shortcutStr = nil

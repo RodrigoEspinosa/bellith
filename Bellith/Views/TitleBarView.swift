@@ -31,6 +31,7 @@ final class TitleBarView: NSView {
     private var currentPath: String = "~"
     private var currentGitBranch: String?
     private var currentProcess: String?
+    private var currentProcessPresentation: ForegroundProcessPresentation?
     private var currentContext: TerminalContext?
     private var segmentTrackingAreas: [NSTrackingArea] = []
     private var hoveredView: NSView?
@@ -144,13 +145,17 @@ final class TitleBarView: NSView {
         needsLayout = true
     }
 
-    func updateProcess(_ name: String?) {
-        let normalizedName = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+    func updateProcess(_ presentation: ForegroundProcessPresentation?) {
+        currentProcessPresentation = presentation
+        let normalizedName = presentation?.text.trimmingCharacters(in: .whitespacesAndNewlines)
         let value = (normalizedName?.isEmpty == false) ? normalizedName : nil
         guard value != currentProcess else { return }
 
         currentProcess = value
         processLabel.stringValue = value ?? ""
+        processIcon.image = NSImage(systemSymbolName: presentation?.iconName ?? "gearshape.fill", accessibilityDescription: nil)
+        processIcon.contentTintColor = presentation?.style == .tool ? Theme.accent : Theme.textSecondary
+        processLabel.textColor = presentation?.style == .tool ? Theme.textPrimary : Theme.textSecondary
         let visible = value != nil
         processIcon.isHidden = !visible
         processLabel.isHidden = !visible
@@ -422,9 +427,8 @@ final class TitleBarView: NSView {
         worktreeBadge.refreshTheme()
         gitIcon.contentTintColor = Theme.success
         gitLabel.textColor = Theme.textSecondary
-        processIcon.contentTintColor = Theme.warning
-        processLabel.textColor = Theme.textSecondary
         sizeLabel.textColor = Theme.textSecondary
+        updateProcess(currentProcessPresentation)
         rebuildBreadcrumbs()
     }
 

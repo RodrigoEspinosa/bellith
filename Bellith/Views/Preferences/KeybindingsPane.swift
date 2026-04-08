@@ -3,7 +3,7 @@ import AppKit
 // MARK: - Keybindings Pane
 
 final class KeybindingsPane: NSView {
-    private let settings = BellithSettings.shared
+    private let settings: BellithSettings
     private let scroll = NSScrollView()
     private let content = FlippedView()
 
@@ -19,8 +19,9 @@ final class KeybindingsPane: NSView {
     private var searchQuery: String = ""
     private var conflictActionIDs: Set<String> = []
 
-    override init(frame: NSRect) {
-        super.init(frame: frame)
+    init(frame frameRect: NSRect = .zero, settings: BellithSettings = .shared) {
+        self.settings = settings
+        super.init(frame: frameRect)
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         scroll.autohidesScrollers = true

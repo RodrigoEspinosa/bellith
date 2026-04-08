@@ -12,6 +12,7 @@
 		0331E3E2063625C041EBDC40 /* TerminalConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 254770B950E6ED2A7FF2ED56 /* TerminalConfigTests.swift */; };
 		03D3A8DFD8754842670312F9 /* TerminalOverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0E3FC50C1923C38393AB64D /* TerminalOverlayController.swift */; };
 		06F9811AE726F42DEB32D418 /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C9D96FFF53397D45EA101F4 /* PreferencesWindowController.swift */; };
+		0AF8CB135FF10863D353566B /* AIToolSessionDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 850CD5C03E9934E94F040341 /* AIToolSessionDetectorTests.swift */; };
 		0FF0294C8F9B14B9DBB9051F /* SplitPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB50294EC30FB94671823CFA /* SplitPaneView.swift */; };
 		11073F73D52E0F9CEAFB4FB5 /* TerminalWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 973180A10E7387D33EBEA8DC /* TerminalWindow.swift */; };
 		114F10461A0D9F305FF71202 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */; };
@@ -34,6 +35,7 @@
 		4859630C40EA72D0F6A13448 /* SSHLaunchBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A6320778E024E8ABCDF2A6 /* SSHLaunchBuilder.swift */; };
 		4C6D7ECB973811FC8DA4121C /* ProcessMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39A46EAB948FDDFB1C12E4B9 /* ProcessMonitor.swift */; };
 		4DDD96881F2A1409729CD580 /* HyperlinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2088BFA03DDDC079DE5DB8C /* HyperlinkRouter.swift */; };
+		55B5329D0C164FDCBEE88A5D /* ToolActivityMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE6157DFCE204C3ADC26FA72 /* ToolActivityMonitor.swift */; };
 		5863C9295DF764ABD02BC958 /* HyperlinkRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CDC1927EB617093208667D9 /* HyperlinkRouterTests.swift */; };
 		5DD63722AB2EE526EB096050 /* GhosttyKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1E2025F109793353C35658F9 /* GhosttyKit.xcframework */; };
 		6798D6E2D3D556D644A18E41 /* SSHProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879EFDEE63113B30DD38B6EA /* SSHProfileStore.swift */; };
@@ -53,6 +55,7 @@
 		A381D1C113C9D8039615BCA4 /* TerminalRuntimeInfoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6E1C3DB1ADB2A4903FA2FF2 /* TerminalRuntimeInfoService.swift */; };
 		A39350253246932A3A4CB068 /* KeybindingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26D1CA15561163656129EFFE /* KeybindingsPane.swift */; };
 		A4482FD8BE36A3CB5AB2CCC8 /* QuickTerminalController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C964FC62608F8FA41EE01B5 /* QuickTerminalController.swift */; };
+		A46704CAA2427B9557BE7973 /* BellithDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC1465B59AFD1A458C9669E1 /* BellithDependencies.swift */; };
 		A497CDCB9182E12C715A1A43 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7F6C0E62F0D6DFD08E3A8E5 /* AppDelegate.swift */; };
 		A58FC4DBB6D1A65B63DEEC49 /* InputHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 342FF523B6C2BC463C0BD849 /* InputHelpers.swift */; };
 		A86738D1AB23F41A78A329D6 /* StatusBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00EF9188ECCF6928DD41F54 /* StatusBarView.swift */; };
@@ -71,10 +74,13 @@
 		D976C2EC92ED3D33ECCB9882 /* CommandPaletteViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9994A85D37354E2BFF60705 /* CommandPaletteViewTests.swift */; };
 		D9B06ED212407C4E58B58CE2 /* TerminalConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E054D89080718E9732C73F2 /* TerminalConfig.swift */; };
 		DAA8ECCB0288FD778CA430DD /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA87F2112E9FD1A9C106D8F2 /* SidebarView.swift */; };
+		DAF1FF85E2B99E346EE83564 /* ToolActivityPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AAC0EE06A46735764D38F77 /* ToolActivityPanel.swift */; };
 		DBFD98B2DDBABADA6AA755D7 /* TerminalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92B2F8E9E8CAEFBB81287640 /* TerminalApp.swift */; };
 		DDDD63014E36721A941C97E4 /* TerminalProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 772785F1920803E52A7235C8 /* TerminalProfile.swift */; };
+		E4D636EC2AB7CB169B3351B2 /* ToolActivityMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69BCF08A2D728599C7557684 /* ToolActivityMonitorTests.swift */; };
 		F0688F637632B59A01825393 /* TerminalContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72367912169712669D03FD67 /* TerminalContainerView.swift */; };
 		F26474311EB82215B71E0CE0 /* SearchBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC69484808B270DA784451B1 /* SearchBarView.swift */; };
+		F565B2256404B0E12F1759C5 /* AIToolSessionDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7761C9EFFC090C4726758B71 /* AIToolSessionDetector.swift */; };
 		FA077AEA422D8D9128490402 /* FileActivityPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F223B58A0753766F0489D0B /* FileActivityPanel.swift */; };
 		FE9D5CEE859363C51ADCC2CF /* KeyBindings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D391C65B83BEE0FDBEAE9ACC /* KeyBindings.swift */; };
 /* End PBXBuildFile section */
@@ -108,21 +114,25 @@
 		3C9D96FFF53397D45EA101F4 /* PreferencesWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindowController.swift; sourceTree = "<group>"; };
 		41878447E775AEA363F6EF96 /* TerminalSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSurfaceView.swift; sourceTree = "<group>"; };
 		469D41729D62F6520EB09E3B /* SmartPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPanelView.swift; sourceTree = "<group>"; };
+		4AAC0EE06A46735764D38F77 /* ToolActivityPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolActivityPanel.swift; sourceTree = "<group>"; };
 		4FD22E965C6F1A921DC3AFFA /* BellithSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithSettingsTests.swift; sourceTree = "<group>"; };
 		52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
 		64B019E37CE2B850357E2B7E /* TerminalSurfaceViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSurfaceViewTests.swift; sourceTree = "<group>"; };
 		693A40251EB6453D78EFD8E9 /* TerminalTabModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalTabModel.swift; sourceTree = "<group>"; };
 		69849D6EC718E0BFF019C9D8 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
+		69BCF08A2D728599C7557684 /* ToolActivityMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolActivityMonitorTests.swift; sourceTree = "<group>"; };
 		6A3BDD2B74A3A4A8B0869659 /* ProcessTreePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessTreePanel.swift; sourceTree = "<group>"; };
 		6C6683BF4D86DE5BB7318C3C /* AboutPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutPane.swift; sourceTree = "<group>"; };
 		707A2AF28DE5D2F8EA639BFB /* TerminalSessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSessionCoordinator.swift; sourceTree = "<group>"; };
 		72367912169712669D03FD67 /* TerminalContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalContainerView.swift; sourceTree = "<group>"; };
 		772785F1920803E52A7235C8 /* TerminalProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalProfile.swift; sourceTree = "<group>"; };
+		7761C9EFFC090C4726758B71 /* AIToolSessionDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIToolSessionDetector.swift; sourceTree = "<group>"; };
 		7AF3EFCA4440E50031AF178C /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		7B6A4E8E8C5D7B65BB385570 /* ContextBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextBadgeView.swift; sourceTree = "<group>"; };
 		7B73776D795BE3450D431B7B /* NetworkPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPanel.swift; sourceTree = "<group>"; };
 		7CDC1927EB617093208667D9 /* HyperlinkRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyperlinkRouterTests.swift; sourceTree = "<group>"; };
 		84F589203C90A72C2C4DA09C /* SSHPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHPane.swift; sourceTree = "<group>"; };
+		850CD5C03E9934E94F040341 /* AIToolSessionDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIToolSessionDetectorTests.swift; sourceTree = "<group>"; };
 		879EFDEE63113B30DD38B6EA /* SSHProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHProfileStore.swift; sourceTree = "<group>"; };
 		8932FC29FCA31DEBC5C25A11 /* ProcessMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMonitorTests.swift; sourceTree = "<group>"; };
 		8AF3103FA440F936419F4846 /* BlurView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlurView.swift; sourceTree = "<group>"; };
@@ -144,6 +154,7 @@
 		A97FAFCF93CCB562713620EE /* BellithFont.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithFont.swift; sourceTree = "<group>"; };
 		AC203E445CE586B521D8FC29 /* GitRepositoryInfoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitRepositoryInfoTests.swift; sourceTree = "<group>"; };
 		B8917D92D4F8962901183EEA /* ThemeGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeGridView.swift; sourceTree = "<group>"; };
+		BC1465B59AFD1A458C9669E1 /* BellithDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithDependencies.swift; sourceTree = "<group>"; };
 		C2EA413DA31A6997580EEAF8 /* SSHSessionDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHSessionDetectorTests.swift; sourceTree = "<group>"; };
 		C6E1C3DB1ADB2A4903FA2FF2 /* TerminalRuntimeInfoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalRuntimeInfoService.swift; sourceTree = "<group>"; };
 		CB50294EC30FB94671823CFA /* SplitPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitPaneView.swift; sourceTree = "<group>"; };
@@ -158,6 +169,7 @@
 		E89FDA87579791818D3A6718 /* TerminalPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPane.swift; sourceTree = "<group>"; };
 		EA87F2112E9FD1A9C106D8F2 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		EC69484808B270DA784451B1 /* SearchBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchBarView.swift; sourceTree = "<group>"; };
+		EE6157DFCE204C3ADC26FA72 /* ToolActivityMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolActivityMonitor.swift; sourceTree = "<group>"; };
 		F00EF9188ECCF6928DD41F54 /* StatusBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarView.swift; sourceTree = "<group>"; };
 		F2088BFA03DDDC079DE5DB8C /* HyperlinkRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyperlinkRouter.swift; sourceTree = "<group>"; };
 		F9994A85D37354E2BFF60705 /* CommandPaletteViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteViewTests.swift; sourceTree = "<group>"; };
@@ -212,6 +224,7 @@
 		2A82101F333FE7DBCA5D3C45 /* BellithTests */ = {
 			isa = PBXGroup;
 			children = (
+				850CD5C03E9934E94F040341 /* AIToolSessionDetectorTests.swift */,
 				4FD22E965C6F1A921DC3AFFA /* BellithSettingsTests.swift */,
 				F9994A85D37354E2BFF60705 /* CommandPaletteViewTests.swift */,
 				AC203E445CE586B521D8FC29 /* GitRepositoryInfoTests.swift */,
@@ -227,6 +240,7 @@
 				97A4045AB00706CFEF094251 /* TerminalContainerViewTests.swift */,
 				64B019E37CE2B850357E2B7E /* TerminalSurfaceViewTests.swift */,
 				1055D889FA5B87C7B010166B /* ThemeTests.swift */,
+				69BCF08A2D728599C7557684 /* ToolActivityMonitorTests.swift */,
 			);
 			path = BellithTests;
 			sourceTree = "<group>";
@@ -312,6 +326,7 @@
 		C8083A37D985A7B13AA5B057 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				BC1465B59AFD1A458C9669E1 /* BellithDependencies.swift */,
 				8B5E3E792593BBE98618983D /* BellithSettings.swift */,
 				0B8A3CDE542974BFD639F6F0 /* CommandRegistry.swift */,
 				D391C65B83BEE0FDBEAE9ACC /* KeyBindings.swift */,
@@ -326,11 +341,13 @@
 		CE051DB4034D40A41E2B47A4 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				7761C9EFFC090C4726758B71 /* AIToolSessionDetector.swift */,
 				D1A6320778E024E8ABCDF2A6 /* SSHLaunchBuilder.swift */,
 				879EFDEE63113B30DD38B6EA /* SSHProfileStore.swift */,
 				A9591082C7912641248227C8 /* SSHSessionDetector.swift */,
 				C6E1C3DB1ADB2A4903FA2FF2 /* TerminalRuntimeInfoService.swift */,
 				707A2AF28DE5D2F8EA639BFB /* TerminalSessionCoordinator.swift */,
+				EE6157DFCE204C3ADC26FA72 /* ToolActivityMonitor.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -354,6 +371,7 @@
 				A192597C4552FB866CD46BC9 /* PerformancePanel.swift */,
 				6A3BDD2B74A3A4A8B0869659 /* ProcessTreePanel.swift */,
 				469D41729D62F6520EB09E3B /* SmartPanelView.swift */,
+				4AAC0EE06A46735764D38F77 /* ToolActivityPanel.swift */,
 			);
 			path = SmartPanels;
 			sourceTree = "<group>";
@@ -459,6 +477,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0AF8CB135FF10863D353566B /* AIToolSessionDetectorTests.swift in Sources */,
 				84920B35B7A5167C2AAE9985 /* BellithSettingsTests.swift in Sources */,
 				D976C2EC92ED3D33ECCB9882 /* CommandPaletteViewTests.swift in Sources */,
 				462CADCA785D176937B5F445 /* GitRepositoryInfoTests.swift in Sources */,
@@ -474,6 +493,7 @@
 				27ADA01BC2482B15DEF1FEA8 /* TerminalContainerViewTests.swift in Sources */,
 				02C8AD21D19DCE280556463E /* TerminalSurfaceViewTests.swift in Sources */,
 				8229F53686989E6007E9C7E9 /* ThemeTests.swift in Sources */,
+				E4D636EC2AB7CB169B3351B2 /* ToolActivityMonitorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -481,9 +501,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F565B2256404B0E12F1759C5 /* AIToolSessionDetector.swift in Sources */,
 				9BF5A978A5AACAB4DD91124B /* AboutPane.swift in Sources */,
 				A497CDCB9182E12C715A1A43 /* AppDelegate.swift in Sources */,
 				CF4A12A757D3355AEB4D159A /* AppearancePane.swift in Sources */,
+				A46704CAA2427B9557BE7973 /* BellithDependencies.swift in Sources */,
 				CCA0508AE25C077D19B7319C /* BellithFont.swift in Sources */,
 				CE826D24B9117475F5BFB14B /* BellithSettings.swift in Sources */,
 				3A8626193F1471C659C10A4A /* BlurView.swift in Sources */,
@@ -535,6 +557,8 @@
 				7F77B0D9CD2EBB86D801E76B /* Theme.swift in Sources */,
 				807142202720783F0B3D8EA6 /* ThemeGridView.swift in Sources */,
 				BAF7DA9CF2672F1E616A7F17 /* TitleBarView.swift in Sources */,
+				55B5329D0C164FDCBEE88A5D /* ToolActivityMonitor.swift in Sources */,
+				DAF1FF85E2B99E346EE83564 /* ToolActivityPanel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

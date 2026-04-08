@@ -3,7 +3,7 @@ import AppKit
 // MARK: - Quick Terminal Pane
 
 final class QuickTerminalPane: NSView {
-    private let settings = BellithSettings.shared
+    private let settings: BellithSettings
     private let scroll = NSScrollView()
     private let content = FlippedView()
 
@@ -26,8 +26,9 @@ final class QuickTerminalPane: NSView {
     private let heightLabel = CardRowLabel("Height")
     private var heightTrack: OpacityTrackView!
 
-    override init(frame: NSRect) {
-        super.init(frame: frame)
+    init(frame frameRect: NSRect = .zero, settings: BellithSettings = .shared) {
+        self.settings = settings
+        super.init(frame: frameRect)
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         scroll.autohidesScrollers = true

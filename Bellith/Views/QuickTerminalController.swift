@@ -14,6 +14,7 @@ final class QuickTerminalController: NSObject {
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandler: EventHandlerRef?
     private weak var terminalApp: TerminalApp?
+    private var dependencies: BellithDependencies = .live
     private var isVisible = false
     private var isAnimating = false
 
@@ -21,8 +22,9 @@ final class QuickTerminalController: NSObject {
 
     // MARK: - Setup
 
-    func setup(terminalApp: TerminalApp) {
+    func setup(terminalApp: TerminalApp, dependencies: BellithDependencies = .live) {
         self.terminalApp = terminalApp
+        self.dependencies = dependencies
         registerHotKey()
     }
 
@@ -111,7 +113,7 @@ final class QuickTerminalController: NSObject {
 
         guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
         let screenFrame = screen.visibleFrame
-        let settings = BellithSettings.shared
+        let settings = dependencies.settings
         let width = screenFrame.width * CGFloat(settings.visorWidthPercent)
         let height = screenFrame.height * CGFloat(settings.visorHeightPercent)
 
@@ -170,7 +172,6 @@ final class QuickTerminalController: NSObject {
 
     /// Release resources on app termination.
     func cleanup() {
-        container?.teardown()
         window?.close()
         window = nil
         container = nil
@@ -182,7 +183,7 @@ final class QuickTerminalController: NSObject {
         let win = QuickTerminalWindow()
         win.isReleasedWhenClosed = false
 
-        let cont = TerminalContainerView(terminalApp: terminalApp)
+        let cont = TerminalContainerView(terminalApp: terminalApp, dependencies: dependencies)
         win.contentView = cont
         win.applyContentAppearance()
         win.delegate = self
@@ -197,7 +198,7 @@ final class QuickTerminalController: NSObject {
 extension QuickTerminalController: NSWindowDelegate {
     func windowDidResignKey(_ notification: Notification) {
         // Auto-hide when losing focus (if enabled)
-        if isVisible && !isAnimating && BellithSettings.shared.visorHideOnFocusLoss {
+        if isVisible && !isAnimating && dependencies.settings.visorHideOnFocusLoss {
             hide()
         }
     }
