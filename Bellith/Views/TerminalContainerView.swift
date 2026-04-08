@@ -3,95 +3,20 @@ import GhosttyKit
 import QuartzCore
 import os
 
-struct GitRepositoryInfo: Equatable {
-    let branch: String?
-    let worktreeName: String?
-    let isWorktree: Bool
-}
-
 /// Container that hosts multiple terminal tabs (each with optional split panes),
 /// smart inspector tabs, a sidebar or tab bar, and the command palette.
-final class TerminalContainerView: NSView {
+final class TerminalContainerView: NSView, TerminalOverlayControllerHost, TerminalSessionCoordinatorHost {
     private enum Metrics {
         static let runtimeRefreshInterval: TimeInterval = 1.0
         static let minimumFontSize: Int = 8
         static let maximumFontSize: Int = 36
     }
 
+    typealias TabContent = TerminalTabContent
+    typealias TabKind = TerminalTabKind
+    typealias TabEntry = TerminalTabEntry
+
     private weak var terminalApp: TerminalApp?
-
-    enum TabContent {
-        case terminal(splitRoot: SplitPaneView, surfaces: [TerminalSurfaceView], focusedSurface: TerminalSurfaceView?)
-        case smart(panel: SmartPanelView)
-    }
-
-    enum TabKind: Equatable {
-        case terminal
-        case smart(String)
-    }
-
-    struct TabEntry {
-        let id: UUID
-        var title: String
-        var cwd: String?
-        var content: TabContent
-
-        var kind: TabKind {
-            switch content {
-            case .terminal: return .terminal
-            case .smart(let panel): return .smart(panel.pluginID)
-            }
-        }
-
-        var splitRoot: SplitPaneView? {
-            if case .terminal(let root, _, _) = content { return root }
-            return nil
-        }
-
-        var surfaces: [TerminalSurfaceView] {
-            if case .terminal(_, let surfaces, _) = content { return surfaces }
-            return []
-        }
-
-        var focusedSurface: TerminalSurfaceView? {
-            get {
-                if case .terminal(_, _, let focused) = content { return focused }
-                return nil
-            }
-            set {
-                if case .terminal(let root, let surfaces, _) = content {
-                    content = .terminal(splitRoot: root, surfaces: surfaces, focusedSurface: newValue)
-                }
-            }
-        }
-
-        var rootView: NSView {
-            switch content {
-            case .terminal(let root, _, _): return root
-            case .smart(let panel): return panel
-            }
-        }
-
-        var isTerminal: Bool {
-            if case .terminal = content { return true }
-            return false
-        }
-
-        mutating func addSurface(_ surface: TerminalSurfaceView) {
-            if case .terminal(let root, var surfaces, _) = content {
-                surfaces.append(surface)
-                content = .terminal(splitRoot: root, surfaces: surfaces, focusedSurface: surface)
-            }
-        }
-
-        mutating func removeSurface(_ surface: TerminalSurfaceView) {
-            if case .terminal(let root, var surfaces, let focused) = content {
-                surfaces.removeAll { $0 === surface }
-                let newFocus = (focused === surface) ? surfaces.last : focused
-                content = .terminal(splitRoot: root, surfaces: surfaces, focusedSurface: newFocus)
-            }
-        }
-    }
 
     private var tabs: [TabEntry] = []
     private(set) var selectedTabIndex: Int = 0
@@ -99,11 +24,14 @@ final class TerminalContainerView: NSView {
     let tabBar = TabBarView()
     let statusBar = StatusBarView()
     let titleBar = TitleBarView()
-    private var commandPalette: CommandPaletteView?
-    private var searchBar: SearchBarView?
+    private lazy var overlayController = TerminalOverlayController(host: self)
+    private lazy var sessionCoordinator = TerminalSessionCoordinator(host: self)
 
-    private(set) var isPaletteVisible = false
-    private var isSearchVisible = false
+    var overlayContainerView: NSView { self }
+    var overlayWindow: NSWindow? { window }
+    var activeSurfaceForOverlay: TerminalSurfaceView? { activeSurface }
+    var isPaletteVisible: Bool { overlayController.isPaletteVisible }
+    private var overlayReferenceView: NSView? { overlayController.presentedOverlayView }
     private var isClosingTab = false
     private var isClosingPane = false
     private var edgeTrackingArea: NSTrackingArea?
@@ -425,6 +353,10 @@ final class TerminalContainerView: NSView {
 
     static func shouldPollRuntimeStatus(windowIsVisible: Bool, isKeyWindow: Bool) -> Bool {
         windowIsVisible && isKeyWindow
+    }
+
+    static func gitRepositoryInfo(in directory: String) -> GitRepositoryInfo? {
+        TerminalRuntimeInfoService.gitRepositoryInfo(in: directory)
     }
 
     private func updateRuntimeStatusObservers() {
@@ -767,7 +699,7 @@ final class TerminalContainerView: NSView {
 
         // Track for reopen
         if entry.isTerminal {
-            recentlyClosedTabs.append((title: entry.title, cwd: entry.cwd, context: persistedContext(for: entry)))
+            recentlyClosedTabs.append((title: entry.title, cwd: entry.cwd, context: entry.persistedContext))
             if recentlyClosedTabs.count > Self.maxRecentlyClosed {
                 recentlyClosedTabs.removeFirst()
             }
@@ -879,7 +811,7 @@ final class TerminalContainerView: NSView {
             window?.makeFirstResponder(focusSurface)
             updateFocusIndicator()
             focusSurface?.refreshReportedSize()
-            let context = focusSurface?.displayContext ?? visibleContext(for: entry)
+            let context = focusSurface?.displayContext ?? entry.visibleContext
             titleBar.updateContext(context)
             statusBar.updateContext(context)
             titleBar.updatePath(entry.cwd)
@@ -958,8 +890,8 @@ final class TerminalContainerView: NSView {
         let pid = findShellPID()
         let activeSurface = activeSurface
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let gitInfo = Self.gitRepositoryInfo(in: cwd)
-            let runtimeStatus = Self.runtimeStatus(for: pid)
+            let gitInfo = TerminalRuntimeInfoService.gitRepositoryInfo(in: cwd)
+            let runtimeStatus = TerminalRuntimeInfoService.runtimeStatus(for: pid)
 
             DispatchQueue.main.async {
                 guard let self,
@@ -990,7 +922,7 @@ final class TerminalContainerView: NSView {
         let pid = findShellPID()
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self, weak surface] in
-            let runtimeStatus = Self.runtimeStatus(for: pid)
+            let runtimeStatus = TerminalRuntimeInfoService.runtimeStatus(for: pid)
 
             DispatchQueue.main.async {
                 guard let self, let surface else { return }
@@ -1008,100 +940,6 @@ final class TerminalContainerView: NSView {
         }
     }
 
-    private struct RuntimeStatus {
-        let foregroundProcess: String?
-        let detectedContext: TerminalContext?
-    }
-
-    private static func runtimeStatus(for shellPID: pid_t?) -> RuntimeStatus {
-        guard let shellPID,
-              let tree = ProcessMonitor.processTree(rootPID: shellPID) else {
-            return RuntimeStatus(foregroundProcess: nil, detectedContext: nil)
-        }
-
-        let shellName = ProcessMonitor.processName(for: shellPID)
-        let foregroundProcess = SSHSessionDetector.foregroundProcess(in: tree, shellPID: shellPID)
-        let foregroundName = foregroundProcess?.name.lowercased() == shellName.lowercased()
-            ? nil
-            : foregroundProcess?.name
-        let detectedContext = SSHSessionDetector.detectedContext(
-            in: tree,
-            shellPID: shellPID,
-            arguments: ProcessMonitor.arguments(for:)
-        )
-
-        return RuntimeStatus(foregroundProcess: foregroundName, detectedContext: detectedContext)
-    }
-
-    static func gitRepositoryInfo(in directory: String) -> GitRepositoryInfo? {
-        let pipe = Pipe()
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = [
-            "-C", directory,
-            "rev-parse",
-            "--abbrev-ref", "HEAD",
-            "--git-dir",
-            "--git-common-dir",
-            "--show-toplevel",
-        ]
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        do {
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return nil }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let output, !output.isEmpty else { return nil }
-
-            let lines = output.components(separatedBy: .newlines)
-            guard lines.count >= 4 else { return nil }
-
-            let branch = normalizedGitOutput(lines[0])
-            let gitDir = resolvedGitURL(for: lines[1], relativeTo: directory)
-            let commonDir = resolvedGitURL(for: lines[2], relativeTo: directory)
-            let topLevel = resolvedGitURL(for: lines[3], relativeTo: directory)
-            let isWorktree = gitDir.resolvingSymlinksInPath().path != commonDir.resolvingSymlinksInPath().path
-            let worktreeName = isWorktree ? topLevel.lastPathComponent : nil
-            return GitRepositoryInfo(branch: branch, worktreeName: worktreeName, isWorktree: isWorktree)
-        } catch { return nil }
-    }
-
-    private static func resolvedGitURL(for path: String, relativeTo directory: String) -> URL {
-        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("/") {
-            return URL(fileURLWithPath: trimmed).standardizedFileURL
-        }
-        return URL(fileURLWithPath: directory, isDirectory: true)
-            .appendingPathComponent(trimmed)
-            .standardizedFileURL
-    }
-
-    private static func normalizedGitOutput(_ text: String) -> String? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private func persistedContext(for entry: TabEntry) -> TerminalContext? {
-        switch entry.content {
-        case .terminal(_, let surfaces, let focusedSurface):
-            return focusedSurface?.terminalContext ?? surfaces.first?.terminalContext ?? .local
-        case .smart:
-            return nil
-        }
-    }
-
-    private func visibleContext(for entry: TabEntry) -> TerminalContext? {
-        switch entry.content {
-        case .terminal(_, let surfaces, let focusedSurface):
-            return focusedSurface?.displayContext ?? surfaces.first?.displayContext ?? .local
-        case .smart:
-            return nil
-        }
-    }
-
     func connectSSHProfile(id: UUID) {
         guard let profile = SSHProfileStore.shared.profile(id: id) else {
             PreferencesWindowController.shared.showWindow(selecting: "ssh")
@@ -1110,7 +948,7 @@ final class TerminalContainerView: NSView {
 
         let context = profile.launchContext
         guard let surface = createTab(titleOverride: profile.displayName, context: context) else { return }
-        sendCommandWhenReady(surface: surface, command: SSHLaunchBuilder.command(for: profile))
+        sessionCoordinator.send(command: SSHLaunchBuilder.command(for: profile), to: surface)
     }
 
     var activeCwd: String {
@@ -1266,7 +1104,7 @@ final class TerminalContainerView: NSView {
 
             // Zoom in: cross-fade from split tree to zoomed surface
             entry.splitRoot?.isHidden = true
-            addSubview(focused, positioned: .below, relativeTo: commandPalette ?? searchBar)
+            addSubview(focused, positioned: .below, relativeTo: overlayReferenceView)
             focused.frame = contentRect
             focused.alphaValue = 0
             NSAnimationContext.runAnimationGroup { ctx in
@@ -1390,11 +1228,11 @@ final class TerminalContainerView: NSView {
     @objc private func contextMenuDuplicateTab(_ sender: NSMenuItem) {
         guard let index = sender.representedObject as? Int, index < tabs.count else { return }
         let cwd = tabs[index].cwd
-        let context = persistedContext(for: tabs[index])
+        let context = tabs[index].persistedContext
         if let sshProfileID = context?.sshProfileID, SSHProfileStore.shared.profile(id: sshProfileID) != nil {
             connectSSHProfile(id: sshProfileID)
         } else if let surface = createTab(titleOverride: tabs[index].title, context: context ?? .local), let cwd, !cwd.isEmpty {
-            sendCdWhenReady(surface: surface, cwd: cwd)
+            sessionCoordinator.restoreWorkingDirectory(cwd, on: surface)
         }
     }
 
@@ -1412,7 +1250,7 @@ final class TerminalContainerView: NSView {
         if let sshProfileID = last.context?.sshProfileID, SSHProfileStore.shared.profile(id: sshProfileID) != nil {
             connectSSHProfile(id: sshProfileID)
         } else if let surface = createTab(titleOverride: last.title, context: last.context ?? .local), let cwd = last.cwd, !cwd.isEmpty {
-            sendCdWhenReady(surface: surface, cwd: cwd)
+            sessionCoordinator.restoreWorkingDirectory(cwd, on: surface)
         }
     }
 
@@ -1493,6 +1331,10 @@ final class TerminalContainerView: NSView {
             guard case .smart(let panel) = tab.content else { continue }
             panel.shellPID = shellPID
         }
+    }
+
+    func refreshSmartPanelContexts() {
+        updateSmartPanelContexts()
     }
 
     /// Find the shell PID for the most relevant terminal context by looking up the
@@ -1785,8 +1627,7 @@ final class TerminalContainerView: NSView {
         tabBar.refreshTheme()
         statusBar.refreshTheme()
         titleBar.refreshTheme()
-        commandPalette?.refreshTheme()
-        searchBar?.refreshTheme()
+        overlayController.refreshTheme()
         for tab in tabs {
             tab.splitRoot?.refreshTheme()
             applyChrome(to: tab.rootView)
@@ -1837,28 +1678,18 @@ final class TerminalContainerView: NSView {
     // MARK: - Command Palette
 
     func toggleCommandPalette() {
-        if isPaletteVisible { hideCommandPalette() } else { showCommandPalette() }
+        overlayController.toggleCommandPalette()
     }
 
     func showCommandPalette() {
-        guard !isPaletteVisible else { return }
-        isPaletteVisible = true
-
-        let palette = CommandPaletteView()
-        palette.onSubmit = { [weak self] text in self?.handleCommand(text) }
-        palette.onDismiss = { [weak self] in
-            self?.isPaletteVisible = false
-            self?.commandPalette = nil
-            self?.window?.makeFirstResponder(self?.activeSurface)
-        }
-        commandPalette = palette
-        palette.show(in: self)
-        (window as? TerminalWindow)?.showTrafficLights()
+        overlayController.showCommandPalette()
     }
 
-    func hideCommandPalette() { commandPalette?.hide() }
+    func hideCommandPalette() {
+        overlayController.hideCommandPalette()
+    }
 
-    private func handleCommand(_ text: String) {
+    func performCommandPaletteCommand(_ text: String) {
         let cmd = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if let command = CommandRegistry.shared.command(matching: cmd) {
@@ -1894,68 +1725,19 @@ final class TerminalContainerView: NSView {
     // MARK: - Search
 
     func showSearch(initialNeedle: String? = nil) {
-        guard !isSearchVisible else { return }
-        isSearchVisible = true
-
-        let bar = SearchBarView()
-        bar.onSearch = { [weak self] query in self?.performSearch(query) }
-        bar.onNext = { [weak self] in self?.searchNext() }
-        bar.onPrev = { [weak self] in self?.searchPrev() }
-        bar.onDismiss = { [weak self] in
-            self?.isSearchVisible = false
-            self?.searchBar = nil
-            if let surface = self?.activeSurface?.surface {
-                let action = "close_surface_search"
-                action.withCString { ptr in
-                    _ = ghostty_surface_binding_action(surface, ptr, UInt(action.utf8.count))
-                }
-            }
-            self?.window?.makeFirstResponder(self?.activeSurface)
-        }
-
-        searchBar = bar
-        if let needle = initialNeedle { bar.setQuery(needle) }
-        bar.show(in: self)
+        overlayController.showSearch(initialNeedle: initialNeedle)
     }
 
     func hideSearch() {
-        guard isSearchVisible else { return }
-        searchBar?.hide()
+        overlayController.hideSearch()
     }
 
-    private var searchTotal: Int = 0
-
     func updateSearchTotal(_ total: Int) {
-        searchTotal = total
-        searchBar?.updateCount(selected: 0, total: total)
+        overlayController.updateSearchTotal(total)
     }
 
     func updateSearchSelected(_ selected: Int) {
-        searchBar?.updateCount(selected: selected, total: searchTotal)
-    }
-
-    private func performSearch(_ query: String) {
-        guard let surface = activeSurface?.surface else { return }
-        let action = "search_forward:\(query)"
-        _ = action.withCString { ptr in
-            ghostty_surface_binding_action(surface, ptr, UInt(action.utf8.count))
-        }
-    }
-
-    private func searchNext() {
-        guard let surface = activeSurface?.surface else { return }
-        let action = "search_forward"
-        _ = action.withCString { ptr in
-            ghostty_surface_binding_action(surface, ptr, UInt(action.utf8.count))
-        }
-    }
-
-    private func searchPrev() {
-        guard let surface = activeSurface?.surface else { return }
-        let action = "search_backward"
-        _ = action.withCString { ptr in
-            ghostty_surface_binding_action(surface, ptr, UInt(action.utf8.count))
-        }
+        overlayController.updateSearchSelected(selected)
     }
 
     // MARK: - Copy / Paste
@@ -2036,123 +1818,21 @@ final class TerminalContainerView: NSView {
     // MARK: - Session Save / Restore
 
     func saveSession() -> SessionState {
-        let tabStates = tabs.compactMap { tab -> SessionState.TabState? in
-            switch tab.content {
-            case .terminal(let root, _, _):
-                let tree = root.serialize { view in
-                    (view as? TerminalSurfaceView)?.currentCwd
-                }
-                let context = persistedContext(for: tab)
-                return SessionState.TabState(
-                    title: tab.title,
-                    splitTree: tree,
-                    terminalContext: context,
-                    sshProfileID: context?.sshProfileID
-                )
-            case .smart(let panel):
-                return SessionState.TabState(title: tab.title, smartPanelID: panel.pluginID)
-            }
-        }
-        return SessionState(tabs: tabStates, selectedTabIndex: min(selectedTabIndex, max(tabStates.count - 1, 0)))
+        sessionCoordinator.saveSession(from: tabs, selectedTabIndex: selectedTabIndex)
     }
 
     func sessionState(forTabAt index: Int) -> SessionState? {
-        guard index >= 0, index < tabs.count else { return nil }
-        let tab = tabs[index]
-
-        let tabState: SessionState.TabState
-        switch tab.content {
-        case .terminal(let root, _, _):
-            let tree = root.serialize { view in
-                (view as? TerminalSurfaceView)?.currentCwd
-            }
-            let context = persistedContext(for: tab)
-            tabState = SessionState.TabState(
-                title: tab.title,
-                splitTree: tree,
-                terminalContext: context,
-                sshProfileID: context?.sshProfileID
-            )
-        case .smart(let panel):
-            tabState = SessionState.TabState(title: tab.title, smartPanelID: panel.pluginID)
-        }
-
-        return SessionState(tabs: [tabState], selectedTabIndex: 0)
+        sessionCoordinator.sessionState(forTabAt: index, in: tabs)
     }
 
     func restoreSession(_ state: SessionState) {
-        guard let terminalApp else { return }
+        guard terminalApp != nil else { return }
 
         for tab in tabs {
             tab.rootView.removeFromSuperview()
         }
         tabs.removeAll()
-
-        for tabState in state.tabs {
-            let id = UUID()
-
-            switch tabState.kind {
-            case .terminal:
-                guard let splitTree = tabState.splitTree else { continue }
-                let sshProfile = tabState.sshProfileID.flatMap { SSHProfileStore.shared.profile(id: $0) }
-                let restoredContext: TerminalContext
-                if let sshProfile {
-                    restoredContext = sshProfile.launchContext
-                } else if tabState.sshProfileID != nil {
-                    restoredContext = .local
-                } else {
-                    restoredContext = tabState.terminalContext ?? .local
-                }
-
-                var surfaces: [TerminalSurfaceView] = []
-                let splitRoot = buildSplitTree(
-                    splitTree,
-                    tabId: id,
-                    app: terminalApp,
-                    surfaces: &surfaces,
-                    depth: 0,
-                    context: restoredContext,
-                    restoringSSHProfile: sshProfile
-                )
-
-                // Validate: at least one surface must have initialized successfully
-                let validSurfaces = surfaces.filter { $0.isReady }
-                guard !validSurfaces.isEmpty else {
-                    Logger.app.warning("Session restore: skipping tab '\(tabState.title)' — no valid surfaces")
-                    splitRoot.removeFromSuperview()
-                    continue
-                }
-
-                var entry = TabEntry(
-                    id: id, title: tabState.title, cwd: nil,
-                    content: .terminal(splitRoot: splitRoot, surfaces: validSurfaces, focusedSurface: validSurfaces.first)
-                )
-                if let firstCwd = validSurfaces.first?.currentCwd {
-                    entry.cwd = firstCwd
-                }
-                tabs.append(entry)
-                addSubview(splitRoot, positioned: .below, relativeTo: sidebar)
-                splitRoot.isHidden = true
-
-                if let sshProfile {
-                    for surface in validSurfaces {
-                        surface.terminalContext = sshProfile.launchContext
-                        sendCommandWhenReady(surface: surface, command: SSHLaunchBuilder.command(for: sshProfile))
-                    }
-                }
-
-            case .smart:
-                guard let pluginID = tabState.smartPanelID,
-                      let panel = SmartPanelView.create(pluginID: pluginID) else { continue }
-                let entry = TabEntry(
-                    id: id, title: tabState.title, cwd: nil,
-                    content: .smart(panel: panel)
-                )
-                tabs.append(entry)
-                addSubview(panel, positioned: .below, relativeTo: sidebar)
-                panel.isHidden = true
-            }
-        }
+        tabs = sessionCoordinator.restoreSession(state)
 
         if tabs.isEmpty {
             createTab()
@@ -2163,69 +1843,20 @@ final class TerminalContainerView: NSView {
         refreshTabUI()
     }
 
-    private static let maxSplitDepth = 8
-
-    private func buildSplitTree(
-        _ node: SplitNodeState,
-        tabId: UUID,
-        app: TerminalApp,
-        surfaces: inout [TerminalSurfaceView],
-        depth: Int,
-        context: TerminalContext,
-        restoringSSHProfile: SSHProfile?
-    ) -> SplitPaneView {
-        switch node {
-        case .leaf(let cwd):
-            let surface = makeSurface(tabId: tabId, app: app, context: context)
-            surface.currentCwd = cwd
-            surfaces.append(surface)
-
-            if restoringSSHProfile == nil, let cwd, !cwd.isEmpty {
-                sendCdWhenReady(surface: surface, cwd: cwd)
-            }
-
-            return SplitPaneView(content: surface)
-
-        case .branch(let orientation, let ratio, let firstNode, let secondNode):
-            // Depth limit to prevent pathological session data from stack overflow
-            guard depth < Self.maxSplitDepth else {
-                Logger.app.warning("Session restore: split depth limit reached, collapsing to leaf")
-                let surface = makeSurface(tabId: tabId, app: app, context: context)
-                surfaces.append(surface)
-                return SplitPaneView(content: surface)
-            }
-
-            let ori: SplitPaneView.Orientation = orientation == "horizontal" ? .horizontal : .vertical
-            let firstChild = buildSplitTree(
-                firstNode,
-                tabId: tabId,
-                app: app,
-                surfaces: &surfaces,
-                depth: depth + 1,
-                context: context,
-                restoringSSHProfile: restoringSSHProfile
-            )
-            let secondChild = buildSplitTree(
-                secondNode,
-                tabId: tabId,
-                app: app,
-                surfaces: &surfaces,
-                depth: depth + 1,
-                context: context,
-                restoringSSHProfile: restoringSSHProfile
-            )
-            return SplitPaneView.makeBranch(
-                orientation: ori,
-                ratio: CGFloat(ratio),
-                first: firstChild,
-                second: secondChild
-            )
-        }
-    }
-
     // MARK: - Surface Factory
 
     /// Centralized surface creation — wires up all callbacks (onClose, onTextInserted).
+    func makeSurface(tabId: UUID, context: TerminalContext) -> TerminalSurfaceView {
+        guard let terminalApp else {
+            preconditionFailure("Terminal app must exist before creating a surface")
+        }
+        return makeSurface(tabId: tabId, app: terminalApp, context: context)
+    }
+
+    func addRestoredTabRootView(_ view: NSView) {
+        addSubview(view, positioned: .below, relativeTo: sidebar)
+    }
+
     private func makeSurface(tabId: UUID, app: TerminalApp, context: TerminalContext) -> TerminalSurfaceView {
         let surface = TerminalSurfaceView(app: app)
         surface.terminalContext = context
@@ -2293,57 +1924,7 @@ final class TerminalContainerView: NSView {
             updateSmartPanelContexts()
             refreshTabUI()
         }
-        sendCdWhenReady(surface: surface, cwd: cwd)
-    }
-
-    // MARK: - Session Restore Helpers
-
-    /// Send a `cd` command to a surface once the shell is ready, with exponential backoff.
-    private func sendCdWhenReady(surface: TerminalSurfaceView, cwd: String, attempt: Int = 0) {
-        let maxAttempts = 5
-        let delay = 0.05 * pow(2.0, Double(attempt))
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self, weak surface] in
-            guard let surface, let surf = surface.surface else { return }
-
-            // If the shell has reported its cwd already, only send `cd` when needed.
-            if let currentCwd = surface.currentCwd {
-                guard currentCwd != cwd else { return }
-                let escaped = cwd.replacingOccurrences(of: "'", with: "'\\''")
-                let cmd = " cd '\(escaped)'\n"
-                cmd.withCString { ptr in
-                    ghostty_surface_text(surf, ptr, UInt(cmd.utf8.count))
-                }
-                return
-            }
-
-            if attempt >= maxAttempts {
-                let escaped = cwd.replacingOccurrences(of: "'", with: "'\\''")
-                let cmd = " cd '\(escaped)'\n"
-                cmd.withCString { ptr in
-                    ghostty_surface_text(surf, ptr, UInt(cmd.utf8.count))
-                }
-            } else {
-                self?.sendCdWhenReady(surface: surface, cwd: cwd, attempt: attempt + 1)
-            }
-        }
-    }
-
-    private func sendCommandWhenReady(surface: TerminalSurfaceView, command: String, attempt: Int = 0) {
-        let maxAttempts = 5
-        let delay = 0.06 * pow(2.0, Double(attempt))
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self, weak surface] in
-            guard let surface, let surf = surface.surface else { return }
-            let input = command + "\n"
-            input.withCString { ptr in
-                ghostty_surface_text(surf, ptr, UInt(input.utf8.count))
-            }
-
-            if attempt < maxAttempts && surface.currentCwd == nil && surface.terminalContext.isRemote {
-                self?.updateSmartPanelContexts()
-            }
-        }
+        sessionCoordinator.restoreWorkingDirectory(cwd, on: surface)
     }
 }
 
