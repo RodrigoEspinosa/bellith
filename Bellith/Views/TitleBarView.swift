@@ -20,6 +20,7 @@ final class TitleBarView: NSView {
     private let folderIcon = NSImageView()
     private let hostBadge = ContextBadgeView()
     private let environmentBadge = ContextBadgeView()
+    private let worktreeBadge = ContextBadgeView()
     private let gitIcon = NSImageView()
     private let gitLabel = NSTextField(labelWithString: "")
     private let processIcon = NSImageView()
@@ -72,6 +73,9 @@ final class TitleBarView: NSView {
 
         environmentBadge.isHidden = true
         addSubview(environmentBadge)
+
+        worktreeBadge.isHidden = true
+        addSubview(worktreeBadge)
 
         gitIcon.image = NSImage(systemSymbolName: "arrow.triangle.branch", accessibilityDescription: nil)
         gitIcon.imageScaling = .scaleProportionallyDown
@@ -160,6 +164,8 @@ final class TitleBarView: NSView {
         guard let context else {
             hostBadge.text = ""
             environmentBadge.text = ""
+            worktreeBadge.text = ""
+            worktreeBadge.iconName = nil
             needsLayout = true
             return
         }
@@ -177,6 +183,15 @@ final class TitleBarView: NSView {
             environmentBadge.iconName = nil
         }
 
+        needsLayout = true
+    }
+
+    func updateGitWorktree(_ worktreeName: String?) {
+        let normalizedName = worktreeName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = (normalizedName?.isEmpty == false) ? normalizedName : nil
+        worktreeBadge.text = value ?? ""
+        worktreeBadge.iconName = value == nil ? nil : "folder.badge.gearshape"
+        worktreeBadge.tone = .neutral
         needsLayout = true
     }
 
@@ -335,6 +350,14 @@ final class TitleBarView: NSView {
             environmentBadge.frame = .zero
         }
 
+        if !worktreeBadge.isHidden {
+            let size = worktreeBadge.intrinsicContentSize
+            worktreeBadge.frame = NSRect(x: x, y: floor((h - size.height) / 2), width: size.width, height: size.height)
+            x += size.width + 10
+        } else {
+            worktreeBadge.frame = .zero
+        }
+
         folderIcon.frame = NSRect(x: x, y: floor((h - iconSize) / 2), width: iconSize, height: iconSize)
         x += iconSize + gap + 1
 
@@ -396,6 +419,7 @@ final class TitleBarView: NSView {
         folderIcon.contentTintColor = Theme.textSecondary
         hostBadge.refreshTheme()
         environmentBadge.refreshTheme()
+        worktreeBadge.refreshTheme()
         gitIcon.contentTintColor = Theme.success
         gitLabel.textColor = Theme.textSecondary
         processIcon.contentTintColor = Theme.warning
