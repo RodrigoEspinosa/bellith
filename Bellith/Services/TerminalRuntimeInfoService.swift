@@ -1,7 +1,7 @@
 import Foundation
 
 struct TerminalRuntimeStatus {
-    let foregroundProcess: String?
+    let foregroundProcess: ForegroundProcessPresentation?
     let detectedContext: TerminalContext?
 }
 
@@ -14,16 +14,23 @@ enum TerminalRuntimeInfoService {
 
         let shellName = ProcessMonitor.processName(for: shellPID)
         let foregroundProcess = SSHSessionDetector.foregroundProcess(in: tree, shellPID: shellPID)
-        let foregroundName = foregroundProcess?.name.lowercased() == shellName.lowercased()
+        let visibleForeground = foregroundProcess?.name.lowercased() == shellName.lowercased()
             ? nil
-            : foregroundProcess?.name
+            : foregroundProcess
         let detectedContext = SSHSessionDetector.detectedContext(
             in: tree,
             shellPID: shellPID,
             arguments: ProcessMonitor.arguments(for:)
         )
+        let foregroundPresentation = AIToolSessionDetector.presentation(
+            for: visibleForeground,
+            arguments: ProcessMonitor.arguments(for:)
+        )
 
-        return TerminalRuntimeStatus(foregroundProcess: foregroundName, detectedContext: detectedContext)
+        return TerminalRuntimeStatus(
+            foregroundProcess: foregroundPresentation,
+            detectedContext: detectedContext
+        )
     }
 
     static func gitRepositoryInfo(in directory: String) -> GitRepositoryInfo? {

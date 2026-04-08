@@ -28,6 +28,7 @@ final class TerminalWindow: NSWindow {
     private var trafficLightHideTimer: Timer?
     private var trafficLightsVisible = true
     private var trafficLightDisplayMode: TrafficLightDisplayMode = .automatic
+    private let settings: BellithSettings
 
     override init(
         contentRect: NSRect,
@@ -35,6 +36,24 @@ final class TerminalWindow: NSWindow {
         backing backingStoreType: NSWindow.BackingStoreType,
         defer flag: Bool
     ) {
+        self.settings = .shared
+        super.init(
+            contentRect: contentRect,
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: backingStoreType,
+            defer: flag
+        )
+        configure()
+    }
+
+    init(
+        contentRect: NSRect,
+        styleMask style: NSWindow.StyleMask,
+        backing backingStoreType: NSWindow.BackingStoreType,
+        defer flag: Bool,
+        settings: BellithSettings
+    ) {
+        self.settings = settings
         super.init(
             contentRect: contentRect,
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
@@ -109,7 +128,7 @@ final class TerminalWindow: NSWindow {
     }
 
     private var shouldAutoHideTrafficLights: Bool {
-        BellithSettings.shared.trafficLightAutoHide
+        settings.trafficLightAutoHide
     }
 
     private var shouldReduceMotion: Bool {

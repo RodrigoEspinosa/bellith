@@ -4,6 +4,7 @@ import AppKit
 
 final class ThemeGridView: NSView {
     private let settings: BellithSettings
+    private let themeManager: ThemeManager
     private let onApply: () -> Void
     private var cells: [ThemeCell] = []
     private let darkLabel = SectionLabel("DARK")
@@ -14,8 +15,9 @@ final class ThemeGridView: NSView {
     private let cellHeight: CGFloat = 78
     private let sectionLabelHeight: CGFloat = 24
 
-    init(settings: BellithSettings, onApply: @escaping () -> Void) {
+    init(settings: BellithSettings, themeManager: ThemeManager = .shared, onApply: @escaping () -> Void) {
         self.settings = settings
+        self.themeManager = themeManager
         self.onApply = onApply
         super.init(frame: .zero)
         addSubview(darkLabel)
@@ -73,7 +75,7 @@ final class ThemeGridView: NSView {
                 // Apply immediately if it matches the current system appearance
                 if t.isLight == !self.settings.systemIsDark || t.isLight == self.settings.systemIsDark {
                     let resolved = self.settings.resolvedTheme
-                    ThemeManager.shared.apply(resolved)
+                    self.themeManager.apply(resolved)
                 }
                 self.refresh()
                 self.onApply()

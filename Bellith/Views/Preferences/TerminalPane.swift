@@ -3,7 +3,7 @@ import AppKit
 // MARK: - Terminal Pane
 
 final class TerminalPane: NSView {
-    private let settings = BellithSettings.shared
+    private let settings: BellithSettings
     private let scroll = NSScrollView()
     private let content = FlippedView()
 
@@ -62,6 +62,11 @@ final class TerminalPane: NSView {
     private var shellIntegrationSSHEnvToggle: PrefToggle!
     private let shellIntegrationSSHTerminfoLabel = CardRowLabel("SSH Terminfo Install")
     private var shellIntegrationSSHTerminfoToggle: PrefToggle!
+    private let commandNotificationsLabel = CardRowLabel("Completion Notifications")
+    private var commandNotificationsToggle: PrefToggle!
+    private let commandNotificationThresholdLabel = CardRowLabel("Notify After")
+    private var commandNotificationThresholdField: MiniNumberField!
+    private let commandNotificationThresholdUnit = SmallLabel("SECONDS")
     private let shellIntegrationNote = FooterNote("Prompt marks, command timing, and completion notifications require shell integration.")
 
     private let behaviorCard = SettingsCard(title: "Behavior", subtitle: "Session lifecycle and cursor visibility")
@@ -72,8 +77,9 @@ final class TerminalPane: NSView {
     private let restoreLabel = CardRowLabel("Restore Previous Session")
     private var restoreToggle: PrefToggle!
 
-    override init(frame: NSRect) {
-        super.init(frame: frame)
+    init(frame frameRect: NSRect = .zero, settings: BellithSettings = .shared) {
+        self.settings = settings
+        super.init(frame: frameRect)
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         scroll.autohidesScrollers = true
@@ -205,6 +211,15 @@ final class TerminalPane: NSView {
         shellIntegrationSSHTerminfoToggle = PrefToggle(isOn: settings.shellIntegrationSSHTerminfo) { [weak self] value in
             self?.settings.shellIntegrationSSHTerminfo = value
         }
+        commandNotificationsToggle = PrefToggle(isOn: settings.commandCompletionNotificationsEnabled) { [weak self] value in
+            self?.settings.commandCompletionNotificationsEnabled = value
+        }
+        commandNotificationThresholdField = MiniNumberField(
+            value: settings.commandCompletionNotificationThreshold,
+            range: 1...3_600
+        ) { [weak self] value in
+            self?.settings.commandCompletionNotificationThreshold = value
+        }
         content.addSubview(shellIntegrationCard)
         for view: NSView in [
             shellIntegrationEnabledLabel,
@@ -219,6 +234,11 @@ final class TerminalPane: NSView {
             shellIntegrationSSHEnvToggle,
             shellIntegrationSSHTerminfoLabel,
             shellIntegrationSSHTerminfoToggle,
+            commandNotificationsLabel,
+            commandNotificationsToggle,
+            commandNotificationThresholdLabel,
+            commandNotificationThresholdField,
+            commandNotificationThresholdUnit,
             shellIntegrationNote
         ] {
             shellIntegrationCard.addSubview(view)
@@ -260,6 +280,8 @@ final class TerminalPane: NSView {
         shellIntegrationPathToggle.setOn(settings.shellIntegrationPath)
         shellIntegrationSSHEnvToggle.setOn(settings.shellIntegrationSSHEnv)
         shellIntegrationSSHTerminfoToggle.setOn(settings.shellIntegrationSSHTerminfo)
+        commandNotificationsToggle.setOn(settings.commandCompletionNotificationsEnabled)
+        commandNotificationThresholdField.setValue(settings.commandCompletionNotificationThreshold)
         hideMouseToggle.setOn(settings.mouseHideWhileTyping)
         confirmToggle.setOn(settings.confirmClose)
         restoreToggle.setOn(settings.restoreSession)
@@ -367,7 +389,7 @@ final class TerminalPane: NSView {
 
         let shellToggleX = cardW - PreferencesLayout.cardPad - 50
         let shellLabelW = shellToggleX - PreferencesLayout.cardPad - 8
-        let shellIntegrationCardHeight = shellIntegrationCard.headerHeight + 6 * PreferencesLayout.rowH + 5 * PreferencesLayout.rowGap + PreferencesLayout.cardPad + 14
+        let shellIntegrationCardHeight = shellIntegrationCard.headerHeight + 8 * PreferencesLayout.rowH + 7 * PreferencesLayout.rowGap + PreferencesLayout.cardPad + 14
         shellIntegrationCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: shellIntegrationCardHeight)
         let ir0 = shellIntegrationCardHeight - shellIntegrationCard.headerHeight - PreferencesLayout.rowH
         shellIntegrationEnabledLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir0, width: shellLabelW, height: PreferencesLayout.rowH)
@@ -387,6 +409,13 @@ final class TerminalPane: NSView {
         let ir5 = ir4 - PreferencesLayout.rowH - PreferencesLayout.rowGap
         shellIntegrationSSHTerminfoLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir5, width: shellLabelW, height: PreferencesLayout.rowH)
         shellIntegrationSSHTerminfoToggle.frame = NSRect(x: shellToggleX, y: ir5 + 6, width: 50, height: 28)
+        let ir6 = ir5 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        commandNotificationsLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir6, width: shellLabelW, height: PreferencesLayout.rowH)
+        commandNotificationsToggle.frame = NSRect(x: shellToggleX, y: ir6 + 6, width: 50, height: 28)
+        let ir7 = ir6 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        commandNotificationThresholdLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir7, width: shellLabelW, height: PreferencesLayout.rowH)
+        commandNotificationThresholdField.frame = NSRect(x: controlX, y: ir7 + 6, width: 96, height: 28)
+        commandNotificationThresholdUnit.frame = NSRect(x: controlX + 106, y: ir7 + 12, width: 64, height: 12)
         shellIntegrationNote.frame = NSRect(x: PreferencesLayout.cardPad, y: PreferencesLayout.cardPad - 2, width: innerW, height: 14)
         y += shellIntegrationCardHeight + PreferencesLayout.sectionGap
 

@@ -8,9 +8,11 @@ final class BellithSettings {
     static let defaultTerminalTerm = "xterm-ghostty"
 
     let defaults: UserDefaults
+    private let smartPanelRegistry: SmartPanelRegistry
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, smartPanelRegistry: SmartPanelRegistry = .shared) {
         self.defaults = defaults
+        self.smartPanelRegistry = smartPanelRegistry
     }
 
     // Appearance
@@ -163,6 +165,24 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "shellIntegrationSSHTerminfo"); notify() }
     }
 
+    var commandCompletionNotificationsEnabled: Bool {
+        get {
+            if defaults.object(forKey: "commandCompletionNotificationsEnabled") != nil {
+                return defaults.bool(forKey: "commandCompletionNotificationsEnabled")
+            }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "commandCompletionNotificationsEnabled"); notify() }
+    }
+
+    var commandCompletionNotificationThreshold: Int {
+        get {
+            let value = defaults.integer(forKey: "commandCompletionNotificationThreshold")
+            return value > 0 ? value : 10
+        }
+        set { defaults.set(max(1, newValue), forKey: "commandCompletionNotificationThreshold"); notify() }
+    }
+
     // Sidebar
     var sidebarPinned: Bool {
         get {
@@ -180,7 +200,7 @@ final class BellithSettings {
     var sidebarTools: [String] {
         get {
             if let arr = defaults.stringArray(forKey: "sidebarTools") { return arr }
-            return SmartPanelRegistry.shared.allPlugins
+            return smartPanelRegistry.allPlugins
                 .filter(\.sidebarEnabledByDefault)
                 .map(\.id)
         }

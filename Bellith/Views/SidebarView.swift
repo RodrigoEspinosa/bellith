@@ -39,14 +39,16 @@ final class SidebarView: NSView {
     private let toolsHeaderLabel = NSTextField(labelWithString: "Tools")
     private var toolRows: [SidebarToolRow] = []
     private var enabledTools: [SmartPanelPlugin] = []
+    private let settings: BellithSettings
+    private let smartPanelRegistry: SmartPanelRegistry
 
     /// Which tool plugin is currently open in the main content area (for highlight state).
     private var activeToolID: String?
 
     private(set) var isExpanded = false
     private var hideTimer: Timer?
-    private(set) var isPinned: Bool = BellithSettings.shared.sidebarPinned
-    private var settingsSnapshot = SettingsSnapshot.current()
+    private(set) var isPinned: Bool
+    private var settingsSnapshot: SettingsSnapshot
 
     var tabs: [TabModel] = []
     var selectedIndex: Int = 0
@@ -67,8 +69,16 @@ final class SidebarView: NSView {
     private let pinButton = NSButton()
     private var settingsObserver: NSObjectProtocol?
 
-    override init(frame: NSRect) {
-        super.init(frame: frame)
+    init(
+        frame frameRect: NSRect = .zero,
+        settings: BellithSettings = .shared,
+        smartPanelRegistry: SmartPanelRegistry = .shared
+    ) {
+        self.settings = settings
+        self.smartPanelRegistry = smartPanelRegistry
+        self.isPinned = settings.sidebarPinned
+        self.settingsSnapshot = SettingsSnapshot.current(using: settings)
+        super.init(frame: frameRect)
         wantsLayer = true
         alphaValue = 1
         appearance = Theme.overlayAppearance
@@ -236,7 +246,12 @@ final class SidebarView: NSView {
         for (visibleIndex, entry) in visibleTabs.enumerated() {
             let sourceIndex = entry.offset
             let tab = entry.element
-            let row = SidebarTabRow(title: tab.title, isSelected: sourceIndex == selectedIndex, kind: tab.kind)
+            let row = SidebarTabRow(
+                title: tab.title,
+                isSelected: sourceIndex == selectedIndex,
+                kind: tab.kind,
+                smartPanelRegistry: smartPanelRegistry
+            )
             row.onSelect = { [weak self] in self?.onSelectTab?(sourceIndex) }
             row.onClose = { [weak self] in self?.onCloseTab?(sourceIndex) }
             row.onDragBegan = { [weak self] in self?.beginDrag(fromIndex: visibleIndex) }
@@ -254,7 +269,7 @@ final class SidebarView: NSView {
     // MARK: - Tools Section
 
     private func handleSettingsChange() {
-        let nextSnapshot = SettingsSnapshot.current()
+        let nextSnapshot = SettingsSnapshot.current(using: settings)
         guard nextSnapshot != settingsSnapshot else { return }
 
         let previousSnapshot = settingsSnapshot
@@ -272,7 +287,7 @@ final class SidebarView: NSView {
 
     private func rebuildTools(using snapshot: SettingsSnapshot) {
         let newTools = snapshot.showTools
-            ? SmartPanelRegistry.shared.allPlugins.filter { snapshot.enabledToolIDs.contains($0.id) }
+            ? smartPanelRegistry.allPlugins.filter { snapshot.enabledToolIDs.contains($0.id) }
             : []
 
         // Skip rebuild if nothing changed
@@ -361,7 +376,7 @@ final class SidebarView: NSView {
             showTools: settingsSnapshot.showTools,
             enabledToolIDs: settingsSnapshot.enabledToolIDs
         )
-        BellithSettings.shared.sidebarPinned = newPinnedState
+        settings.sidebarPinned = newPinnedState
     }
 
     override func layout() {
@@ -618,6 +633,7 @@ fileprivate final class SidebarTabRow: NSView {
     private let closeButton = NSButton()
     private let isSelected: Bool
     private let kind: TerminalContainerView.TabKind
+    private let smartPanelRegistry: SmartPanelRegistry
     private var isHovered = false
 
     private var isSmartTab: Bool {
@@ -625,9 +641,15 @@ fileprivate final class SidebarTabRow: NSView {
         return false
     }
 
-    init(title: String, isSelected: Bool, kind: TerminalContainerView.TabKind) {
+    init(
+        title: String,
+        isSelected: Bool,
+        kind: TerminalContainerView.TabKind,
+        smartPanelRegistry: SmartPanelRegistry
+    ) {
         self.isSelected = isSelected
         self.kind = kind
+        self.smartPanelRegistry = smartPanelRegistry
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = 10
@@ -650,7 +672,7 @@ fileprivate final class SidebarTabRow: NSView {
 
         let symbolName: String
         if case .smart(let pluginID) = kind,
-           let plugin = SmartPanelRegistry.shared.plugin(for: pluginID) {
+           let plugin = smartPanelRegistry.plugin(for: pluginID) {
             symbolName = plugin.iconName
         } else {
             symbolName = "folder.fill"

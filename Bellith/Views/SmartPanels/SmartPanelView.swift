@@ -48,6 +48,7 @@ final class SmartPanelRegistry {
         register(EnvironmentPanel.plugin)
         register(FileActivityPanel.plugin)
         register(PerformancePanel.plugin)
+        register(ToolActivityPanel.plugin)
     }
 
     func register(_ plugin: SmartPanelPlugin) {
@@ -221,6 +222,10 @@ class SmartPanelView: NSView {
     // MARK: - Factory
 
     static func create(pluginID: String) -> SmartPanelView? {
-        SmartPanelRegistry.shared.makePanel(id: pluginID)
+        create(pluginID: pluginID, registry: .shared)
+    }
+
+    static func create(pluginID: String, registry: SmartPanelRegistry) -> SmartPanelView? {
+        registry.makePanel(id: pluginID)
     }
 }

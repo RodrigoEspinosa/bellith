@@ -18,6 +18,7 @@ final class StatusBarView: NSView {
     private let separator2 = NSTextField(labelWithString: "·")
     private let processIcon = NSImageView()
     private let processLabel = NSTextField(labelWithString: "")
+    private var currentProcessPresentation: ForegroundProcessPresentation?
 
     // Right items
     private let sizeLabel = NSTextField(labelWithString: "")
@@ -181,9 +182,15 @@ final class StatusBarView: NSView {
         }
     }
 
-    func updateProcess(_ name: String?) {
-        let shouldShow = name != nil && !(name ?? "").isEmpty
-        if shouldShow { processLabel.stringValue = name! }
+    func updateProcess(_ presentation: ForegroundProcessPresentation?) {
+        currentProcessPresentation = presentation
+        let shouldShow = presentation != nil && !presentation!.text.isEmpty
+        if let presentation {
+            processLabel.stringValue = presentation.text
+            processIcon.image = NSImage(systemSymbolName: presentation.iconName, accessibilityDescription: nil)
+            processIcon.contentTintColor = presentation.style == .tool ? Theme.accent : Theme.warning
+            processLabel.textColor = presentation.style == .tool ? Theme.textPrimary : Theme.textSecondary
+        }
 
         if shouldShow {
             processIcon.isHidden = false
@@ -328,9 +335,8 @@ final class StatusBarView: NSView {
         separator2.textColor = Theme.textMuted.withAlphaComponent(0.5)
         gitIcon.contentTintColor = Theme.success
         gitLabel.textColor = Theme.textSecondary
-        processIcon.contentTintColor = Theme.warning
-        processLabel.textColor = Theme.textSecondary
         sizeLabel.textColor = Theme.textMuted
+        updateProcess(currentProcessPresentation)
     }
 
     private func tone(for context: TerminalContext, preferEnvironment: Bool = false) -> ContextBadgeView.Tone {

@@ -10,6 +10,8 @@ protocol TerminalOverlayControllerHost: AnyObject {
 
 final class TerminalOverlayController {
     weak var host: TerminalOverlayControllerHost?
+    private let commandRegistry: CommandRegistry
+    private let settings: BellithSettings
 
     private(set) var isPaletteVisible = false
     private var isSearchVisible = false
@@ -17,8 +19,14 @@ final class TerminalOverlayController {
     private var commandPalette: CommandPaletteView?
     private var searchBar: SearchBarView?
 
-    init(host: TerminalOverlayControllerHost) {
+    init(
+        host: TerminalOverlayControllerHost,
+        commandRegistry: CommandRegistry = .shared,
+        settings: BellithSettings = .shared
+    ) {
         self.host = host
+        self.commandRegistry = commandRegistry
+        self.settings = settings
     }
 
     var presentedOverlayView: NSView? {
@@ -42,7 +50,7 @@ final class TerminalOverlayController {
         guard !isPaletteVisible, let host else { return }
         isPaletteVisible = true
 
-        let palette = CommandPaletteView()
+        let palette = CommandPaletteView(commandRegistry: commandRegistry, settings: settings)
         palette.onSubmit = { [weak self] text in
             self?.host?.performCommandPaletteCommand(text)
         }

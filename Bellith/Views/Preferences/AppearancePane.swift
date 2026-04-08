@@ -45,7 +45,7 @@ private final class AppearancePreviewMiniView: NSView {
 // MARK: - Appearance Pane
 
 final class AppearancePane: NSView {
-    private let settings = BellithSettings.shared
+    private let settings: BellithSettings
     private let scroll = NSScrollView()
     private let content = FlippedView()
 
@@ -76,8 +76,9 @@ final class AppearancePane: NSView {
     private let trafficLightLabel = CardRowLabel("Auto-hide Traffic Lights")
     private var trafficLightToggle: PrefToggle!
 
-    override init(frame: NSRect) {
-        super.init(frame: frame)
+    init(frame frameRect: NSRect = .zero, settings: BellithSettings = .shared) {
+        self.settings = settings
+        super.init(frame: frameRect)
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         scroll.autohidesScrollers = true

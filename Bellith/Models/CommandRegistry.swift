@@ -41,8 +41,18 @@ final class CommandRegistry {
 
     private var orderedCommandIDs: [String] = []
     private var commandsByID: [String: CommandPlugin] = [:]
+    private let smartPanelRegistry: SmartPanelRegistry
+    private let sshProfileStore: SSHProfileStore
+    private let preferencesWindowController: PreferencesWindowController
 
-    private init() {
+    init(
+        smartPanelRegistry: SmartPanelRegistry = .shared,
+        sshProfileStore: SSHProfileStore = .shared,
+        preferencesWindowController: PreferencesWindowController = .shared
+    ) {
+        self.smartPanelRegistry = smartPanelRegistry
+        self.sshProfileStore = sshProfileStore
+        self.preferencesWindowController = preferencesWindowController
         registerBuiltIns()
     }
 
@@ -64,7 +74,7 @@ final class CommandRegistry {
     }
 
     private var smartPanelCommands: [CommandPlugin] {
-        SmartPanelRegistry.shared.allPlugins.map { plugin in
+        smartPanelRegistry.allPlugins.map { plugin in
             CommandPlugin(
                 id: plugin.id,
                 title: plugin.title,
@@ -79,7 +89,7 @@ final class CommandRegistry {
     }
 
     private var sshProfileCommands: [CommandPlugin] {
-        SSHProfileStore.shared.profiles.map { profile in
+        sshProfileStore.profiles.map { profile in
             CommandPlugin(
                 id: "sshProfile-\(profile.id.uuidString)",
                 title: "Connect \(profile.displayName)",
@@ -107,11 +117,11 @@ final class CommandRegistry {
             iconName: "point.3.connected.trianglepath.dotted",
             aliases: ["ssh", "connect ssh", "host"]
         ) { container, _ in
-            let profiles = SSHProfileStore.shared.profiles
+            let profiles = self.sshProfileStore.profiles
             if profiles.count == 1, let profile = profiles.first {
                 container.connectSSHProfile(id: profile.id)
             } else {
-                PreferencesWindowController.shared.showWindow(selecting: "ssh")
+                self.preferencesWindowController.showWindow(selecting: "ssh")
             }
             return true
         })

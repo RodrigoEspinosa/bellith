@@ -24,6 +24,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     var currentCwd: String?
     var terminalContext: TerminalContext = .local
     var detectedContext: TerminalContext?
+    var lastForegroundPresentation: ForegroundProcessPresentation?
     var displayContext: TerminalContext { detectedContext ?? terminalContext }
 
     /// Called after text is inserted, for broadcast mode.

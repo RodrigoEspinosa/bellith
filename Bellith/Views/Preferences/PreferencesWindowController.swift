@@ -11,10 +11,14 @@ final class FlippedView: NSView {
 final class PreferencesWindowController: NSWindowController {
     static let shared = PreferencesWindowController()
 
+    private let settings: BellithSettings
+    private let themeManager: ThemeManager
     private var settingsObserver: NSObjectProtocol?
     private var themeObserver: NSObjectProtocol?
 
-    private init() {
+    init(settings: BellithSettings = .shared, themeManager: ThemeManager = .shared) {
+        self.settings = settings
+        self.themeManager = themeManager
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 760, height: 680),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],

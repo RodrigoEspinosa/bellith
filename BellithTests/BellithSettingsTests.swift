@@ -85,6 +85,11 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertFalse(settings.shellIntegrationSSHTerminfo)
     }
 
+    func testDefaultCommandCompletionNotificationSettings() {
+        XCTAssertTrue(settings.commandCompletionNotificationsEnabled)
+        XCTAssertEqual(settings.commandCompletionNotificationThreshold, 10)
+    }
+
     func testDefaultWindowPadding() {
         XCTAssertEqual(settings.windowPaddingX, 10)
         XCTAssertEqual(settings.windowPaddingY, 38)
@@ -167,6 +172,14 @@ final class BellithSettingsTests: XCTestCase {
             settings.shellIntegrationFeatures,
             "no-cursor,no-title,no-path,no-ssh-env,ssh-terminfo"
         )
+    }
+
+    func testCommandCompletionNotificationRoundtrip() {
+        settings.commandCompletionNotificationsEnabled = false
+        settings.commandCompletionNotificationThreshold = 42
+
+        XCTAssertFalse(settings.commandCompletionNotificationsEnabled)
+        XCTAssertEqual(settings.commandCompletionNotificationThreshold, 42)
     }
 
     func testTerminalTermRoundtripAndTrimming() {
