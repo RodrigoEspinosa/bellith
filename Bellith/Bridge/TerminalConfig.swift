@@ -54,6 +54,7 @@ final class TerminalConfig {
             "window-decoration = false",
             "window-save-state = never",
             "mouse-hide-while-typing = \(s.mouseHideWhileTyping)",
+            "link-url = true",
             "confirm-close-surface = \(s.confirmClose)",
             "keybind = clear",
         ]
