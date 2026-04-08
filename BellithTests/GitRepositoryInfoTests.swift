@@ -36,7 +36,7 @@ final class GitRepositoryInfoTests: XCTestCase {
     private func runGit(_ arguments: [String], in directory: URL) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = arguments
+        process.arguments = ["-c", "commit.gpgsign=false"] + arguments
         process.currentDirectoryURL = directory
 
         let outputPipe = Pipe()
