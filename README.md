@@ -15,6 +15,7 @@ A native macOS terminal emulator built with Swift and [Ghostty](https://ghostty.
 - **Command palette** — Quick access to actions via `⌘K`
 - **Themes** — Built-in themes including Tokyo Night, Catppuccin Mocha, Gruvbox Dark, Rosé Pine, Nord, and Solarized Dark
 - **Preferences** — Configurable settings with persistent storage
+- **TERM-aware defaults** — Explicit `xterm-ghostty` advertising with an override for legacy tooling
 - **Frameless window** — Clean, minimal window chrome with custom title bar
 
 ## Requirements
@@ -66,6 +67,20 @@ make generate # Regenerate Xcode project from project.yml
 | `⌘⇧E` | Toggle sidebar |
 | `⌘K` | Command palette |
 | `⌘,` | Preferences |
+
+## Terminal Capabilities
+
+Bellith writes Ghostty's `term` setting explicitly and defaults to `xterm-ghostty`. That gives local shells the full Ghostty terminfo entry instead of relying on an implicit runtime default. If a workflow requires a more conservative value such as `xterm-256color`, use `Settings > Terminal > TERM`.
+
+Bellith inherits Ghostty's 24-bit color support. A quick manual check is:
+
+```bash
+printf '\033[38;2;255;95;31mTRUECOLOR\033[0m\n'
+```
+
+If the sample renders in a bright orange-red instead of a palette approximation, direct RGB color sequences are working.
+
+For SSH sessions, Bellith already enables Ghostty's `ssh-env` compatibility by default. That makes remote connections fall back to `xterm-256color` while propagating compatibility variables. If you also enable `SSH Terminfo Install` in Terminal settings, Ghostty will attempt to install `xterm-ghostty` terminfo remotely so compatible hosts can keep the richer TERM value.
 
 ## UI Anatomy
 

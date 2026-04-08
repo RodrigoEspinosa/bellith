@@ -51,6 +51,11 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(settings.shell, "")
     }
 
+    func testDefaultTerminalTermUsesGhosttyTerminfo() {
+        XCTAssertEqual(settings.terminalTerm, "")
+        XCTAssertEqual(settings.effectiveTerminalTerm, BellithSettings.defaultTerminalTerm)
+    }
+
     func testDefaultScrollbackLines() {
         XCTAssertEqual(settings.scrollbackLines, 10000)
     }
@@ -145,6 +150,13 @@ final class BellithSettingsTests: XCTestCase {
             settings.shellIntegrationFeatures,
             "no-cursor,no-title,no-path,no-ssh-env,ssh-terminfo"
         )
+    }
+
+    func testTerminalTermRoundtripAndTrimming() {
+        settings.terminalTerm = "  xterm-256color  "
+
+        XCTAssertEqual(settings.terminalTerm, "xterm-256color")
+        XCTAssertEqual(settings.effectiveTerminalTerm, "xterm-256color")
     }
 
     // MARK: - Keybindings
