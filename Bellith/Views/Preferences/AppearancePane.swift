@@ -73,6 +73,8 @@ final class AppearancePane: NSView {
     private let windowCard = SettingsCard(title: "Window", subtitle: "Opacity and traffic-light behavior")
     private let opacityLabel = CardRowLabel("Background Opacity")
     private var opacityTrack: OpacityTrackView!
+    private let noiseLabel = CardRowLabel("Noise Grain")
+    private var noiseTrack: OpacityTrackView!
     private let trafficLightLabel = CardRowLabel("Auto-hide Traffic Lights")
     private var trafficLightToggle: PrefToggle!
 
@@ -136,11 +138,14 @@ final class AppearancePane: NSView {
         opacityTrack = OpacityTrackView(value: settings.backgroundOpacity) { [weak self] value in
             self?.settings.backgroundOpacity = value
         }
+        noiseTrack = OpacityTrackView(value: settings.noiseIntensity) { [weak self] value in
+            self?.settings.noiseIntensity = value
+        }
         trafficLightToggle = PrefToggle(isOn: settings.trafficLightAutoHide) { [weak self] value in
             self?.settings.trafficLightAutoHide = value
         }
         content.addSubview(windowCard)
-        for view: NSView in [opacityLabel, opacityTrack, trafficLightLabel, trafficLightToggle] {
+        for view: NSView in [opacityLabel, opacityTrack, noiseLabel, noiseTrack, trafficLightLabel, trafficLightToggle] {
             windowCard.addSubview(view)
         }
 
@@ -161,6 +166,7 @@ final class AppearancePane: NSView {
         padXField.setValue(settings.windowPaddingX)
         padYField.setValue(settings.windowPaddingY)
         opacityTrack.setValue(settings.backgroundOpacity)
+        noiseTrack.setValue(settings.noiseIntensity)
         trafficLightToggle.setOn(settings.trafficLightAutoHide)
         updateHero()
         needsLayout = true
@@ -238,14 +244,17 @@ final class AppearancePane: NSView {
         padYField.frame = NSRect(x: controlX + 106, y: ir2 + 6, width: 56, height: 28)
         y += interfaceCardHeight + PreferencesLayout.sectionGap
 
-        let windowCardHeight = windowCard.headerHeight + 2 * PreferencesLayout.rowH + PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        let windowCardHeight = windowCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
         windowCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: windowCardHeight)
         let wr0 = windowCardHeight - windowCard.headerHeight - PreferencesLayout.rowH
         opacityLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: wr0, width: labelW - 12, height: PreferencesLayout.rowH)
         opacityTrack.frame = NSRect(x: controlX, y: wr0 + 8, width: controlW, height: 24)
         let wr1 = wr0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        trafficLightLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: wr1, width: labelW + 28, height: PreferencesLayout.rowH)
-        trafficLightToggle.frame = NSRect(x: controlX, y: wr1 + 6, width: 50, height: 28)
+        noiseLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: wr1, width: labelW - 12, height: PreferencesLayout.rowH)
+        noiseTrack.frame = NSRect(x: controlX, y: wr1 + 8, width: controlW, height: 24)
+        let wr2 = wr1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        trafficLightLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: wr2, width: labelW + 28, height: PreferencesLayout.rowH)
+        trafficLightToggle.frame = NSRect(x: controlX, y: wr2 + 6, width: 50, height: 28)
         y += windowCardHeight + PreferencesLayout.hPad
 
         content.frame = NSRect(x: 0, y: 0, width: width, height: max(y, bounds.height))

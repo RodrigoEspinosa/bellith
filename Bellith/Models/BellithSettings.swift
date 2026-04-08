@@ -194,6 +194,16 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "trafficLightAutoHide"); notify() }
     }
 
+    var noiseIntensity: Double {
+        get {
+            if defaults.object(forKey: "noiseIntensity") != nil {
+                return defaults.double(forKey: "noiseIntensity")
+            }
+            return 0.6
+        }
+        set { defaults.set(newValue, forKey: "noiseIntensity"); notify() }
+    }
+
     var windowPaddingX: Int {
         get { let v = defaults.integer(forKey: "windowPaddingX"); return v > 0 ? v : 10 }
         set { defaults.set(newValue, forKey: "windowPaddingX"); notify() }

@@ -96,6 +96,7 @@ final class TerminalContainerView: NSView {
     private var isClosingPane = false
     private var edgeTrackingArea: NSTrackingArea?
     private var themeObserver: NSObjectProtocol?
+    private var settingsObserver: NSObjectProtocol?
     private var isAnimatingLayout = false
     private var isZoomed = false
     private var zoomedSurface: TerminalSurfaceView?
@@ -104,6 +105,7 @@ final class TerminalContainerView: NSView {
     private static let maxRecentlyClosed = 10
     private var zoomBadge: NSView?
 
+    private let noiseLayer = CALayer()
     private let contentBackdropLayer = CALayer()
     private let contentStrokeLayer = CALayer()
     private let contentInnerStrokeLayer = CALayer()
@@ -154,6 +156,10 @@ final class TerminalContainerView: NSView {
             forName: ThemeManager.didChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in self?.handleThemeChange() }
 
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: BellithSettings.didChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.applyFrameColor() }
+
         createTab()
     }
 
@@ -164,10 +170,14 @@ final class TerminalContainerView: NSView {
     /// Explicitly release resources — call before dropping the last reference
     /// to break retain cycles and stop background work.
     func teardown() {
-        // Remove theme observer
+        // Remove observers
         if let themeObserver {
             NotificationCenter.default.removeObserver(themeObserver)
             self.themeObserver = nil
+        }
+        if let settingsObserver {
+            NotificationCenter.default.removeObserver(settingsObserver)
+            self.settingsObserver = nil
         }
 
         // Disconnect all surface callbacks to break retain cycles
@@ -188,8 +198,38 @@ final class TerminalContainerView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    /// 256×256 monochrome noise tile, generated once and shared across all instances.
+    private static let noiseImage: CGImage? = {
+        let size = 256
+        let totalBytes = size * size
+        var pixels = [UInt8](repeating: 0, count: totalBytes)
+        for i in 0..<totalBytes {
+            pixels[i] = UInt8.random(in: 0...255)
+        }
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData),
+              let image = CGImage(
+                  width: size, height: size,
+                  bitsPerComponent: 8, bitsPerPixel: 8,
+                  bytesPerRow: size,
+                  space: CGColorSpaceCreateDeviceGray(),
+                  bitmapInfo: CGBitmapInfo(rawValue: 0),
+                  provider: provider,
+                  decode: nil, shouldInterpolate: false,
+                  intent: .defaultIntent
+              ) else { return nil }
+        return image
+    }()
+
     private func configureChromeLayers() {
         guard let layer else { return }
+
+        // Noise texture overlay (Zen-style grain)
+        if let noiseImage = Self.noiseImage {
+            let nsImage = NSImage(cgImage: noiseImage, size: NSSize(width: noiseImage.width, height: noiseImage.height))
+            noiseLayer.backgroundColor = NSColor(patternImage: nsImage).cgColor
+        }
+        layer.addSublayer(noiseLayer)
+        applyFrameColor()
 
         contentBackdropLayer.cornerCurve = .continuous
         contentBackdropLayer.shadowOpacity = 1
@@ -1272,6 +1312,10 @@ final class TerminalContainerView: NSView {
 
     override func layout() {
         super.layout()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        noiseLayer.frame = bounds
+        CATransaction.commit()
         guard !isAnimatingLayout else { return }
 
         let p = contentPadding
@@ -1429,6 +1473,9 @@ final class TerminalContainerView: NSView {
 
     private func applyFrameColor() {
         layer?.backgroundColor = Theme.colors.frame.cgColor
+        // Slider 0–1 maps to 0–0.08 (dark) or 0–0.12 (light) actual opacity
+        let maxOpacity: Double = Theme.colors.isLight ? 0.12 : 0.08
+        noiseLayer.opacity = Float(BellithSettings.shared.noiseIntensity * maxOpacity)
     }
 
     private func handleThemeChange() {
