@@ -85,6 +85,13 @@ final class SmartPanelRegistry {
 /// Base class for smart (non-terminal) tab panels.
 /// Provides a frosted header bar, scrollable content area, and a refresh timer.
 class SmartPanelView: NSView {
+    private enum Metrics {
+        static let headerHeight: CGFloat = 36
+        static let headerIconSize: CGFloat = 14
+        static let headerLabelHeight: CGFloat = 16
+        static let defaultRefreshInterval: TimeInterval = 2.0
+    }
+
     let pluginID: String
     let panelTitle: String
     let panelIconName: String
@@ -168,15 +175,13 @@ class SmartPanelView: NSView {
 
     // MARK: - Layout
 
-    private let headerHeight: CGFloat = 36
-
     override func layout() {
         super.layout()
         if showsHeader {
-            headerView.frame = NSRect(x: 0, y: bounds.height - headerHeight, width: bounds.width, height: headerHeight)
-            headerIcon.frame = NSRect(x: 12, y: (headerHeight - 14) / 2, width: 14, height: 14)
-            headerLabel.frame = NSRect(x: 32, y: (headerHeight - 16) / 2, width: bounds.width - 44, height: 16)
-            scrollView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height - headerHeight)
+            headerView.frame = NSRect(x: 0, y: bounds.height - Metrics.headerHeight, width: bounds.width, height: Metrics.headerHeight)
+            headerIcon.frame = NSRect(x: 12, y: (Metrics.headerHeight - Metrics.headerIconSize) / 2, width: Metrics.headerIconSize, height: Metrics.headerIconSize)
+            headerLabel.frame = NSRect(x: 32, y: (Metrics.headerHeight - Metrics.headerLabelHeight) / 2, width: bounds.width - 44, height: Metrics.headerLabelHeight)
+            scrollView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height - Metrics.headerHeight)
         } else {
             scrollView.frame = bounds
         }
@@ -192,7 +197,7 @@ class SmartPanelView: NSView {
     func refresh() {}
 
     /// Start the periodic refresh timer (call when the tab becomes visible).
-    func startRefreshing(interval: TimeInterval = 2.0) {
+    func startRefreshing(interval: TimeInterval = Metrics.defaultRefreshInterval) {
         guard !isActive else { return }
         isActive = true
         refresh()

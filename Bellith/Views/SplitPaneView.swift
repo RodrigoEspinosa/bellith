@@ -5,6 +5,12 @@ import AppKit
 final class SplitPaneView: NSView {
     enum Orientation { case horizontal, vertical }
 
+    private enum Metrics {
+        static let defaultSplitRatio: CGFloat = 0.5
+        static let minSplitRatio: CGFloat = 0.15
+        static let maxSplitRatio: CGFloat = 0.85
+    }
+
     // Leaf state
     private(set) var contentView: NSView?
 
@@ -50,7 +56,7 @@ final class SplitPaneView: NSView {
         existing.removeFromSuperview()
 
         self.orientation = orientation
-        self.ratio = 0.5
+        self.ratio = Metrics.defaultSplitRatio
 
         let firstChild = SplitPaneView(content: existing)
         firstChild.onFocusChanged = onFocusChanged
@@ -249,7 +255,7 @@ final class SplitPaneView: NSView {
     }
 
     func adjustRatio(by delta: CGFloat, animated: Bool = false) {
-        ratio = min(0.85, max(0.15, ratio + delta))
+        ratio = min(Metrics.maxSplitRatio, max(Metrics.minSplitRatio, ratio + delta))
         if animated {
             animateLayout(duration: Theme.animFast)
         } else {
@@ -405,7 +411,7 @@ final class SplitPaneView: NSView {
         guard total > 0 else { return }
 
         let newRatio = ratio + delta / total
-        ratio = min(0.85, max(0.15, newRatio))
+        ratio = min(Metrics.maxSplitRatio, max(Metrics.minSplitRatio, newRatio))
         needsLayout = true
     }
 }
