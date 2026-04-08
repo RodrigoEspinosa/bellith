@@ -10,6 +10,20 @@ final class TerminalWindow: NSWindow {
         case forcedHidden
     }
 
+    private enum Metrics {
+        static let autoHideDelay: TimeInterval = 2.0
+        static let automaticTrackingOriginX: CGFloat = 0
+        static let automaticTrackingWidth: CGFloat = 120
+        static let forcedTrackingOriginX: CGFloat = 8
+        static let forcedTrackingWidth: CGFloat = 164
+        static let automaticOriginX: CGFloat = 14
+        static let forcedOriginX: CGFloat = 16
+        static let automaticOriginYOffset: CGFloat = -1
+        static let forcedOriginYOffset: CGFloat = 2
+        static let automaticSpacing: CGFloat = 6
+        static let forcedSpacing: CGFloat = 6.5
+    }
+
     private var trafficLightTrackingArea: NSTrackingArea?
     private var trafficLightHideTimer: Timer?
     private var trafficLightsVisible = true
@@ -89,7 +103,7 @@ final class TerminalWindow: NSWindow {
     private func scheduleTrafficLightHide() {
         guard trafficLightDisplayMode == .automatic, shouldAutoHideTrafficLights else { return }
         trafficLightHideTimer?.invalidate()
-        trafficLightHideTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+        trafficLightHideTimer = Timer.scheduledTimer(withTimeInterval: Metrics.autoHideDelay, repeats: false) { [weak self] _ in
             self?.hideTrafficLights()
         }
     }
@@ -188,8 +202,8 @@ final class TerminalWindow: NSWindow {
             contentView.removeTrackingArea(existing)
         }
 
-        let trackingOriginX: CGFloat = trafficLightDisplayMode == .automatic ? 0 : 8
-        let trackingWidth: CGFloat = trafficLightDisplayMode == .automatic ? 120 : 164
+        let trackingOriginX: CGFloat = trafficLightDisplayMode == .automatic ? Metrics.automaticTrackingOriginX : Metrics.forcedTrackingOriginX
+        let trackingWidth: CGFloat = trafficLightDisplayMode == .automatic ? Metrics.automaticTrackingWidth : Metrics.forcedTrackingWidth
         let trackingRect = NSRect(x: trackingOriginX, y: contentView.bounds.height - 64, width: trackingWidth, height: 64)
         let area = NSTrackingArea(
             rect: trackingRect,
@@ -210,9 +224,9 @@ final class TerminalWindow: NSWindow {
         let buttons = [close, mini, zoom]
         let buttonHeight = close.frame.height
         let usesSidebarPlacement = trafficLightDisplayMode != .automatic
-        let originY = round((container.bounds.height - buttonHeight) / 2) + (usesSidebarPlacement ? 2 : -1)
-        let originX: CGFloat = usesSidebarPlacement ? 16 : 14
-        let spacing: CGFloat = usesSidebarPlacement ? 6.5 : 6
+        let originY = round((container.bounds.height - buttonHeight) / 2) + (usesSidebarPlacement ? Metrics.forcedOriginYOffset : Metrics.automaticOriginYOffset)
+        let originX: CGFloat = usesSidebarPlacement ? Metrics.forcedOriginX : Metrics.automaticOriginX
+        let spacing: CGFloat = usesSidebarPlacement ? Metrics.forcedSpacing : Metrics.automaticSpacing
         var x = originX
 
         for button in buttons {

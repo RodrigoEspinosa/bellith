@@ -12,6 +12,12 @@ struct GitRepositoryInfo: Equatable {
 /// Container that hosts multiple terminal tabs (each with optional split panes),
 /// smart inspector tabs, a sidebar or tab bar, and the command palette.
 final class TerminalContainerView: NSView {
+    private enum Metrics {
+        static let runtimeRefreshInterval: TimeInterval = 1.0
+        static let minimumFontSize: Int = 8
+        static let maximumFontSize: Int = 36
+    }
+
     private weak var terminalApp: TerminalApp?
 
     enum TabContent {
@@ -400,7 +406,7 @@ final class TerminalContainerView: NSView {
     }
 
     private func startContextRefreshTimer() {
-        let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: Metrics.runtimeRefreshInterval, repeats: true) { [weak self] _ in
             self?.refreshActiveRuntimeStatusIfNeeded()
         }
         contextRefreshTimer = timer
@@ -2007,7 +2013,7 @@ final class TerminalContainerView: NSView {
 
     private func adjustFontSize(delta: Int) {
         let settings = BellithSettings.shared
-        let newSize = max(8, min(36, settings.fontSize + delta))
+        let newSize = max(Metrics.minimumFontSize, min(Metrics.maximumFontSize, settings.fontSize + delta))
         guard newSize != settings.fontSize else { return }
         settings.fontSize = newSize
         reloadConfig()
