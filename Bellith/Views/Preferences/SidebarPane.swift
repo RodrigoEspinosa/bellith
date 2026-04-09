@@ -13,9 +13,11 @@ final class SidebarPane: NSView {
     private let heroMetaLabel = NSTextField(labelWithString: "")
     private let heroCountLabel = NSTextField(labelWithString: "")
 
-    private let behaviorCard = SettingsCard(title: "Behavior", subtitle: "How the main navigation should appear on launch")
+    private let behaviorCard = SettingsCard(title: "Behavior", subtitle: "Launch state and floating sidebar behavior")
     private let pinnedLabel = CardRowLabel("Pin Sidebar by Default")
     private var pinnedToggle: PrefToggle!
+    private let autoHideLabel = CardRowLabel("Auto-hide When Floating")
+    private var autoHideToggle: PrefToggle!
 
     private let toolsCard = SettingsCard(title: "Quick Tools", subtitle: "Show smart panels directly in the sidebar")
     private let showToolsLabel = CardRowLabel("Show Tools Section")
@@ -56,9 +58,14 @@ final class SidebarPane: NSView {
             self?.settings.sidebarPinned = value
             self?.updateHero()
         }
+        autoHideToggle = PrefToggle(isOn: settings.sidebarAutoHide) { [weak self] value in
+            self?.settings.sidebarAutoHide = value
+        }
         content.addSubview(behaviorCard)
         behaviorCard.addSubview(pinnedLabel)
         behaviorCard.addSubview(pinnedToggle)
+        behaviorCard.addSubview(autoHideLabel)
+        behaviorCard.addSubview(autoHideToggle)
 
         showToolsToggle = PrefToggle(isOn: settings.sidebarShowTools) { [weak self] value in
             self?.settings.sidebarShowTools = value
@@ -91,6 +98,7 @@ final class SidebarPane: NSView {
         behaviorCard.refresh()
         toolsCard.refresh()
         pinnedToggle.setOn(settings.sidebarPinned)
+        autoHideToggle.setOn(settings.sidebarAutoHide)
         showToolsToggle.setOn(settings.sidebarShowTools)
         for entry in toolToggles {
             entry.toggle.setOn(settings.sidebarTools.contains(entry.plugin.id))
@@ -146,11 +154,18 @@ final class SidebarPane: NSView {
         heroCountLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 22, width: cardW - PreferencesLayout.cardPad * 2, height: 16)
         y += heroHeight + PreferencesLayout.sectionGap
 
-        let behaviorCardHeight = behaviorCard.headerHeight + PreferencesLayout.rowH + PreferencesLayout.cardPad
+        let behaviorRows: CGFloat = 2
+        let behaviorCardHeight = behaviorCard.headerHeight
+            + behaviorRows * PreferencesLayout.rowH
+            + PreferencesLayout.rowGap
+            + PreferencesLayout.cardPad
         behaviorCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: behaviorCardHeight)
         let br0 = behaviorCardHeight - behaviorCard.headerHeight - PreferencesLayout.rowH
         pinnedLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br0, width: labelW, height: PreferencesLayout.rowH)
         pinnedToggle.frame = NSRect(x: controlX, y: br0 + 6, width: 50, height: 28)
+        let br1 = br0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        autoHideLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br1, width: labelW, height: PreferencesLayout.rowH)
+        autoHideToggle.frame = NSRect(x: controlX, y: br1 + 6, width: 50, height: 28)
         y += behaviorCardHeight + PreferencesLayout.sectionGap
 
         let showTools = settings.sidebarShowTools

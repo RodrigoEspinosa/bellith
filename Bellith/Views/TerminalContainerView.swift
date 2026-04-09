@@ -77,7 +77,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         addSubview(sidebar)
         sidebar.onSelectTab = { [weak self] i in
             self?.selectTab(i)
-            if !(self?.sidebar.isPinned ?? false) { self?.sidebar.hide() }
+            self?.sidebar.hideAfterSelectionIfNeeded()
         }
         sidebar.onCloseTab = { [weak self] i in self?.closeTab(i) }
         sidebar.onNewTab = { [weak self] in self?.createTab() }

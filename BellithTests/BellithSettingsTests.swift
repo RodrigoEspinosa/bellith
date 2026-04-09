@@ -110,6 +110,13 @@ final class BellithSettingsTests: XCTestCase {
 
         settings.sidebarPinned = !settings.sidebarPinned
         XCTAssertNotEqual(SidebarView.SettingsSnapshot.current(using: settings), baseline)
+
+        settings.sidebarAutoHide = !settings.sidebarAutoHide
+        XCTAssertNotEqual(SidebarView.SettingsSnapshot.current(using: settings), baseline)
+    }
+
+    func testDefaultSidebarAutoHide() {
+        XCTAssertFalse(settings.sidebarAutoHide)
     }
 
     // MARK: - Roundtrip
@@ -180,6 +187,11 @@ final class BellithSettingsTests: XCTestCase {
 
         XCTAssertFalse(settings.commandCompletionNotificationsEnabled)
         XCTAssertEqual(settings.commandCompletionNotificationThreshold, 42)
+    }
+
+    func testSidebarAutoHideRoundtrip() {
+        settings.sidebarAutoHide = true
+        XCTAssertTrue(settings.sidebarAutoHide)
     }
 
     func testTerminalTermRoundtripAndTrimming() {

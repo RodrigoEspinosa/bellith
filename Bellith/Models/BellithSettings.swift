@@ -194,6 +194,16 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "sidebarPinned"); notify() }
     }
 
+    var sidebarAutoHide: Bool {
+        get {
+            if defaults.object(forKey: "sidebarAutoHide") != nil {
+                return defaults.bool(forKey: "sidebarAutoHide")
+            }
+            return false
+        }
+        set { defaults.set(newValue, forKey: "sidebarAutoHide"); notify() }
+    }
+
     /// Which tools to display in the sidebar quick-access section.
     /// Stored as an array of smart panel plugin identifiers.
     /// Defaults to all built-in tool plugins enabled.

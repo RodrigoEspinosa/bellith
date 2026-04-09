@@ -7,12 +7,14 @@ final class SidebarView: NSView {
 
     struct SettingsSnapshot: Equatable {
         let isPinned: Bool
+        let autoHideWhenFloating: Bool
         let showTools: Bool
         let enabledToolIDs: [String]
 
         static func current(using settings: BellithSettings = .shared) -> SettingsSnapshot {
             SettingsSnapshot(
                 isPinned: settings.sidebarPinned,
+                autoHideWhenFloating: settings.sidebarAutoHide,
                 showTools: settings.sidebarShowTools,
                 enabledToolIDs: settings.sidebarTools
             )
@@ -279,6 +281,10 @@ final class SidebarView: NSView {
             applyPinnedState(nextSnapshot.isPinned)
         }
 
+        if nextSnapshot.autoHideWhenFloating != previousSnapshot.autoHideWhenFloating {
+            applyAutoHidePreference()
+        }
+
         if nextSnapshot.showTools != previousSnapshot.showTools ||
             nextSnapshot.enabledToolIDs != previousSnapshot.enabledToolIDs {
             rebuildTools(using: nextSnapshot)
@@ -325,6 +331,10 @@ final class SidebarView: NSView {
         settingsSnapshot.showTools && !enabledTools.isEmpty
     }
 
+    private var shouldAutoHideWhenFloating: Bool {
+        !isPinned && settingsSnapshot.autoHideWhenFloating
+    }
+
     // MARK: - Tool Selection
 
     private func handleToolSelected(_ pluginID: String) {
@@ -363,9 +373,17 @@ final class SidebarView: NSView {
 
         if isPinned {
             show()
-        } else if isExpanded {
+        } else if isExpanded, shouldAutoHideWhenFloating {
             scheduleHide()
+        } else {
+            hideTimer?.invalidate()
         }
+    }
+
+    private func applyAutoHidePreference() {
+        hideTimer?.invalidate()
+        guard isExpanded, shouldAutoHideWhenFloating else { return }
+        scheduleHide()
     }
 
     @objc private func handlePinToggle() {
@@ -373,6 +391,7 @@ final class SidebarView: NSView {
         applyPinnedState(newPinnedState)
         settingsSnapshot = SettingsSnapshot(
             isPinned: newPinnedState,
+            autoHideWhenFloating: settingsSnapshot.autoHideWhenFloating,
             showTools: settingsSnapshot.showTools,
             enabledToolIDs: settingsSnapshot.enabledToolIDs
         )
@@ -552,7 +571,7 @@ final class SidebarView: NSView {
         isExpanded = true
         hideTimer?.invalidate()
         onExpandChanged?(true)
-        if !isPinned { scheduleHide() }
+        if shouldAutoHideWhenFloating { scheduleHide() }
     }
 
     func hide() {
@@ -585,7 +604,7 @@ final class SidebarView: NSView {
     }
 
     override func mouseExited(with event: NSEvent) {
-        if isExpanded && !isPinned { scheduleHide() }
+        if isExpanded && shouldAutoHideWhenFloating { scheduleHide() }
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = Theme.animFast
             ctx.allowsImplicitAnimation = true
@@ -593,6 +612,11 @@ final class SidebarView: NSView {
             self.newTabButton.layer?.borderColor = Theme.borderSubtle.cgColor
             self.newTabButton.contentTintColor = Theme.textSecondary
         }
+    }
+
+    func hideAfterSelectionIfNeeded() {
+        guard shouldAutoHideWhenFloating else { return }
+        hide()
     }
 
     override func updateTrackingAreas() {
