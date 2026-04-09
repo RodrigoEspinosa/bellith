@@ -6,6 +6,12 @@ final class BellithSettings {
     static let shared = BellithSettings()
     static let didChangeNotification = Notification.Name("BellithSettingsDidChange")
     static let defaultTerminalTerm = "xterm-ghostty"
+    private enum WindowPaddingDefaults {
+        static let migrationKey = "didMigrateWindowPaddingDefaults"
+        static let legacyX = 10
+        static let legacyY = 38
+        static let current = 0
+    }
 
     let defaults: UserDefaults
     private let smartPanelRegistry: SmartPanelRegistry
@@ -13,6 +19,7 @@ final class BellithSettings {
     init(defaults: UserDefaults = .standard, smartPanelRegistry: SmartPanelRegistry = .shared) {
         self.defaults = defaults
         self.smartPanelRegistry = smartPanelRegistry
+        migrateLegacyWindowPaddingIfNeeded()
     }
 
     // Appearance
@@ -388,12 +395,22 @@ final class BellithSettings {
     }
 
     var windowPaddingX: Int {
-        get { let v = defaults.integer(forKey: "windowPaddingX"); return v > 0 ? v : 10 }
+        get {
+            if defaults.object(forKey: "windowPaddingX") != nil {
+                return defaults.integer(forKey: "windowPaddingX")
+            }
+            return WindowPaddingDefaults.current
+        }
         set { defaults.set(newValue, forKey: "windowPaddingX"); notify() }
     }
 
     var windowPaddingY: Int {
-        get { let v = defaults.integer(forKey: "windowPaddingY"); return v > 0 ? v : 38 }
+        get {
+            if defaults.object(forKey: "windowPaddingY") != nil {
+                return defaults.integer(forKey: "windowPaddingY")
+            }
+            return WindowPaddingDefaults.current
+        }
         set { defaults.set(newValue, forKey: "windowPaddingY"); notify() }
     }
 
@@ -421,6 +438,21 @@ final class BellithSettings {
 
     func shortcut(for actionId: String) -> KeyShortcut? {
         keybindings.first { $0.id == actionId }?.shortcut
+    }
+
+    private func migrateLegacyWindowPaddingIfNeeded() {
+        guard !defaults.bool(forKey: WindowPaddingDefaults.migrationKey) else { return }
+        guard defaults.object(forKey: "windowPaddingX") != nil,
+              defaults.object(forKey: "windowPaddingY") != nil else { return }
+
+        let storedX = defaults.integer(forKey: "windowPaddingX")
+        let storedY = defaults.integer(forKey: "windowPaddingY")
+        defer { defaults.set(true, forKey: WindowPaddingDefaults.migrationKey) }
+        guard storedX == WindowPaddingDefaults.legacyX,
+              storedY == WindowPaddingDefaults.legacyY else { return }
+
+        defaults.set(WindowPaddingDefaults.current, forKey: "windowPaddingX")
+        defaults.set(WindowPaddingDefaults.current, forKey: "windowPaddingY")
     }
 
     static let defaultKeybindings: [KeyBindingEntry] = [

@@ -102,8 +102,38 @@ final class BellithSettingsTests: XCTestCase {
     }
 
     func testDefaultWindowPadding() {
-        XCTAssertEqual(settings.windowPaddingX, 10)
-        XCTAssertEqual(settings.windowPaddingY, 38)
+        XCTAssertEqual(settings.windowPaddingX, 0)
+        XCTAssertEqual(settings.windowPaddingY, 0)
+    }
+
+    func testWindowPaddingAllowsZero() {
+        settings.windowPaddingX = 0
+        settings.windowPaddingY = 0
+
+        XCTAssertEqual(settings.windowPaddingX, 0)
+        XCTAssertEqual(settings.windowPaddingY, 0)
+    }
+
+    func testLegacyWindowPaddingMigratesToZero() {
+        defaults.set(10, forKey: "windowPaddingX")
+        defaults.set(38, forKey: "windowPaddingY")
+
+        settings = BellithSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.windowPaddingX, 0)
+        XCTAssertEqual(settings.windowPaddingY, 0)
+        XCTAssertTrue(defaults.bool(forKey: "didMigrateWindowPaddingDefaults"))
+    }
+
+    func testCustomWindowPaddingIsPreservedDuringMigration() {
+        defaults.set(6, forKey: "windowPaddingX")
+        defaults.set(12, forKey: "windowPaddingY")
+
+        settings = BellithSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.windowPaddingX, 6)
+        XCTAssertEqual(settings.windowPaddingY, 12)
+        XCTAssertTrue(defaults.bool(forKey: "didMigrateWindowPaddingDefaults"))
     }
 
     func testSidebarSettingsSnapshotIgnoresUnrelatedSettings() {

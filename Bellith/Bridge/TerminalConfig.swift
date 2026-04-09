@@ -37,6 +37,11 @@ extension Notification.Name {
 }
 
 final class TerminalConfig {
+    private enum Padding {
+        static let minimumHorizontalInset = 4
+        static let minimumTopInset = 8
+    }
+
     private(set) var config: ghostty_config_t?
     private(set) var configurationError: TerminalConfigError?
 
@@ -96,8 +101,8 @@ final class TerminalConfig {
             "theme = \(s.resolvedTheme.ghosttyTheme)",
             "term = \(s.effectiveTerminalTerm)",
             "background-opacity = \(s.backgroundOpacity)",
-            "window-padding-x = \(s.windowPaddingX)",
-            "window-padding-y = \(s.windowPaddingY)",
+            "window-padding-x = \(Self.windowPaddingXValue(for: s))",
+            "window-padding-y = \(Self.windowPaddingYValue(for: s))",
             "window-padding-balance = false",
             "cursor-style = \(s.cursorStyle)",
             "cursor-style-blink = \(s.cursorBlink)",
@@ -121,6 +126,16 @@ final class TerminalConfig {
         } catch {
             throw TerminalConfigError.failedToWriteConfigFile(file, underlying: error)
         }
+    }
+
+    private static func windowPaddingXValue(for settings: BellithSettings) -> Int {
+        max(Padding.minimumHorizontalInset, settings.windowPaddingX)
+    }
+
+    private static func windowPaddingYValue(for settings: BellithSettings) -> String {
+        let bottomPadding = settings.windowPaddingY
+        let topPadding = max(Padding.minimumTopInset, bottomPadding)
+        return "\(topPadding),\(bottomPadding)"
     }
 
     private func report(_ error: TerminalConfigError) {

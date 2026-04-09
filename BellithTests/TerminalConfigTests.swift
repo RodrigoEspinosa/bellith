@@ -40,7 +40,8 @@ final class TerminalConfigTests: XCTestCase {
         XCTAssertTrue(contents.contains("shell-integration-features"), "Config should declare shell integration features")
         XCTAssertTrue(contents.contains("link-url = true"), "Config should enable clickable links")
         XCTAssertTrue(contents.contains("keybind = clear"), "Config should clear keybinds")
-        XCTAssertTrue(contents.contains("window-padding-y = 38"), "Config should write the expected vertical padding")
+        XCTAssertTrue(contents.contains("window-padding-x = 4"), "Config should write the expected horizontal padding")
+        XCTAssertTrue(contents.contains("window-padding-y = 8,0"), "Config should write the expected top-heavy vertical padding")
         XCTAssertFalse(contents.contains("window-padding-y = 38,2"), "Config should not include the old typo")
     }
 
@@ -64,6 +65,42 @@ final class TerminalConfigTests: XCTestCase {
             contents.contains("shell-integration-features = no-cursor,title,path,ssh-env,ssh-terminfo"),
             "Config should reflect shell integration feature toggles"
         )
+    }
+
+    func testVerticalPaddingKeepsMinimumTopInset() throws {
+        settings.windowPaddingY = 2
+
+        let path = try TerminalConfig.writeConfigFile(settings: settings)
+        let contents = try String(contentsOfFile: path, encoding: .utf8)
+
+        XCTAssertTrue(contents.contains("window-padding-y = 8,2"))
+    }
+
+    func testVerticalPaddingPreservesLargerSymmetricInset() throws {
+        settings.windowPaddingY = 12
+
+        let path = try TerminalConfig.writeConfigFile(settings: settings)
+        let contents = try String(contentsOfFile: path, encoding: .utf8)
+
+        XCTAssertTrue(contents.contains("window-padding-y = 12,12"))
+    }
+
+    func testHorizontalPaddingKeepsMinimumInset() throws {
+        settings.windowPaddingX = 0
+
+        let path = try TerminalConfig.writeConfigFile(settings: settings)
+        let contents = try String(contentsOfFile: path, encoding: .utf8)
+
+        XCTAssertTrue(contents.contains("window-padding-x = 4"))
+    }
+
+    func testHorizontalPaddingPreservesLargerInset() throws {
+        settings.windowPaddingX = 9
+
+        let path = try TerminalConfig.writeConfigFile(settings: settings)
+        let contents = try String(contentsOfFile: path, encoding: .utf8)
+
+        XCTAssertTrue(contents.contains("window-padding-x = 9"))
     }
 
     func testDisabledShellIntegrationWritesNone() throws {
