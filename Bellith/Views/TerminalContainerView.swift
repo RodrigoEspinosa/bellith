@@ -49,6 +49,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private var recentlyClosedTabs: [(title: String, cwd: String?, context: TerminalContext?)] = []
     private static let maxRecentlyClosed = 10
     private var zoomBadge: NSView?
+    private var lastKnownStatusBarVisible = false
     private var observationCancellables = Set<AnyCancellable>()
     private var windowObservationCancellables = Set<AnyCancellable>()
 
@@ -99,6 +100,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         tabBar.onReorderTab = { [weak self] from, to in self?.reorderTab(from: from, to: to) }
 
         // Status bar (optional, shown beneath the terminal content)
+        statusBar.onVisibilityChanged = { [weak self] visible in
+            self?.handleStatusBarVisibilityChange(visible)
+        }
         statusBar.onGitHubBadgeClicked = { [weak self] in
             guard let cwd = self?.currentTerminalCwd(),
                   let gh = GitHubService.ghPath() else { return }
@@ -133,6 +137,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 self?.applyFrameColor()
                 self?.statusBar.refreshTheme()
                 self?.titleBar.refreshTheme()
+                if let self {
+                    self.handleStatusBarVisibilityChange(self.shouldShowStatusBar)
+                }
                 self?.needsLayout = true
                 self?.reloadConfig()
             }
@@ -257,9 +264,10 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         root.layer?.backgroundColor = Theme.surface.cgColor
     }
 
-    private func updateChromeFrames(animated: Bool, sidebarWidth: CGFloat? = nil) {
+    private func updateChromeFrames(animated: Bool, sidebarWidth: CGFloat? = nil, statusBarVisible: Bool? = nil) {
         let resolvedSidebarWidth = sidebarWidth ?? ((useSidebar && sidebar.isExpanded) ? SidebarView.expandedWidth : 0)
-        let rect = contentRect(forSidebarWidth: resolvedSidebarWidth)
+        let resolvedStatusBarVisible = statusBarVisible ?? shouldShowStatusBar
+        let rect = contentRect(forSidebarWidth: resolvedSidebarWidth, statusBarVisible: resolvedStatusBarVisible)
         let hasVisibleContent = selectedTabIndex < tabs.count || (isZoomed && zoomedSurface != nil)
         let cornerMask: CACornerMask = [
             .layerMinXMinYCorner,
@@ -912,10 +920,17 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     private var lastGitHubCwd: String?
 
+    private var shouldShowStatusBar: Bool {
+        dependencies.settings.showStatusBar && statusBar.hasVisibleContent
+    }
+
     private func refreshGitHubStatusAsync(cwd: String) {
         // Only re-fetch when the directory actually changes
         guard cwd != lastGitHubCwd else { return }
         lastGitHubCwd = cwd
+
+        statusBar.updateGitHub(nil)
+        statusBar.setGitHubLoading(dependencies.settings.showStatusBarGitHub)
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
             let summary = GitHubService.statusSummary(in: cwd)
@@ -925,6 +940,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                       self.selectedTabIndex < self.tabs.count,
                       self.tabs[self.selectedTabIndex].cwd == cwd else { return }
                 self.statusBar.updateGitHub(summary)
+                self.statusBar.setGitHubLoading(false)
             }
         }
     }
@@ -1461,17 +1477,17 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private let tabBarHeight: CGFloat = 36
     private let titleBarHeight: CGFloat = 34
 
-    private var statusBarHeight: CGFloat {
-        dependencies.settings.showStatusBar ? StatusBarView.height : 0
+    private func statusBarHeight(for isVisible: Bool) -> CGFloat {
+        isVisible ? StatusBarView.height : 0
     }
 
-    private var statusBarGap: CGFloat {
-        dependencies.settings.showStatusBar ? 6 : 0
+    private func statusBarGap(for isVisible: Bool) -> CGFloat {
+        isVisible ? 6 : 0
     }
 
-    private func contentRect(forSidebarWidth sidebarWidth: CGFloat) -> NSRect {
+    private func contentRect(forSidebarWidth sidebarWidth: CGFloat, statusBarVisible: Bool = false) -> NSRect {
         let p = contentPadding
-        let bottomOffset = p + statusBarHeight + statusBarGap
+        let bottomOffset = p + statusBarHeight(for: statusBarVisible) + statusBarGap(for: statusBarVisible)
         let topOffset = p + titleBarHeight
 
         if useSidebar && sidebarWidth > 0 {
@@ -1494,11 +1510,13 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     private var contentRect: NSRect {
         let sidebarWidth: CGFloat = (useSidebar && sidebar.isExpanded) ? SidebarView.expandedWidth : 0
-        return contentRect(forSidebarWidth: sidebarWidth)
+        return contentRect(forSidebarWidth: sidebarWidth, statusBarVisible: shouldShowStatusBar)
     }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        lastKnownStatusBarVisible = shouldShowStatusBar
+        statusBar.alphaValue = lastKnownStatusBarVisible ? 1 : 0
         updateRuntimeStatusObservers()
         syncTrafficLightDisplayMode()
     }
@@ -1550,12 +1568,15 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             height: titleBarHeight
         )
 
-        statusBar.isHidden = !dependencies.settings.showStatusBar
+        let statusBarVisible = shouldShowStatusBar
+        lastKnownStatusBarVisible = statusBarVisible
+        statusBar.isHidden = !statusBarVisible
+        statusBar.alphaValue = statusBarVisible ? 1 : 0
         statusBar.frame = NSRect(
             x: contentLeft,
             y: p,
             width: bounds.width - contentLeft - p,
-            height: statusBarHeight
+            height: statusBarHeight(for: statusBarVisible)
         )
 
         let rect = contentRect
@@ -1601,10 +1622,12 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
     }
 
-    private func animateContentLayout() {
+    private func animateContentLayout(statusBarVisible explicitStatusBarVisible: Bool? = nil) {
         let p = contentPadding
         let targetSidebarWidth: CGFloat = sidebar.isExpanded ? SidebarView.expandedWidth : 0
-        let targetContentRect = contentRect(forSidebarWidth: targetSidebarWidth)
+        let targetStatusBarVisible = explicitStatusBarVisible ?? shouldShowStatusBar
+        let targetStatusBarHeight = statusBarHeight(for: targetStatusBarVisible)
+        let targetContentRect = contentRect(forSidebarWidth: targetSidebarWidth, statusBarVisible: targetStatusBarVisible)
 
         // Calculate target positions for all elements that shift with the sidebar
         let targetContentLeft: CGFloat
@@ -1617,6 +1640,13 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         let targetStatusBarX = targetContentLeft
         let targetStatusBarW = bounds.width - targetStatusBarX - p
 
+        if targetStatusBarVisible {
+            statusBar.isHidden = false
+            if !lastKnownStatusBarVisible {
+                statusBar.alphaValue = 0
+            }
+        }
+
         let targetTitleBarX = targetContentLeft + 6
         let targetTitleBarY = bounds.height - p - titleBarHeight + 1
         let targetTitleBarW = bounds.width - targetContentLeft - p - 10
@@ -1626,7 +1656,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         Theme.animate(duration: Theme.animSlow, timing: springTiming, { ctx in
             ctx.allowsImplicitAnimation = true
 
-            self.updateChromeFrames(animated: true, sidebarWidth: targetSidebarWidth)
+            self.updateChromeFrames(animated: true, sidebarWidth: targetSidebarWidth, statusBarVisible: targetStatusBarVisible)
 
             sidebar.animator().frame = NSRect(
                 x: p, y: p,
@@ -1634,11 +1664,11 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 height: bounds.height - p * 2
             )
 
-            statusBar.isHidden = !self.dependencies.settings.showStatusBar
+            statusBar.animator().alphaValue = targetStatusBarVisible ? 1 : 0
             statusBar.animator().frame = NSRect(
                 x: targetStatusBarX, y: p,
                 width: targetStatusBarW,
-                height: statusBarHeight
+                height: targetStatusBarHeight
             )
 
             titleBar.animator().frame = NSRect(
@@ -1658,9 +1688,23 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 surface.animator().frame = targetContentRect
             }
         }, completion: { [weak self] in
-            self?.isAnimatingLayout = false
-            self?.needsLayout = true
+            guard let self else { return }
+            self.lastKnownStatusBarVisible = targetStatusBarVisible
+            self.statusBar.isHidden = !targetStatusBarVisible
+            self.statusBar.alphaValue = targetStatusBarVisible ? 1 : 0
+            self.isAnimatingLayout = false
+            self.needsLayout = true
         })
+    }
+
+    private func handleStatusBarVisibilityChange(_ visible: Bool) {
+        guard lastKnownStatusBarVisible != visible else { return }
+        guard window != nil else {
+            lastKnownStatusBarVisible = visible
+            needsLayout = true
+            return
+        }
+        animateContentLayout(statusBarVisible: visible)
     }
 
     // MARK: - Theme

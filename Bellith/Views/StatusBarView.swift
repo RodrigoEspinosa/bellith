@@ -23,6 +23,8 @@ final class StatusBarView: NSView {
     private let separator3 = NSTextField(labelWithString: "·")
     private let ghIcon = NSImageView()
     private let ghLabel = NSTextField(labelWithString: "")
+    private let ghLoadingIndicator = NSProgressIndicator()
+    private let ghLoadingLabel = NSTextField(labelWithString: "loading…")
 
     // Right item
     private let sizeLabel = NSTextField(labelWithString: "")
@@ -34,8 +36,22 @@ final class StatusBarView: NSView {
     private var currentProcessPresentation: ForegroundProcessPresentation?
     private var currentGHSummary: GitHubService.StatusSummary?
     private var currentSizeText: String?
+    private var isGitHubLoading = false
+    private var lastReportedVisibility = false
 
     var onGitHubBadgeClicked: (() -> Void)?
+    var onVisibilityChanged: ((Bool) -> Void)?
+
+    var hasVisibleContent: Bool {
+        showsContext
+            || showsPath
+            || showsGitWorktree
+            || showsGitBranch
+            || showsProcess
+            || showsGitHub
+            || showsGitHubLoading
+            || showsSize
+    }
 
     init(frame: NSRect = .zero, settings: BellithSettings = .shared) {
         self.settings = settings
@@ -69,6 +85,22 @@ final class StatusBarView: NSView {
         setupIcon(ghIcon, symbol: "arrow.triangle.pull", tint: Theme.accent)
         setupLabel(ghLabel, size: 12, weight: .medium, color: Theme.accent)
 
+        ghLoadingIndicator.style = .spinning
+        ghLoadingIndicator.controlSize = .small
+        ghLoadingIndicator.isIndeterminate = true
+        ghLoadingIndicator.isDisplayedWhenStopped = false
+        ghLoadingIndicator.isHidden = true
+        addSubview(ghLoadingIndicator)
+
+        ghLoadingLabel.font = BellithFont.mono(11, weight: .regular)
+        ghLoadingLabel.textColor = Theme.textMuted
+        ghLoadingLabel.isEditable = false
+        ghLoadingLabel.isBezeled = false
+        ghLoadingLabel.drawsBackground = false
+        ghLoadingLabel.maximumNumberOfLines = 1
+        ghLoadingLabel.isHidden = true
+        addSubview(ghLoadingLabel)
+
         sizeLabel.font = BellithFont.mono(12, weight: .medium)
         sizeLabel.textColor = Theme.textSecondary
         sizeLabel.isEditable = false
@@ -79,6 +111,7 @@ final class StatusBarView: NSView {
         addSubview(sizeLabel)
 
         refreshTheme()
+        lastReportedVisibility = hasVisibleContent
     }
 
     @available(*, unavailable)
@@ -114,6 +147,13 @@ final class StatusBarView: NSView {
         addSubview(label)
     }
 
+    private func reportVisibilityIfNeeded() {
+        let isVisible = hasVisibleContent
+        guard isVisible != lastReportedVisibility else { return }
+        lastReportedVisibility = isVisible
+        onVisibilityChanged?(isVisible)
+    }
+
     // MARK: - Visibility
 
     private var showsContext: Bool {
@@ -140,6 +180,10 @@ final class StatusBarView: NSView {
         settings.showStatusBarGitHub && currentGHSummary != nil && !ghLabel.stringValue.isEmpty
     }
 
+    private var showsGitHubLoading: Bool {
+        settings.showStatusBarGitHub && isGitHubLoading
+    }
+
     private var showsSize: Bool {
         settings.showStatusBarSize && !(currentSizeText?.isEmpty ?? true)
     }
@@ -158,7 +202,7 @@ final class StatusBarView: NSView {
     func updateContext(_ context: TerminalContext?) {
         currentContext = context
 
-        if settings.showStatusBarContext, let context {
+        if showsContext, let context {
             hostBadge.text = context.hostDisplayText.uppercased()
             hostBadge.iconName = context.isRemote ? "network" : "laptopcomputer"
             hostBadge.tone = tone(for: context)
@@ -184,6 +228,7 @@ final class StatusBarView: NSView {
         }
 
         needsLayout = true
+        reportVisibilityIfNeeded()
     }
 
     func updateGitWorktree(_ worktreeName: String?) {
@@ -195,6 +240,7 @@ final class StatusBarView: NSView {
         worktreeBadge.tone = .neutral
         worktreeBadge.isHidden = !showsGitWorktree
         needsLayout = true
+        reportVisibilityIfNeeded()
     }
 
     func updateCwd(_ cwd: String?) {
@@ -203,6 +249,7 @@ final class StatusBarView: NSView {
         cwdIcon.isHidden = !showsPath
         cwdLabel.isHidden = !showsPath
         needsLayout = true
+        reportVisibilityIfNeeded()
     }
 
     func updateGitBranch(_ branch: String?) {
@@ -213,6 +260,7 @@ final class StatusBarView: NSView {
         gitIcon.isHidden = !showsGitBranch
         gitLabel.isHidden = !showsGitBranch
         needsLayout = true
+        reportVisibilityIfNeeded()
     }
 
     func updateProcess(_ presentation: ForegroundProcessPresentation?) {
@@ -232,6 +280,26 @@ final class StatusBarView: NSView {
         }
 
         needsLayout = true
+        reportVisibilityIfNeeded()
+    }
+
+    func setGitHubLoading(_ loading: Bool) {
+        guard isGitHubLoading != loading else { return }
+        isGitHubLoading = loading
+
+        if loading {
+            ghLoadingIndicator.startAnimation(nil)
+        } else {
+            ghLoadingIndicator.stopAnimation(nil)
+        }
+
+        ghLoadingIndicator.isHidden = !showsGitHubLoading
+        ghLoadingLabel.isHidden = !showsGitHubLoading
+        ghIcon.isHidden = !(showsGitHub || showsGitHubLoading)
+        ghLabel.isHidden = !showsGitHub
+
+        needsLayout = true
+        reportVisibilityIfNeeded()
     }
 
     func updateGitHub(_ summary: GitHubService.StatusSummary?) {
@@ -246,15 +314,20 @@ final class StatusBarView: NSView {
             ghLabel.stringValue = ""
         }
 
-        ghIcon.isHidden = !showsGitHub
+        ghIcon.isHidden = !(showsGitHub || showsGitHubLoading)
         ghLabel.isHidden = !showsGitHub
+        ghLoadingIndicator.isHidden = !showsGitHubLoading
+        ghLoadingLabel.isHidden = !showsGitHubLoading
+
         needsLayout = true
+        reportVisibilityIfNeeded()
     }
 
     func updateSize(cols: Int, rows: Int) {
         currentSizeText = "\(cols)×\(rows)"
         sizeLabel.stringValue = showsSize ? currentSizeText ?? "" : ""
         needsLayout = true
+        reportVisibilityIfNeeded()
     }
 
     func clear() {
@@ -265,6 +338,7 @@ final class StatusBarView: NSView {
         currentProcessPresentation = nil
         currentGHSummary = nil
         currentSizeText = nil
+        isGitHubLoading = false
 
         hostBadge.text = ""
         environmentBadge.text = ""
@@ -275,6 +349,8 @@ final class StatusBarView: NSView {
         processLabel.stringValue = ""
         ghLabel.stringValue = ""
         sizeLabel.stringValue = ""
+
+        ghLoadingIndicator.stopAnimation(nil)
 
         hostBadge.isHidden = true
         environmentBadge.isHidden = true
@@ -287,7 +363,10 @@ final class StatusBarView: NSView {
         processLabel.isHidden = true
         ghIcon.isHidden = true
         ghLabel.isHidden = true
+        ghLoadingIndicator.isHidden = true
+        ghLoadingLabel.isHidden = true
         needsLayout = true
+        reportVisibilityIfNeeded()
     }
 
     // MARK: - Interaction
@@ -325,6 +404,8 @@ final class StatusBarView: NSView {
         processLabel.frame = .zero
         ghIcon.frame = .zero
         ghLabel.frame = .zero
+        ghLoadingIndicator.frame = .zero
+        ghLoadingLabel.frame = .zero
         separator1.frame = .zero
         separator2.frame = .zero
         separator3.frame = .zero
@@ -419,14 +500,23 @@ final class StatusBarView: NSView {
             hasContent = true
         }
 
-        if showsGitHub {
+        if showsGitHub || showsGitHubLoading {
             placeSeparatorIfNeeded()
             ghIcon.frame = NSRect(x: x, y: iconY, width: iconSize, height: iconSize)
             x += iconSize + gap
-            let availableWidth = max(0, trailingX - x - 8)
-            let preferredWidth = ghLabel.attributedStringValue.size().width + 6
-            let width = min(180, min(availableWidth, preferredWidth))
-            ghLabel.frame = NSRect(x: x, y: labelY, width: width, height: labelH)
+
+            if showsGitHubLoading {
+                let spinnerSize: CGFloat = 12
+                ghLoadingIndicator.frame = NSRect(x: x, y: floor((h - spinnerSize) / 2), width: spinnerSize, height: spinnerSize)
+                x += spinnerSize + 5
+                let loadingWidth = ghLoadingLabel.attributedStringValue.size().width + 4
+                ghLoadingLabel.frame = NSRect(x: x, y: labelY, width: loadingWidth, height: labelH)
+            } else if showsGitHub {
+                let availableWidth = max(0, trailingX - x - 8)
+                let preferredWidth = ghLabel.attributedStringValue.size().width + 6
+                let width = min(180, min(availableWidth, preferredWidth))
+                ghLabel.frame = NSRect(x: x, y: labelY, width: width, height: labelH)
+            }
             hasContent = true
         }
     }
@@ -450,6 +540,7 @@ final class StatusBarView: NSView {
         processLabel.textColor = Theme.textSecondary
         ghIcon.contentTintColor = Theme.accent
         ghLabel.textColor = Theme.accent
+        ghLoadingLabel.textColor = Theme.textMuted
         sizeLabel.textColor = Theme.textSecondary
         separator1.textColor = Theme.textMuted.withAlphaComponent(0.55)
         separator2.textColor = Theme.textMuted.withAlphaComponent(0.55)
@@ -461,12 +552,14 @@ final class StatusBarView: NSView {
         updateGitBranch(currentGitBranch)
         updateProcess(currentProcessPresentation)
         updateGitHub(currentGHSummary)
+        setGitHubLoading(isGitHubLoading)
         if let currentSizeText {
             sizeLabel.stringValue = showsSize ? currentSizeText : ""
         } else {
             sizeLabel.stringValue = ""
         }
         needsLayout = true
+        reportVisibilityIfNeeded()
     }
 
     private func tone(for context: TerminalContext, preferEnvironment: Bool = false) -> ContextBadgeView.Tone {
