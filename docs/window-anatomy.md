@@ -33,7 +33,7 @@ Use this reference when talking about parts of the main Bellith window.
 │                      │  Command output / scrollback                        │
 │                      │                                                     │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ Status bar (currently hidden in this build)                                │
+│ Status bar (optional, shown when enabled in Settings > Appearance)         │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 

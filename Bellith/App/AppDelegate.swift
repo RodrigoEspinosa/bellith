@@ -389,6 +389,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let paletteItem = NSMenuItem(title: "Command Palette", action: #selector(handleTogglePalette), keyEquivalent: "k")
         paletteItem.keyEquivalentModifierMask = .command
         viewMenu.addItem(paletteItem)
+        let statusBarItem = NSMenuItem(title: "Show Status Bar", action: #selector(handleToggleStatusBar), keyEquivalent: "")
+        statusBarItem.target = self
+        viewMenu.addItem(statusBarItem)
         viewMenu.addItem(.separator())
         let fontBiggerItem = NSMenuItem(title: "Increase Font Size", action: #selector(handleFontBigger), keyEquivalent: "=")
         viewMenu.addItem(fontBiggerItem)
@@ -489,6 +492,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     @objc private func handleToggleSidebar() { activeEntry?.container.sidebar.toggle() }
     @objc private func handleTogglePalette() { activeEntry?.container.toggleCommandPalette() }
+    @objc private func handleToggleStatusBar() { dependencies.settings.showStatusBar.toggle() }
 
     @objc private func handleFontBigger() { activeEntry?.container.adjustFontSizePublic(delta: 1) }
     @objc private func handleFontSmaller() { activeEntry?.container.adjustFontSizePublic(delta: -1) }
@@ -778,6 +782,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(withTitle: "New Window", action: #selector(handleNewWindow), keyEquivalent: "")
         menu.addItem(withTitle: "New Tab", action: #selector(handleNewTab), keyEquivalent: "")
         return menu
+    }
+}
+
+// MARK: - Menu Validation
+
+extension AppDelegate: NSMenuItemValidation {
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(handleToggleStatusBar) {
+            menuItem.state = dependencies.settings.showStatusBar ? .on : .off
+        }
+        return true
     }
 }
 

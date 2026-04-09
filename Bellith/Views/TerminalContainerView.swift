@@ -24,8 +24,8 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private(set) var selectedTabIndex: Int = 0
     let sidebar: SidebarView
     let tabBar: TabBarView
-    let statusBar = StatusBarView()
-    let titleBar = TitleBarView()
+    let statusBar: StatusBarView
+    let titleBar: TitleBarView
     private lazy var overlayController = TerminalOverlayController(
         host: self,
         commandRegistry: dependencies.commandRegistry,
@@ -68,6 +68,8 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             smartPanelRegistry: dependencies.smartPanelRegistry
         )
         self.tabBar = TabBarView(smartPanelRegistry: dependencies.smartPanelRegistry)
+        self.statusBar = StatusBarView(settings: dependencies.settings)
+        self.titleBar = TitleBarView(settings: dependencies.settings)
         super.init(frame: .zero)
         wantsLayer = true
         applyFrameColor()
@@ -96,7 +98,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         tabBar.onNewTab = { [weak self] in self?.createTab() }
         tabBar.onReorderTab = { [weak self] from, to in self?.reorderTab(from: from, to: to) }
 
-        // Status bar (always visible at bottom)
+        // Status bar (optional, shown beneath the terminal content)
         statusBar.onGitHubBadgeClicked = { [weak self] in
             guard let cwd = self?.currentTerminalCwd(),
                   let gh = GitHubService.ghPath() else { return }
@@ -129,6 +131,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.applyFrameColor()
+                self?.statusBar.refreshTheme()
+                self?.titleBar.refreshTheme()
+                self?.needsLayout = true
                 self?.reloadConfig()
             }
             .store(in: &observationCancellables)
@@ -1454,12 +1459,19 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private let contentRadius: CGFloat = 13
     private let sidebarGap: CGFloat = 8
     private let tabBarHeight: CGFloat = 36
-    private let statusBarHeight: CGFloat = 0
     private let titleBarHeight: CGFloat = 34
+
+    private var statusBarHeight: CGFloat {
+        dependencies.settings.showStatusBar ? StatusBarView.height : 0
+    }
+
+    private var statusBarGap: CGFloat {
+        dependencies.settings.showStatusBar ? 6 : 0
+    }
 
     private func contentRect(forSidebarWidth sidebarWidth: CGFloat) -> NSRect {
         let p = contentPadding
-        let bottomOffset = p + statusBarHeight
+        let bottomOffset = p + statusBarHeight + statusBarGap
         let topOffset = p + titleBarHeight
 
         if useSidebar && sidebarWidth > 0 {
@@ -1538,7 +1550,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             height: titleBarHeight
         )
 
-        statusBar.isHidden = true
+        statusBar.isHidden = !dependencies.settings.showStatusBar
         statusBar.frame = NSRect(
             x: contentLeft,
             y: p,
@@ -1622,6 +1634,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 height: bounds.height - p * 2
             )
 
+            statusBar.isHidden = !self.dependencies.settings.showStatusBar
             statusBar.animator().frame = NSRect(
                 x: targetStatusBarX, y: p,
                 width: targetStatusBarW,

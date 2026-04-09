@@ -1,56 +1,46 @@
 import AppKit
 
-/// Always-visible status bar at the bottom of the terminal content area.
-/// Shows cwd, git branch, foreground process, and terminal dimensions.
-/// Designed to be a clear, readable strip — like VS Code's status bar.
+/// Optional status bar shown beneath the terminal content area.
+/// It mirrors the light-touch feel of the title/context strip and is meant for
+/// secondary metadata that the user explicitly wants at the bottom edge.
 final class StatusBarView: NSView {
     static let height: CGFloat = 28
+
+    private let settings: BellithSettings
 
     // Left items
     private let hostBadge = ContextBadgeView()
     private let environmentBadge = ContextBadgeView()
     private let worktreeBadge = ContextBadgeView()
     private let cwdIcon = NSImageView()
-    private let cwdLabel = NSTextField(labelWithString: "~")
+    private let cwdLabel = NSTextField(labelWithString: "")
     private let separator1 = NSTextField(labelWithString: "·")
     private let gitIcon = NSImageView()
     private let gitLabel = NSTextField(labelWithString: "")
     private let separator2 = NSTextField(labelWithString: "·")
     private let processIcon = NSImageView()
     private let processLabel = NSTextField(labelWithString: "")
-    private var currentProcessPresentation: ForegroundProcessPresentation?
-
-    // GitHub badge (shown when repo has open PRs/issues)
     private let separator3 = NSTextField(labelWithString: "·")
     private let ghIcon = NSImageView()
     private let ghLabel = NSTextField(labelWithString: "")
-    private var currentGHSummary: GitHubService.StatusSummary?
-    var onGitHubBadgeClicked: (() -> Void)?
 
-    // Right items
+    // Right item
     private let sizeLabel = NSTextField(labelWithString: "")
 
-    private let topSeparator = CALayer()
-    private let sizeCapsule = NSView()
+    private var currentContext: TerminalContext?
+    private var currentCwd: String?
+    private var currentGitWorktree: String?
+    private var currentGitBranch: String?
+    private var currentProcessPresentation: ForegroundProcessPresentation?
+    private var currentGHSummary: GitHubService.StatusSummary?
+    private var currentSizeText: String?
 
-    override init(frame: NSRect) {
+    var onGitHubBadgeClicked: (() -> Void)?
+
+    init(frame: NSRect = .zero, settings: BellithSettings = .shared) {
+        self.settings = settings
         super.init(frame: frame)
         wantsLayer = true
-        layer?.backgroundColor = Theme.chrome.cgColor
-        layer?.borderWidth = 0
-
-        // Subtle top edge separator
-        topSeparator.backgroundColor = Theme.chromeHairline.cgColor
-        topSeparator.autoresizingMask = [.layerWidthSizable, .layerMinYMargin]
-        layer?.addSublayer(topSeparator)
-
-        sizeCapsule.wantsLayer = true
-        sizeCapsule.layer?.cornerRadius = 6
-        sizeCapsule.layer?.backgroundColor = Theme.chromeElevated.cgColor
-        sizeCapsule.layer?.borderWidth = 0.5
-        sizeCapsule.layer?.borderColor = Theme.chromeHairline.cgColor
-        sizeCapsule.isHidden = true
-        addSubview(sizeCapsule)
 
         hostBadge.isHidden = true
         addSubview(hostBadge)
@@ -61,37 +51,34 @@ final class StatusBarView: NSView {
         worktreeBadge.isHidden = true
         addSubview(worktreeBadge)
 
-        setupIcon(cwdIcon, symbol: "folder.fill", tint: Theme.accent)
-        setupLabel(cwdLabel, size: 12, weight: .medium, color: Theme.textPrimary)
+        setupIcon(cwdIcon, symbol: "folder.fill", tint: Theme.textSecondary)
+        setupLabel(cwdLabel, size: 12, weight: .regular, color: Theme.textSecondary)
 
         setupSeparator(separator1)
 
         setupIcon(gitIcon, symbol: "arrow.triangle.branch", tint: Theme.success)
         setupLabel(gitLabel, size: 12, weight: .regular, color: Theme.textSecondary)
-        gitIcon.isHidden = true
-        gitLabel.isHidden = true
-        separator1.isHidden = true
 
         setupSeparator(separator2)
 
-        setupIcon(processIcon, symbol: "gearshape.fill", tint: Theme.warning)
+        setupIcon(processIcon, symbol: "gearshape.fill", tint: Theme.textSecondary)
         setupLabel(processLabel, size: 12, weight: .regular, color: Theme.textSecondary)
-        processIcon.isHidden = true
-        processLabel.isHidden = true
-        separator2.isHidden = true
 
         setupSeparator(separator3)
 
         setupIcon(ghIcon, symbol: "arrow.triangle.pull", tint: Theme.accent)
-        setupLabel(ghLabel, size: 11, weight: .medium, color: Theme.accent)
-        ghIcon.isHidden = true
-        ghLabel.isHidden = true
-        separator3.isHidden = true
+        setupLabel(ghLabel, size: 12, weight: .medium, color: Theme.accent)
 
-        setupLabel(sizeLabel, size: 11, weight: .medium, color: Theme.textMuted)
-        sizeLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        sizeLabel.font = BellithFont.mono(12, weight: .medium)
+        sizeLabel.textColor = Theme.textSecondary
+        sizeLabel.isEditable = false
+        sizeLabel.isBezeled = false
+        sizeLabel.drawsBackground = false
         sizeLabel.alignment = .right
-        sizeCapsule.addSubview(sizeLabel)
+        sizeLabel.maximumNumberOfLines = 1
+        addSubview(sizeLabel)
+
+        refreshTheme()
     }
 
     @available(*, unavailable)
@@ -101,178 +88,220 @@ final class StatusBarView: NSView {
         imageView.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
         imageView.contentTintColor = tint
         imageView.imageScaling = .scaleProportionallyDown
+        imageView.isHidden = true
         addSubview(imageView)
     }
 
     private func setupLabel(_ label: NSTextField, size: CGFloat, weight: NSFont.Weight, color: NSColor) {
-        label.font = .systemFont(ofSize: size, weight: weight)
+        label.font = BellithFont.mono(size, weight: weight)
         label.textColor = color
         label.isEditable = false
         label.isBezeled = false
         label.drawsBackground = false
         label.lineBreakMode = .byTruncatingMiddle
         label.maximumNumberOfLines = 1
+        label.isHidden = true
         addSubview(label)
     }
 
     private func setupSeparator(_ label: NSTextField) {
-        label.font = .systemFont(ofSize: 12, weight: .regular)
-        label.textColor = Theme.textMuted.withAlphaComponent(0.5)
+        label.font = BellithFont.mono(12, weight: .regular)
+        label.textColor = Theme.textMuted.withAlphaComponent(0.55)
         label.isEditable = false
         label.isBezeled = false
         label.drawsBackground = false
+        label.isHidden = true
         addSubview(label)
+    }
+
+    // MARK: - Visibility
+
+    private var showsContext: Bool {
+        settings.showStatusBarContext && currentContext != nil
+    }
+
+    private var showsPath: Bool {
+        settings.showStatusBarPath && !(currentCwdDisplay?.isEmpty ?? true)
+    }
+
+    private var showsGitWorktree: Bool {
+        settings.showStatusBarGitWorktree && !(currentGitWorktree?.isEmpty ?? true)
+    }
+
+    private var showsGitBranch: Bool {
+        settings.showStatusBarGitBranch && !(currentGitBranch?.isEmpty ?? true)
+    }
+
+    private var showsProcess: Bool {
+        settings.showStatusBarProcess && !(currentProcessPresentation?.text.isEmpty ?? true)
+    }
+
+    private var showsGitHub: Bool {
+        settings.showStatusBarGitHub && currentGHSummary != nil && !ghLabel.stringValue.isEmpty
+    }
+
+    private var showsSize: Bool {
+        settings.showStatusBarSize && !(currentSizeText?.isEmpty ?? true)
+    }
+
+    private var currentCwdDisplay: String? {
+        guard let cwd = currentCwd, !cwd.isEmpty else { return nil }
+        let home = NSHomeDirectory()
+        if cwd.hasPrefix(home) {
+            return "~" + cwd.dropFirst(home.count)
+        }
+        return cwd
     }
 
     // MARK: - Update
 
     func updateContext(_ context: TerminalContext?) {
-        guard let context else {
-            hostBadge.text = ""
-            environmentBadge.text = ""
-            worktreeBadge.text = ""
-            worktreeBadge.iconName = nil
-            needsLayout = true
-            return
-        }
+        currentContext = context
 
-        hostBadge.text = context.hostDisplayText.uppercased()
-        hostBadge.iconName = context.isRemote ? "network" : "laptopcomputer"
-        hostBadge.tone = tone(for: context)
+        if settings.showStatusBarContext, let context {
+            hostBadge.text = context.hostDisplayText.uppercased()
+            hostBadge.iconName = context.isRemote ? "network" : "laptopcomputer"
+            hostBadge.tone = tone(for: context)
+            hostBadge.isHidden = false
 
-        if let environment = context.environmentDisplayText {
-            environmentBadge.text = environment
-            environmentBadge.iconName = nil
-            environmentBadge.tone = tone(for: context, preferEnvironment: true)
+            if let environment = context.environmentDisplayText {
+                environmentBadge.text = environment
+                environmentBadge.iconName = nil
+                environmentBadge.tone = tone(for: context, preferEnvironment: true)
+                environmentBadge.isHidden = false
+            } else {
+                environmentBadge.text = ""
+                environmentBadge.iconName = nil
+                environmentBadge.isHidden = true
+            }
         } else {
+            hostBadge.text = ""
+            hostBadge.iconName = nil
+            hostBadge.isHidden = true
             environmentBadge.text = ""
             environmentBadge.iconName = nil
+            environmentBadge.isHidden = true
         }
 
         needsLayout = true
     }
 
     func updateGitWorktree(_ worktreeName: String?) {
-        let normalizedName = worktreeName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let value = (normalizedName?.isEmpty == false) ? normalizedName : nil
-        worktreeBadge.text = value ?? ""
-        worktreeBadge.iconName = value == nil ? nil : "folder.badge.gearshape"
+        let normalized = worktreeName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        currentGitWorktree = (normalized?.isEmpty == false) ? normalized : nil
+
+        worktreeBadge.text = currentGitWorktree ?? ""
+        worktreeBadge.iconName = currentGitWorktree == nil ? nil : "folder.badge.gearshape"
         worktreeBadge.tone = .neutral
+        worktreeBadge.isHidden = !showsGitWorktree
         needsLayout = true
     }
 
     func updateCwd(_ cwd: String?) {
-        guard let cwd else { cwdLabel.stringValue = "~"; return }
-        let home = NSHomeDirectory()
-        var display = cwd
-        if display.hasPrefix(home) {
-            display = "~" + display.dropFirst(home.count)
-        }
-        cwdLabel.stringValue = display
+        currentCwd = cwd
+        cwdLabel.stringValue = currentCwdDisplay ?? ""
+        cwdIcon.isHidden = !showsPath
+        cwdLabel.isHidden = !showsPath
+        needsLayout = true
     }
 
     func updateGitBranch(_ branch: String?) {
-        let shouldShow = branch != nil && !(branch ?? "").isEmpty
-        if shouldShow { gitLabel.stringValue = branch! }
+        let normalized = branch?.trimmingCharacters(in: .whitespacesAndNewlines)
+        currentGitBranch = (normalized?.isEmpty == false) ? normalized : nil
 
-        if shouldShow {
-            gitIcon.isHidden = false
-            gitLabel.isHidden = false
-            separator1.isHidden = false
-        }
-
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = Theme.animFast
-            ctx.allowsImplicitAnimation = true
-            self.gitIcon.animator().alphaValue = shouldShow ? 1 : 0
-            self.gitLabel.animator().alphaValue = shouldShow ? 1 : 0
-            self.separator1.animator().alphaValue = shouldShow ? 1 : 0
-        } completionHandler: { [weak self] in
-            if !shouldShow {
-                self?.gitIcon.isHidden = true
-                self?.gitLabel.isHidden = true
-                self?.separator1.isHidden = true
-            }
-            self?.needsLayout = true
-        }
+        gitLabel.stringValue = currentGitBranch ?? ""
+        gitIcon.isHidden = !showsGitBranch
+        gitLabel.isHidden = !showsGitBranch
+        needsLayout = true
     }
 
     func updateProcess(_ presentation: ForegroundProcessPresentation?) {
         currentProcessPresentation = presentation
-        let shouldShow = presentation != nil && !presentation!.text.isEmpty
-        if let presentation {
+
+        if showsProcess, let presentation {
             processLabel.stringValue = presentation.text
             processIcon.image = NSImage(systemSymbolName: presentation.iconName, accessibilityDescription: nil)
-            processIcon.contentTintColor = presentation.style == .tool ? Theme.accent : Theme.warning
+            processIcon.contentTintColor = presentation.style == .tool ? Theme.accent : Theme.textSecondary
             processLabel.textColor = presentation.style == .tool ? Theme.textPrimary : Theme.textSecondary
-        }
-
-        if shouldShow {
             processIcon.isHidden = false
             processLabel.isHidden = false
-            separator2.isHidden = gitIcon.isHidden
+        } else {
+            processLabel.stringValue = ""
+            processIcon.isHidden = true
+            processLabel.isHidden = true
         }
 
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = Theme.animFast
-            ctx.allowsImplicitAnimation = true
-            self.processIcon.animator().alphaValue = shouldShow ? 1 : 0
-            self.processLabel.animator().alphaValue = shouldShow ? 1 : 0
-            self.separator2.animator().alphaValue = shouldShow ? 1 : 0
-        } completionHandler: { [weak self] in
-            if !shouldShow {
-                self?.processIcon.isHidden = true
-                self?.processLabel.isHidden = true
-                self?.separator2.isHidden = true
-            }
-            self?.needsLayout = true
-        }
+        needsLayout = true
     }
 
     func updateGitHub(_ summary: GitHubService.StatusSummary?) {
         currentGHSummary = summary
-        let shouldShow = summary != nil
 
         if let summary {
             var parts: [String] = []
             if summary.openPRs > 0 { parts.append("\(summary.openPRs) PR\(summary.openPRs == 1 ? "" : "s")") }
             if summary.openIssues > 0 { parts.append("\(summary.openIssues) issue\(summary.openIssues == 1 ? "" : "s")") }
             ghLabel.stringValue = parts.joined(separator: " · ")
+        } else {
+            ghLabel.stringValue = ""
         }
 
-        if shouldShow {
-            ghIcon.isHidden = false
-            ghLabel.isHidden = false
-            separator3.isHidden = gitIcon.isHidden && processIcon.isHidden
-        }
-
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = Theme.animFast
-            ctx.allowsImplicitAnimation = true
-            self.ghIcon.animator().alphaValue = shouldShow ? 1 : 0
-            self.ghLabel.animator().alphaValue = shouldShow ? 1 : 0
-            self.separator3.animator().alphaValue = shouldShow ? 1 : 0
-        } completionHandler: { [weak self] in
-            if !shouldShow {
-                self?.ghIcon.isHidden = true
-                self?.ghLabel.isHidden = true
-                self?.separator3.isHidden = true
-            }
-            self?.needsLayout = true
-        }
+        ghIcon.isHidden = !showsGitHub
+        ghLabel.isHidden = !showsGitHub
+        needsLayout = true
     }
+
+    func updateSize(cols: Int, rows: Int) {
+        currentSizeText = "\(cols)×\(rows)"
+        sizeLabel.stringValue = showsSize ? currentSizeText ?? "" : ""
+        needsLayout = true
+    }
+
+    func clear() {
+        currentContext = nil
+        currentCwd = nil
+        currentGitWorktree = nil
+        currentGitBranch = nil
+        currentProcessPresentation = nil
+        currentGHSummary = nil
+        currentSizeText = nil
+
+        hostBadge.text = ""
+        environmentBadge.text = ""
+        worktreeBadge.text = ""
+        worktreeBadge.iconName = nil
+        cwdLabel.stringValue = ""
+        gitLabel.stringValue = ""
+        processLabel.stringValue = ""
+        ghLabel.stringValue = ""
+        sizeLabel.stringValue = ""
+
+        hostBadge.isHidden = true
+        environmentBadge.isHidden = true
+        worktreeBadge.isHidden = true
+        cwdIcon.isHidden = true
+        cwdLabel.isHidden = true
+        gitIcon.isHidden = true
+        gitLabel.isHidden = true
+        processIcon.isHidden = true
+        processLabel.isHidden = true
+        ghIcon.isHidden = true
+        ghLabel.isHidden = true
+        needsLayout = true
+    }
+
+    // MARK: - Interaction
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        // Check if click is on the GitHub badge area
-        if !ghIcon.isHidden {
-            let ghArea = NSRect(
+        if showsGitHub {
+            let hitRect = NSRect(
                 x: ghIcon.frame.minX - 4,
                 y: 0,
                 width: ghLabel.frame.maxX - ghIcon.frame.minX + 8,
                 height: bounds.height
             )
-            if ghArea.contains(point) {
+            if hitRect.contains(point) {
                 onGitHubBadgeClicked?()
                 return
             }
@@ -280,150 +309,164 @@ final class StatusBarView: NSView {
         super.mouseDown(with: event)
     }
 
-    func updateSize(cols: Int, rows: Int) {
-        sizeLabel.stringValue = "\(cols)×\(rows)"
-        sizeCapsule.isHidden = false
-        needsLayout = true
-    }
-
-    func clear() {
-        updateContext(nil)
-        cwdLabel.stringValue = "~"
-        updateGitBranch(nil)
-        updateGitWorktree(nil)
-        updateProcess(nil)
-        updateGitHub(nil)
-        sizeLabel.stringValue = ""
-        sizeCapsule.isHidden = true
-        needsLayout = true
-    }
-
     // MARK: - Layout
 
     override func layout() {
         super.layout()
+
+        hostBadge.frame = .zero
+        environmentBadge.frame = .zero
+        worktreeBadge.frame = .zero
+        cwdIcon.frame = .zero
+        cwdLabel.frame = .zero
+        gitIcon.frame = .zero
+        gitLabel.frame = .zero
+        processIcon.frame = .zero
+        processLabel.frame = .zero
+        ghIcon.frame = .zero
+        ghLabel.frame = .zero
+        separator1.frame = .zero
+        separator2.frame = .zero
+        separator3.frame = .zero
+        sizeLabel.frame = .zero
+        separator1.isHidden = true
+        separator2.isHidden = true
+        separator3.isHidden = true
+
         let h = bounds.height
-
-        // Top separator line
-        topSeparator.frame = NSRect(x: 0, y: h - 0.5, width: bounds.width, height: 0.5)
-
-        let iconSize: CGFloat = 14
-        let iconY = (h - iconSize) / 2
+        let iconSize: CGFloat = 13
+        let iconY = floor((h - iconSize) / 2)
         let labelH: CGFloat = 16
-        let labelY = (h - labelH) / 2
+        let labelY = floor((h - labelH) / 2)
         let gap: CGFloat = 5
+        let groupGap: CGFloat = 4
         let sepW: CGFloat = 8
 
+        let sizeWidth: CGFloat = showsSize ? max(44, sizeLabel.attributedStringValue.size().width + 2) : 0
+        let trailingX = sizeWidth > 0 ? bounds.width - sizeWidth - 10 : bounds.width - 10
+        if sizeWidth > 0 {
+            sizeLabel.frame = NSRect(x: trailingX, y: labelY, width: sizeWidth, height: labelH)
+        }
+
         var x: CGFloat = 14
+        var hasContent = false
+        let separators = [separator1, separator2, separator3]
+        var separatorIndex = 0
 
-        if !hostBadge.isHidden {
-            let badgeSize = hostBadge.intrinsicContentSize
-            hostBadge.frame = NSRect(x: x, y: (h - badgeSize.height) / 2, width: badgeSize.width, height: badgeSize.height)
-            x += badgeSize.width + 8
-        } else {
-            hostBadge.frame = .zero
+        func placeSeparatorIfNeeded() {
+            guard hasContent, separatorIndex < separators.count else { return }
+            let separator = separators[separatorIndex]
+            separator.frame = NSRect(x: x, y: labelY, width: sepW, height: labelH)
+            separator.isHidden = false
+            x += sepW + groupGap
+            separatorIndex += 1
         }
 
-        if !environmentBadge.isHidden {
-            let badgeSize = environmentBadge.intrinsicContentSize
-            environmentBadge.frame = NSRect(x: x, y: (h - badgeSize.height) / 2, width: badgeSize.width, height: badgeSize.height)
-            x += badgeSize.width + 10
-        } else {
-            environmentBadge.frame = .zero
+        if showsContext {
+            let hostSize = hostBadge.intrinsicContentSize
+            hostBadge.frame = NSRect(x: x, y: floor((h - hostSize.height) / 2), width: hostSize.width, height: hostSize.height)
+            x += hostSize.width + 8
+            hasContent = true
+
+            if !environmentBadge.isHidden {
+                let environmentSize = environmentBadge.intrinsicContentSize
+                environmentBadge.frame = NSRect(x: x, y: floor((h - environmentSize.height) / 2), width: environmentSize.width, height: environmentSize.height)
+                x += environmentSize.width + 8
+            }
         }
 
-        if !worktreeBadge.isHidden {
-            let badgeSize = worktreeBadge.intrinsicContentSize
-            worktreeBadge.frame = NSRect(x: x, y: (h - badgeSize.height) / 2, width: badgeSize.width, height: badgeSize.height)
-            x += badgeSize.width + 8
-        } else {
-            worktreeBadge.frame = .zero
+        if showsGitWorktree {
+            placeSeparatorIfNeeded()
+            let worktreeSize = worktreeBadge.intrinsicContentSize
+            worktreeBadge.frame = NSRect(x: x, y: floor((h - worktreeSize.height) / 2), width: worktreeSize.width, height: worktreeSize.height)
+            x += worktreeSize.width + 8
+            hasContent = true
         }
 
-        // CWD
-        cwdIcon.frame = NSRect(x: x, y: iconY, width: iconSize, height: iconSize)
-        x += iconSize + gap
-        let cwdW = min(260, cwdLabel.attributedStringValue.size().width + 6)
-        cwdLabel.frame = NSRect(x: x, y: labelY, width: cwdW, height: labelH)
-        x += cwdW
+        if showsPath {
+            placeSeparatorIfNeeded()
+            cwdIcon.frame = NSRect(x: x, y: iconY, width: iconSize, height: iconSize)
+            x += iconSize + gap
+            let availableWidth = max(0, trailingX - x - 8)
+            let preferredWidth = cwdLabel.attributedStringValue.size().width + 6
+            let width = min(260, min(availableWidth, preferredWidth))
+            cwdLabel.frame = NSRect(x: x, y: labelY, width: width, height: labelH)
+            x += width + 8
+            hasContent = true
+        }
 
-        // Git branch
-        if !gitIcon.isHidden {
-            x += 4
-            separator1.frame = NSRect(x: x, y: labelY, width: sepW, height: labelH)
-            x += sepW + 4
-
+        if showsGitBranch {
+            placeSeparatorIfNeeded()
             gitIcon.frame = NSRect(x: x, y: iconY, width: iconSize, height: iconSize)
             x += iconSize + gap
-            let gitW = min(140, gitLabel.attributedStringValue.size().width + 6)
-            gitLabel.frame = NSRect(x: x, y: labelY, width: gitW, height: labelH)
-            x += gitW
+            let availableWidth = max(0, trailingX - x - 8)
+            let preferredWidth = gitLabel.attributedStringValue.size().width + 6
+            let width = min(140, min(availableWidth, preferredWidth))
+            gitLabel.frame = NSRect(x: x, y: labelY, width: width, height: labelH)
+            x += width + 8
+            hasContent = true
         }
 
-        // Process
-        if !processIcon.isHidden {
-            if !separator2.isHidden {
-                x += 4
-                separator2.frame = NSRect(x: x, y: labelY, width: sepW, height: labelH)
-                x += sepW + 4
-            } else {
-                x += 12
-            }
-
+        if showsProcess {
+            placeSeparatorIfNeeded()
             processIcon.frame = NSRect(x: x, y: iconY, width: iconSize, height: iconSize)
             x += iconSize + gap
-            let procW = min(120, processLabel.attributedStringValue.size().width + 6)
-            processLabel.frame = NSRect(x: x, y: labelY, width: procW, height: labelH)
-            x += procW
+            let availableWidth = max(0, trailingX - x - 8)
+            let preferredWidth = processLabel.attributedStringValue.size().width + 6
+            let width = min(120, min(availableWidth, preferredWidth))
+            processLabel.frame = NSRect(x: x, y: labelY, width: width, height: labelH)
+            x += width + 8
+            hasContent = true
         }
 
-        // GitHub badge
-        if !ghIcon.isHidden {
-            if !separator3.isHidden {
-                x += 4
-                separator3.frame = NSRect(x: x, y: labelY, width: sepW, height: labelH)
-                x += sepW + 4
-            } else {
-                x += 12
-            }
-
+        if showsGitHub {
+            placeSeparatorIfNeeded()
             ghIcon.frame = NSRect(x: x, y: iconY, width: iconSize, height: iconSize)
             x += iconSize + gap
-            let ghW = min(160, ghLabel.attributedStringValue.size().width + 6)
-            ghLabel.frame = NSRect(x: x, y: labelY, width: ghW, height: labelH)
-        }
-
-        // Right: terminal size
-        let hasSize = !sizeLabel.stringValue.isEmpty
-        sizeCapsule.isHidden = !hasSize
-        if hasSize {
-            let sizeW: CGFloat = max(64, sizeLabel.attributedStringValue.size().width + 22)
-            sizeCapsule.frame = NSRect(x: bounds.width - sizeW - 10, y: (h - 20) / 2, width: sizeW, height: 20)
-            sizeLabel.frame = NSRect(x: 10, y: (sizeCapsule.bounds.height - labelH) / 2, width: sizeW - 20, height: labelH)
+            let availableWidth = max(0, trailingX - x - 8)
+            let preferredWidth = ghLabel.attributedStringValue.size().width + 6
+            let width = min(180, min(availableWidth, preferredWidth))
+            ghLabel.frame = NSRect(x: x, y: labelY, width: width, height: labelH)
+            hasContent = true
         }
     }
 
     // MARK: - Theme
 
     func refreshTheme() {
-        layer?.backgroundColor = Theme.chrome.cgColor
-        topSeparator.backgroundColor = Theme.chromeHairline.cgColor
-        sizeCapsule.layer?.backgroundColor = Theme.chromeElevated.cgColor
-        sizeCapsule.layer?.borderColor = Theme.chromeHairline.cgColor
+        layer?.backgroundColor = NSColor.clear.cgColor
+        layer?.borderWidth = 0
+        layer?.borderColor = NSColor.clear.cgColor
+
         hostBadge.refreshTheme()
         environmentBadge.refreshTheme()
         worktreeBadge.refreshTheme()
-        cwdIcon.contentTintColor = Theme.accent
-        cwdLabel.textColor = Theme.textPrimary
-        separator1.textColor = Theme.textMuted.withAlphaComponent(0.5)
-        separator2.textColor = Theme.textMuted.withAlphaComponent(0.5)
-        separator3.textColor = Theme.textMuted.withAlphaComponent(0.5)
+
+        cwdIcon.contentTintColor = Theme.textSecondary
+        cwdLabel.textColor = Theme.textSecondary
         gitIcon.contentTintColor = Theme.success
         gitLabel.textColor = Theme.textSecondary
+        processIcon.contentTintColor = Theme.textSecondary
+        processLabel.textColor = Theme.textSecondary
         ghIcon.contentTintColor = Theme.accent
         ghLabel.textColor = Theme.accent
-        sizeLabel.textColor = Theme.textMuted
+        sizeLabel.textColor = Theme.textSecondary
+        separator1.textColor = Theme.textMuted.withAlphaComponent(0.55)
+        separator2.textColor = Theme.textMuted.withAlphaComponent(0.55)
+        separator3.textColor = Theme.textMuted.withAlphaComponent(0.55)
+
+        updateContext(currentContext)
+        updateGitWorktree(currentGitWorktree)
+        updateCwd(currentCwd)
+        updateGitBranch(currentGitBranch)
         updateProcess(currentProcessPresentation)
+        updateGitHub(currentGHSummary)
+        if let currentSizeText {
+            sizeLabel.stringValue = showsSize ? currentSizeText : ""
+        } else {
+            sizeLabel.stringValue = ""
+        }
+        needsLayout = true
     }
 
     private func tone(for context: TerminalContext, preferEnvironment: Bool = false) -> ContextBadgeView.Tone {

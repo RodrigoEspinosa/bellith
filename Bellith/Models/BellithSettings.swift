@@ -307,6 +307,86 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "noiseIntensity"); notify() }
     }
 
+    var showStatusBar: Bool {
+        get {
+            if defaults.object(forKey: "showStatusBar") != nil {
+                return defaults.bool(forKey: "showStatusBar")
+            }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "showStatusBar"); notify() }
+    }
+
+    var showStatusBarContext: Bool {
+        get {
+            if defaults.object(forKey: "showStatusBarContext") != nil {
+                return defaults.bool(forKey: "showStatusBarContext")
+            }
+            return false
+        }
+        set { defaults.set(newValue, forKey: "showStatusBarContext"); notify() }
+    }
+
+    var showStatusBarPath: Bool {
+        get {
+            if defaults.object(forKey: "showStatusBarPath") != nil {
+                return defaults.bool(forKey: "showStatusBarPath")
+            }
+            return false
+        }
+        set { defaults.set(newValue, forKey: "showStatusBarPath"); notify() }
+    }
+
+    var showStatusBarGitWorktree: Bool {
+        get {
+            if defaults.object(forKey: "showStatusBarGitWorktree") != nil {
+                return defaults.bool(forKey: "showStatusBarGitWorktree")
+            }
+            return false
+        }
+        set { defaults.set(newValue, forKey: "showStatusBarGitWorktree"); notify() }
+    }
+
+    var showStatusBarGitBranch: Bool {
+        get {
+            if defaults.object(forKey: "showStatusBarGitBranch") != nil {
+                return defaults.bool(forKey: "showStatusBarGitBranch")
+            }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "showStatusBarGitBranch"); notify() }
+    }
+
+    var showStatusBarProcess: Bool {
+        get {
+            if defaults.object(forKey: "showStatusBarProcess") != nil {
+                return defaults.bool(forKey: "showStatusBarProcess")
+            }
+            return false
+        }
+        set { defaults.set(newValue, forKey: "showStatusBarProcess"); notify() }
+    }
+
+    var showStatusBarGitHub: Bool {
+        get {
+            if defaults.object(forKey: "showStatusBarGitHub") != nil {
+                return defaults.bool(forKey: "showStatusBarGitHub")
+            }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "showStatusBarGitHub"); notify() }
+    }
+
+    var showStatusBarSize: Bool {
+        get {
+            if defaults.object(forKey: "showStatusBarSize") != nil {
+                return defaults.bool(forKey: "showStatusBarSize")
+            }
+            return false
+        }
+        set { defaults.set(newValue, forKey: "showStatusBarSize"); notify() }
+    }
+
     var windowPaddingX: Int {
         get { let v = defaults.integer(forKey: "windowPaddingX"); return v > 0 ? v : 10 }
         set { defaults.set(newValue, forKey: "windowPaddingX"); notify() }

@@ -62,11 +62,29 @@ final class AppearancePane: NSView {
     private let interfaceCard = SettingsCard(title: "Interface", subtitle: "Window chrome and navigation structure")
     private let tabLabel = CardRowLabel("Tab Style")
     private var tabSegment: PrefSegment!
+    private let statusBarLabel = CardRowLabel("Show Status Bar")
+    private var statusBarToggle: PrefToggle!
     private let padLabel = CardRowLabel("Window Padding")
     private let padXLabel = SmallLabel("H")
     private var padXField: MiniNumberField!
     private let padYLabel = SmallLabel("V")
     private var padYField: MiniNumberField!
+
+    private let statusBarCard = SettingsCard(title: "Status Bar", subtitle: "Choose which indicators appear in the lower metadata strip")
+    private let statusBarContextLabel = CardRowLabel("Host & Environment")
+    private var statusBarContextToggle: PrefToggle!
+    private let statusBarPathLabel = CardRowLabel("Working Directory")
+    private var statusBarPathToggle: PrefToggle!
+    private let statusBarWorktreeLabel = CardRowLabel("Git Worktree")
+    private var statusBarWorktreeToggle: PrefToggle!
+    private let statusBarBranchLabel = CardRowLabel("Git Branch")
+    private var statusBarBranchToggle: PrefToggle!
+    private let statusBarGitHubLabel = CardRowLabel("PRs & Issues")
+    private var statusBarGitHubToggle: PrefToggle!
+    private let statusBarProcessLabel = CardRowLabel("Foreground Process")
+    private var statusBarProcessToggle: PrefToggle!
+    private let statusBarSizeLabel = CardRowLabel("Terminal Size")
+    private var statusBarSizeToggle: PrefToggle!
 
     private let windowCard = SettingsCard(title: "Window", subtitle: "Opacity and traffic-light behavior")
     private let opacityLabel = CardRowLabel("Background Opacity")
@@ -119,6 +137,10 @@ final class AppearancePane: NSView {
             }
             self?.updateHero()
         }
+        statusBarToggle = PrefToggle(isOn: settings.showStatusBar) { [weak self] value in
+            self?.settings.showStatusBar = value
+            self?.updateHero()
+        }
         padXField = MiniNumberField(value: settings.windowPaddingX, range: 0...40) { [weak self] value in
             self?.settings.windowPaddingX = value
         }
@@ -126,8 +148,49 @@ final class AppearancePane: NSView {
             self?.settings.windowPaddingY = value
         }
         content.addSubview(interfaceCard)
-        for view: NSView in [tabLabel, tabSegment, padLabel, padXLabel, padXField, padYLabel, padYField] {
+        for view: NSView in [tabLabel, tabSegment, statusBarLabel, statusBarToggle, padLabel, padXLabel, padXField, padYLabel, padYField] {
             interfaceCard.addSubview(view)
+        }
+
+        statusBarContextToggle = PrefToggle(isOn: settings.showStatusBarContext) { [weak self] value in
+            self?.settings.showStatusBarContext = value
+        }
+        statusBarPathToggle = PrefToggle(isOn: settings.showStatusBarPath) { [weak self] value in
+            self?.settings.showStatusBarPath = value
+        }
+        statusBarWorktreeToggle = PrefToggle(isOn: settings.showStatusBarGitWorktree) { [weak self] value in
+            self?.settings.showStatusBarGitWorktree = value
+        }
+        statusBarBranchToggle = PrefToggle(isOn: settings.showStatusBarGitBranch) { [weak self] value in
+            self?.settings.showStatusBarGitBranch = value
+        }
+        statusBarGitHubToggle = PrefToggle(isOn: settings.showStatusBarGitHub) { [weak self] value in
+            self?.settings.showStatusBarGitHub = value
+        }
+        statusBarProcessToggle = PrefToggle(isOn: settings.showStatusBarProcess) { [weak self] value in
+            self?.settings.showStatusBarProcess = value
+        }
+        statusBarSizeToggle = PrefToggle(isOn: settings.showStatusBarSize) { [weak self] value in
+            self?.settings.showStatusBarSize = value
+        }
+        content.addSubview(statusBarCard)
+        for view: NSView in [
+            statusBarContextLabel,
+            statusBarContextToggle,
+            statusBarPathLabel,
+            statusBarPathToggle,
+            statusBarWorktreeLabel,
+            statusBarWorktreeToggle,
+            statusBarBranchLabel,
+            statusBarBranchToggle,
+            statusBarGitHubLabel,
+            statusBarGitHubToggle,
+            statusBarProcessLabel,
+            statusBarProcessToggle,
+            statusBarSizeLabel,
+            statusBarSizeToggle,
+        ] {
+            statusBarCard.addSubview(view)
         }
 
         opacityTrack = OpacityTrackView(value: settings.backgroundOpacity) { [weak self] value in
@@ -154,9 +217,18 @@ final class AppearancePane: NSView {
         heroCard.refresh()
         themeCard.refresh()
         interfaceCard.refresh()
+        statusBarCard.refresh()
         windowCard.refresh()
         themeGrid.refresh()
         tabSegment.setSelected(settings.tabMode == "sidebar" ? 0 : 1)
+        statusBarToggle.setOn(settings.showStatusBar)
+        statusBarContextToggle.setOn(settings.showStatusBarContext)
+        statusBarPathToggle.setOn(settings.showStatusBarPath)
+        statusBarWorktreeToggle.setOn(settings.showStatusBarGitWorktree)
+        statusBarBranchToggle.setOn(settings.showStatusBarGitBranch)
+        statusBarGitHubToggle.setOn(settings.showStatusBarGitHub)
+        statusBarProcessToggle.setOn(settings.showStatusBarProcess)
+        statusBarSizeToggle.setOn(settings.showStatusBarSize)
         padXField.setValue(settings.windowPaddingX)
         padYField.setValue(settings.windowPaddingY)
         opacityTrack.setValue(settings.backgroundOpacity)
@@ -169,7 +241,8 @@ final class AppearancePane: NSView {
     private func updateHero() {
         heroThemeLabel.stringValue = settings.resolvedTheme.name.uppercased()
         let tabs = settings.tabMode == "sidebar" ? "SIDEBAR" : "TAB BAR"
-        heroMetaLabel.stringValue = "[ DARK: \(settings.darkThemeName) ]   [ LIGHT: \(settings.lightThemeName) ]   [ \(tabs) ]"
+        let statusBar = settings.showStatusBar ? "STATUS BAR ON" : "STATUS BAR OFF"
+        heroMetaLabel.stringValue = "[ DARK: \(settings.darkThemeName) ]   [ LIGHT: \(settings.lightThemeName) ]   [ \(tabs) ]   [ \(statusBar) ]"
         heroCommandLabel.stringValue = "bellith --theme \"\(settings.resolvedTheme.name)\" --opacity \(Int(settings.backgroundOpacity * 100))%"
         heroThemeLabel.textColor = Theme.textDisplay
         heroMetaLabel.textColor = Theme.textSecondary
@@ -221,18 +294,46 @@ final class AppearancePane: NSView {
         importBtn.frame = NSRect(x: PreferencesLayout.cardPad, y: 18, width: innerW, height: 16)
         y += themeCardHeight + PreferencesLayout.sectionGap
 
-        let interfaceCardHeight = interfaceCard.headerHeight + 2 * PreferencesLayout.rowH + 1 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        let interfaceCardHeight = interfaceCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
         interfaceCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: interfaceCardHeight)
         let ir0 = interfaceCardHeight - interfaceCard.headerHeight - PreferencesLayout.rowH
         tabLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir0, width: labelW - 12, height: PreferencesLayout.rowH)
         tabSegment.frame = NSRect(x: controlX, y: ir0 + 6, width: min(220, controlW), height: 28)
         let ir1 = ir0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        padLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir1, width: labelW - 12, height: PreferencesLayout.rowH)
-        padXLabel.frame = NSRect(x: controlX, y: ir1 + 12, width: 14, height: 12)
-        padXField.frame = NSRect(x: controlX + 18, y: ir1 + 6, width: 56, height: 28)
-        padYLabel.frame = NSRect(x: controlX + 88, y: ir1 + 12, width: 14, height: 12)
-        padYField.frame = NSRect(x: controlX + 106, y: ir1 + 6, width: 56, height: 28)
+        statusBarLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir1, width: labelW + 20, height: PreferencesLayout.rowH)
+        statusBarToggle.frame = NSRect(x: controlX, y: ir1 + 6, width: 50, height: 28)
+        let ir2 = ir1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        padLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir2, width: labelW - 12, height: PreferencesLayout.rowH)
+        padXLabel.frame = NSRect(x: controlX, y: ir2 + 12, width: 14, height: 12)
+        padXField.frame = NSRect(x: controlX + 18, y: ir2 + 6, width: 56, height: 28)
+        padYLabel.frame = NSRect(x: controlX + 88, y: ir2 + 12, width: 14, height: 12)
+        padYField.frame = NSRect(x: controlX + 106, y: ir2 + 6, width: 56, height: 28)
         y += interfaceCardHeight + PreferencesLayout.sectionGap
+
+        let statusBarCardHeight = statusBarCard.headerHeight + 7 * PreferencesLayout.rowH + 6 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        statusBarCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: statusBarCardHeight)
+        let sb0 = statusBarCardHeight - statusBarCard.headerHeight - PreferencesLayout.rowH
+        statusBarContextLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sb0, width: labelW + 40, height: PreferencesLayout.rowH)
+        statusBarContextToggle.frame = NSRect(x: controlX, y: sb0 + 6, width: 50, height: 28)
+        let sb1 = sb0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        statusBarPathLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sb1, width: labelW + 40, height: PreferencesLayout.rowH)
+        statusBarPathToggle.frame = NSRect(x: controlX, y: sb1 + 6, width: 50, height: 28)
+        let sb2 = sb1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        statusBarWorktreeLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sb2, width: labelW + 40, height: PreferencesLayout.rowH)
+        statusBarWorktreeToggle.frame = NSRect(x: controlX, y: sb2 + 6, width: 50, height: 28)
+        let sb3 = sb2 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        statusBarBranchLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sb3, width: labelW + 40, height: PreferencesLayout.rowH)
+        statusBarBranchToggle.frame = NSRect(x: controlX, y: sb3 + 6, width: 50, height: 28)
+        let sb4 = sb3 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        statusBarGitHubLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sb4, width: labelW + 40, height: PreferencesLayout.rowH)
+        statusBarGitHubToggle.frame = NSRect(x: controlX, y: sb4 + 6, width: 50, height: 28)
+        let sb5 = sb4 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        statusBarProcessLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sb5, width: labelW + 40, height: PreferencesLayout.rowH)
+        statusBarProcessToggle.frame = NSRect(x: controlX, y: sb5 + 6, width: 50, height: 28)
+        let sb6 = sb5 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        statusBarSizeLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sb6, width: labelW + 40, height: PreferencesLayout.rowH)
+        statusBarSizeToggle.frame = NSRect(x: controlX, y: sb6 + 6, width: 50, height: 28)
+        y += statusBarCardHeight + PreferencesLayout.sectionGap
 
         let windowCardHeight = windowCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
         windowCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: windowCardHeight)

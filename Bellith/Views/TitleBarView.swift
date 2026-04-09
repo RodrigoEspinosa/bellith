@@ -3,6 +3,7 @@ import QuartzCore
 
 /// Compact context strip for the active working directory and shell state.
 final class TitleBarView: NSView {
+    private let settings: BellithSettings
     private enum Metrics {
         static let textSize: CGFloat = 14.5
         static let metaTextSize: CGFloat = 13
@@ -42,7 +43,8 @@ final class TitleBarView: NSView {
         }
     }
 
-    override init(frame: NSRect) {
+    init(frame: NSRect = .zero, settings: BellithSettings = .shared) {
+        self.settings = settings
         super.init(frame: frame)
         wantsLayer = true
 
@@ -131,14 +133,16 @@ final class TitleBarView: NSView {
         rebuildBreadcrumbs()
     }
 
+    private var showsGitBranchInHeader: Bool {
+        !settings.showStatusBar || !settings.showStatusBarGitBranch
+    }
+
     func updateGitBranch(_ branch: String?) {
         let normalizedBranch = branch?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let value = (normalizedBranch?.isEmpty == false) ? normalizedBranch : nil
-        guard value != currentGitBranch else { return }
+        currentGitBranch = (normalizedBranch?.isEmpty == false) ? normalizedBranch : nil
 
-        currentGitBranch = value
-        gitLabel.stringValue = value ?? ""
-        let visible = value != nil
+        gitLabel.stringValue = currentGitBranch ?? ""
+        let visible = currentGitBranch != nil && showsGitBranchInHeader
         gitIcon.isHidden = !visible
         gitLabel.isHidden = !visible
         rebuildBreadcrumbs()
@@ -215,7 +219,7 @@ final class TitleBarView: NSView {
 
         guard allParts.count > 4 else { return allParts }
 
-        let trailingPartCount = (currentGitBranch != nil || currentProcess != nil) ? 2 : 3
+        let trailingPartCount = ((currentGitBranch != nil && showsGitBranchInHeader) || currentProcess != nil) ? 2 : 3
         let suffixParts = Array(allParts.suffix(trailingPartCount))
         return [allParts[0], "…"] + suffixParts
     }
@@ -320,7 +324,7 @@ final class TitleBarView: NSView {
             processLabel.isHidden = true
         }
 
-        if currentGitBranch != nil {
+        if currentGitBranch != nil && showsGitBranchInHeader {
             let branchLabelWidth = min(140, gitLabel.attributedStringValue.size().width + 2)
             let branchGroupWidth = iconSize + gap + branchLabelWidth
             let branchX = max(leadingInset + 32, trailingX - branchGroupWidth)
@@ -428,6 +432,7 @@ final class TitleBarView: NSView {
         gitIcon.contentTintColor = Theme.success
         gitLabel.textColor = Theme.textSecondary
         sizeLabel.textColor = Theme.textSecondary
+        updateGitBranch(currentGitBranch)
         updateProcess(currentProcessPresentation)
         rebuildBreadcrumbs()
     }

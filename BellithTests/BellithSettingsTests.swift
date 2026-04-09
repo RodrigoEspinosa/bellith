@@ -90,6 +90,17 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(settings.commandCompletionNotificationThreshold, 10)
     }
 
+    func testDefaultShowStatusBar() {
+        XCTAssertTrue(settings.showStatusBar)
+        XCTAssertFalse(settings.showStatusBarContext)
+        XCTAssertFalse(settings.showStatusBarPath)
+        XCTAssertFalse(settings.showStatusBarGitWorktree)
+        XCTAssertTrue(settings.showStatusBarGitBranch)
+        XCTAssertTrue(settings.showStatusBarGitHub)
+        XCTAssertFalse(settings.showStatusBarProcess)
+        XCTAssertFalse(settings.showStatusBarSize)
+    }
+
     func testDefaultWindowPadding() {
         XCTAssertEqual(settings.windowPaddingX, 10)
         XCTAssertEqual(settings.windowPaddingY, 38)
@@ -192,6 +203,22 @@ final class BellithSettingsTests: XCTestCase {
     func testSidebarAutoHideRoundtrip() {
         settings.sidebarAutoHide = true
         XCTAssertTrue(settings.sidebarAutoHide)
+    }
+
+    func testShowStatusBarRoundtrip() {
+        settings.showStatusBar = false
+        XCTAssertFalse(settings.showStatusBar)
+
+        settings.showStatusBar = true
+        XCTAssertTrue(settings.showStatusBar)
+
+        settings.showStatusBarGitBranch = false
+        settings.showStatusBarGitHub = false
+        settings.showStatusBarPath = true
+
+        XCTAssertFalse(settings.showStatusBarGitBranch)
+        XCTAssertFalse(settings.showStatusBarGitHub)
+        XCTAssertTrue(settings.showStatusBarPath)
     }
 
     func testTerminalTermRoundtripAndTrimming() {

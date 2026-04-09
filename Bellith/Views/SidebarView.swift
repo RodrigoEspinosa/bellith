@@ -407,13 +407,20 @@ final class SidebarView: NSView {
         let rowSpacing: CGFloat = 6
         let toolItemSize: CGFloat = 28
         let toolItemSpacing: CGFloat = 8
+        let layoutWidth = max(bounds.width, Self.expandedWidth)
+        let layoutBounds = NSRect(x: 0, y: 0, width: layoutWidth, height: bounds.height)
 
-        noiseView.frame = bounds
-        topBand.frame = NSRect(x: 0, y: bounds.height - topBandHeight, width: bounds.width, height: topBandHeight)
+        noiseView.frame = layoutBounds
+        topBand.frame = NSRect(x: 0, y: layoutBounds.height - topBandHeight, width: layoutBounds.width, height: topBandHeight)
         trafficLightDock.frame = .zero
         trafficLightHalo.frame = .zero
-        topBandSeparator.frame = NSRect(x: sideInset, y: bounds.height - topBandHeight, width: max(0, bounds.width - sideInset * 2), height: 1)
-        innerStroke.frame = bounds.insetBy(dx: 1, dy: 1)
+        topBandSeparator.frame = NSRect(
+            x: sideInset,
+            y: layoutBounds.height - topBandHeight,
+            width: max(0, layoutBounds.width - sideInset * 2),
+            height: 1
+        )
+        innerStroke.frame = layoutBounds.insetBy(dx: 1, dy: 1)
         innerStroke.cornerRadius = max(0, (layer?.cornerRadius ?? 12) - 1)
         topHighlight.frame = .zero
         edgeBlend.frame = .zero
@@ -422,26 +429,26 @@ final class SidebarView: NSView {
         headerLabel.stringValue = visibleTabCount > 0 ? "WORKSPACE (\(visibleTabCount))" : "WORKSPACE"
         headerLabel.frame = NSRect(
             x: sideInset,
-            y: bounds.height - headerTopInset,
-            width: bounds.width - sideInset * 2 - 68,
+            y: layoutBounds.height - headerTopInset,
+            width: layoutBounds.width - sideInset * 2 - 68,
             height: 14
         )
 
         newTabButton.frame = NSRect(
-            x: bounds.width - sideInset - 50,
-            y: bounds.height - headerTopInset - 6,
+            x: layoutBounds.width - sideInset - 50,
+            y: layoutBounds.height - headerTopInset - 6,
             width: 24,
             height: 24
         )
         pinButton.frame = NSRect(
-            x: bounds.width - sideInset - 24,
-            y: bounds.height - headerTopInset - 6,
+            x: layoutBounds.width - sideInset - 24,
+            y: layoutBounds.height - headerTopInset - 6,
             width: 24,
             height: 24
         )
 
         let showTools = settingsSnapshot.showTools && !enabledTools.isEmpty
-        let contentWidth = bounds.width - sideInset * 2
+        let contentWidth = layoutBounds.width - sideInset * 2
 
         let tabBottomLimit: CGFloat
         if showTools {
