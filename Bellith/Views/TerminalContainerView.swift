@@ -97,6 +97,19 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         tabBar.onReorderTab = { [weak self] from, to in self?.reorderTab(from: from, to: to) }
 
         // Status bar (always visible at bottom)
+        statusBar.onGitHubBadgeClicked = { [weak self] in
+            guard let cwd = self?.currentTerminalCwd(),
+                  let gh = GitHubService.ghPath() else { return }
+            DispatchQueue.global(qos: .userInitiated).async {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: gh)
+                process.arguments = ["browse"]
+                process.currentDirectoryURL = URL(fileURLWithPath: cwd)
+                process.standardOutput = FileHandle.nullDevice
+                process.standardError = FileHandle.nullDevice
+                try? process.run()
+            }
+        }
         addSubview(statusBar)
 
         // Title bar breadcrumbs (in the title area)
@@ -630,8 +643,12 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         guard let plugin = dependencies.smartPanelRegistry.plugin(for: pluginID),
               let panel = makeSmartPanel(pluginID: pluginID) else { return }
 
-        // Find the shell PID from the current terminal's CWD
+        // Provide the shell PID and CWD so panels can scope their data
         panel.shellPID = findShellPID()
+        panel.workingDirectory = currentTerminalCwd()
+        panel.onRequestNewTab = { [weak self] directory in
+            self?.createTab(initialWorkingDirectory: directory)
+        }
 
         let id = UUID()
         tabs.append(TabEntry(
@@ -881,6 +898,28 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 self.statusBar.updateGitBranch(gitInfo?.branch)
                 self.statusBar.updateGitWorktree(gitInfo?.worktreeName)
                 self.statusBar.updateProcess(runtimeStatus.foregroundProcess)
+            }
+        }
+
+        // Fetch GitHub summary separately (slower, runs in parallel)
+        refreshGitHubStatusAsync(cwd: cwd)
+    }
+
+    private var lastGitHubCwd: String?
+
+    private func refreshGitHubStatusAsync(cwd: String) {
+        // Only re-fetch when the directory actually changes
+        guard cwd != lastGitHubCwd else { return }
+        lastGitHubCwd = cwd
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let summary = GitHubService.statusSummary(in: cwd)
+
+            DispatchQueue.main.async {
+                guard let self,
+                      self.selectedTabIndex < self.tabs.count,
+                      self.tabs[self.selectedTabIndex].cwd == cwd else { return }
+                self.statusBar.updateGitHub(summary)
             }
         }
     }
@@ -1317,10 +1356,20 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     private func updateSmartPanelContexts() {
         let shellPID = findShellPID()
+        let cwd = currentTerminalCwd()
         for tab in tabs {
             guard case .smart(let panel) = tab.content else { continue }
             panel.shellPID = shellPID
+            panel.workingDirectory = cwd
         }
+    }
+
+    /// Returns the CWD of the most relevant terminal tab.
+    private func currentTerminalCwd() -> String? {
+        guard let terminalIndex = toolContextTerminalIndex() else { return nil }
+        let entry = tabs[terminalIndex]
+        let surface = entry.focusedSurface ?? entry.surfaces.first
+        return surface?.currentCwd ?? entry.cwd
     }
 
     func refreshSmartPanelContexts() {

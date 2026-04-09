@@ -102,6 +102,17 @@ class SmartPanelView: NSView {
         didSet { if shellPID != oldValue { refresh() } }
     }
 
+    /// Working directory of the associated terminal tab. Set by the container alongside shellPID.
+    var workingDirectory: String? {
+        didSet { if workingDirectory != oldValue { workingDirectoryDidChange() } }
+    }
+
+    /// Override in subclasses that need to react to CWD changes independently of shellPID.
+    func workingDirectoryDidChange() {}
+
+    /// Callback to request a new terminal tab at a specific directory. Set by the container.
+    var onRequestNewTab: ((String) -> Void)?
+
     private let headerView = NSView()
     private let headerLabel = NSTextField(labelWithString: "")
     private let headerIcon = NSImageView()

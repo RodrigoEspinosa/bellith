@@ -456,5 +456,26 @@ final class CommandRegistry {
             container.selectAllText()
             return true
         })
+
+        register(CommandPlugin(
+            id: "ghOpenInBrowser",
+            title: "GitHub: Open in Browser",
+            description: "Open current repo on GitHub",
+            iconName: "safari",
+            aliases: ["github open", "open repo", "gh browse"]
+        ) { container, _ in
+            let cwd = container.activeCwd
+            guard let gh = GitHubService.ghPath() else { return false }
+            DispatchQueue.global(qos: .userInitiated).async {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: gh)
+                process.arguments = ["browse"]
+                process.currentDirectoryURL = URL(fileURLWithPath: cwd)
+                process.standardOutput = FileHandle.nullDevice
+                process.standardError = FileHandle.nullDevice
+                try? process.run()
+            }
+            return true
+        })
     }
 }

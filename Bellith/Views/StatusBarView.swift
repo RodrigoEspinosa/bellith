@@ -20,6 +20,13 @@ final class StatusBarView: NSView {
     private let processLabel = NSTextField(labelWithString: "")
     private var currentProcessPresentation: ForegroundProcessPresentation?
 
+    // GitHub badge (shown when repo has open PRs/issues)
+    private let separator3 = NSTextField(labelWithString: "·")
+    private let ghIcon = NSImageView()
+    private let ghLabel = NSTextField(labelWithString: "")
+    private var currentGHSummary: GitHubService.StatusSummary?
+    var onGitHubBadgeClicked: (() -> Void)?
+
     // Right items
     private let sizeLabel = NSTextField(labelWithString: "")
 
@@ -72,6 +79,14 @@ final class StatusBarView: NSView {
         processIcon.isHidden = true
         processLabel.isHidden = true
         separator2.isHidden = true
+
+        setupSeparator(separator3)
+
+        setupIcon(ghIcon, symbol: "arrow.triangle.pull", tint: Theme.accent)
+        setupLabel(ghLabel, size: 11, weight: .medium, color: Theme.accent)
+        ghIcon.isHidden = true
+        ghLabel.isHidden = true
+        separator3.isHidden = true
 
         setupLabel(sizeLabel, size: 11, weight: .medium, color: Theme.textMuted)
         sizeLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
@@ -214,6 +229,57 @@ final class StatusBarView: NSView {
         }
     }
 
+    func updateGitHub(_ summary: GitHubService.StatusSummary?) {
+        currentGHSummary = summary
+        let shouldShow = summary != nil
+
+        if let summary {
+            var parts: [String] = []
+            if summary.openPRs > 0 { parts.append("\(summary.openPRs) PR\(summary.openPRs == 1 ? "" : "s")") }
+            if summary.openIssues > 0 { parts.append("\(summary.openIssues) issue\(summary.openIssues == 1 ? "" : "s")") }
+            ghLabel.stringValue = parts.joined(separator: " · ")
+        }
+
+        if shouldShow {
+            ghIcon.isHidden = false
+            ghLabel.isHidden = false
+            separator3.isHidden = gitIcon.isHidden && processIcon.isHidden
+        }
+
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = Theme.animFast
+            ctx.allowsImplicitAnimation = true
+            self.ghIcon.animator().alphaValue = shouldShow ? 1 : 0
+            self.ghLabel.animator().alphaValue = shouldShow ? 1 : 0
+            self.separator3.animator().alphaValue = shouldShow ? 1 : 0
+        } completionHandler: { [weak self] in
+            if !shouldShow {
+                self?.ghIcon.isHidden = true
+                self?.ghLabel.isHidden = true
+                self?.separator3.isHidden = true
+            }
+            self?.needsLayout = true
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        // Check if click is on the GitHub badge area
+        if !ghIcon.isHidden {
+            let ghArea = NSRect(
+                x: ghIcon.frame.minX - 4,
+                y: 0,
+                width: ghLabel.frame.maxX - ghIcon.frame.minX + 8,
+                height: bounds.height
+            )
+            if ghArea.contains(point) {
+                onGitHubBadgeClicked?()
+                return
+            }
+        }
+        super.mouseDown(with: event)
+    }
+
     func updateSize(cols: Int, rows: Int) {
         sizeLabel.stringValue = "\(cols)×\(rows)"
         sizeCapsule.isHidden = false
@@ -226,6 +292,7 @@ final class StatusBarView: NSView {
         updateGitBranch(nil)
         updateGitWorktree(nil)
         updateProcess(nil)
+        updateGitHub(nil)
         sizeLabel.stringValue = ""
         sizeCapsule.isHidden = true
         needsLayout = true
@@ -307,6 +374,23 @@ final class StatusBarView: NSView {
             x += iconSize + gap
             let procW = min(120, processLabel.attributedStringValue.size().width + 6)
             processLabel.frame = NSRect(x: x, y: labelY, width: procW, height: labelH)
+            x += procW
+        }
+
+        // GitHub badge
+        if !ghIcon.isHidden {
+            if !separator3.isHidden {
+                x += 4
+                separator3.frame = NSRect(x: x, y: labelY, width: sepW, height: labelH)
+                x += sepW + 4
+            } else {
+                x += 12
+            }
+
+            ghIcon.frame = NSRect(x: x, y: iconY, width: iconSize, height: iconSize)
+            x += iconSize + gap
+            let ghW = min(160, ghLabel.attributedStringValue.size().width + 6)
+            ghLabel.frame = NSRect(x: x, y: labelY, width: ghW, height: labelH)
         }
 
         // Right: terminal size
@@ -333,8 +417,11 @@ final class StatusBarView: NSView {
         cwdLabel.textColor = Theme.textPrimary
         separator1.textColor = Theme.textMuted.withAlphaComponent(0.5)
         separator2.textColor = Theme.textMuted.withAlphaComponent(0.5)
+        separator3.textColor = Theme.textMuted.withAlphaComponent(0.5)
         gitIcon.contentTintColor = Theme.success
         gitLabel.textColor = Theme.textSecondary
+        ghIcon.contentTintColor = Theme.accent
+        ghLabel.textColor = Theme.accent
         sizeLabel.textColor = Theme.textMuted
         updateProcess(currentProcessPresentation)
     }

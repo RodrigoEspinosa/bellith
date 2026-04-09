@@ -78,6 +78,7 @@
 		DBFD98B2DDBABADA6AA755D7 /* TerminalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92B2F8E9E8CAEFBB81287640 /* TerminalApp.swift */; };
 		DDDD63014E36721A941C97E4 /* TerminalProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 772785F1920803E52A7235C8 /* TerminalProfile.swift */; };
 		E4D636EC2AB7CB169B3351B2 /* ToolActivityMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69BCF08A2D728599C7557684 /* ToolActivityMonitorTests.swift */; };
+		E90F976F4D03F92405690751 /* GitHubService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 419904C2F6EF539F340C4054 /* GitHubService.swift */; };
 		F0688F637632B59A01825393 /* TerminalContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72367912169712669D03FD67 /* TerminalContainerView.swift */; };
 		F26474311EB82215B71E0CE0 /* SearchBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC69484808B270DA784451B1 /* SearchBarView.swift */; };
 		F565B2256404B0E12F1759C5 /* AIToolSessionDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7761C9EFFC090C4726758B71 /* AIToolSessionDetector.swift */; };
@@ -113,6 +114,7 @@
 		39A46EAB948FDDFB1C12E4B9 /* ProcessMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMonitor.swift; sourceTree = "<group>"; };
 		3C9D96FFF53397D45EA101F4 /* PreferencesWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindowController.swift; sourceTree = "<group>"; };
 		41878447E775AEA363F6EF96 /* TerminalSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSurfaceView.swift; sourceTree = "<group>"; };
+		419904C2F6EF539F340C4054 /* GitHubService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubService.swift; sourceTree = "<group>"; };
 		469D41729D62F6520EB09E3B /* SmartPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPanelView.swift; sourceTree = "<group>"; };
 		4AAC0EE06A46735764D38F77 /* ToolActivityPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolActivityPanel.swift; sourceTree = "<group>"; };
 		4FD22E965C6F1A921DC3AFFA /* BellithSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithSettingsTests.swift; sourceTree = "<group>"; };
@@ -342,6 +344,7 @@
 			isa = PBXGroup;
 			children = (
 				7761C9EFFC090C4726758B71 /* AIToolSessionDetector.swift */,
+				419904C2F6EF539F340C4054 /* GitHubService.swift */,
 				D1A6320778E024E8ABCDF2A6 /* SSHLaunchBuilder.swift */,
 				879EFDEE63113B30DD38B6EA /* SSHProfileStore.swift */,
 				A9591082C7912641248227C8 /* SSHSessionDetector.swift */,
@@ -514,6 +517,7 @@
 				18245BFE622B231108C45FFC /* ContextBadgeView.swift in Sources */,
 				3F81E95CDC0FF4142056C98A /* EnvironmentPanel.swift in Sources */,
 				FA077AEA422D8D9128490402 /* FileActivityPanel.swift in Sources */,
+				E90F976F4D03F92405690751 /* GitHubService.swift in Sources */,
 				4DDD96881F2A1409729CD580 /* HyperlinkRouter.swift in Sources */,
 				A58FC4DBB6D1A65B63DEEC49 /* InputHelpers.swift in Sources */,
 				FE9D5CEE859363C51ADCC2CF /* KeyBindings.swift in Sources */,

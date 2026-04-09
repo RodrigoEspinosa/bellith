@@ -386,8 +386,8 @@ final class SidebarView: NSView {
         let headerTopInset: CGFloat = 42
         let rowHeight: CGFloat = 34
         let rowSpacing: CGFloat = 6
-        let toolRowHeight: CGFloat = 30
-        let toolRowSpacing: CGFloat = 6
+        let toolItemSize: CGFloat = 28
+        let toolItemSpacing: CGFloat = 8
 
         noiseView.frame = bounds
         topBand.frame = NSRect(x: 0, y: bounds.height - topBandHeight, width: bounds.width, height: topBandHeight)
@@ -427,20 +427,26 @@ final class SidebarView: NSView {
         let tabBottomLimit: CGFloat
         if showTools {
             let toolsBottomInset: CGFloat = 18
-            let toolRowsHeight = CGFloat(toolRows.count) * toolRowHeight
-                + CGFloat(max(0, toolRows.count - 1)) * toolRowSpacing
-            let toolRowsTopY = toolsBottomInset + toolRowsHeight
+            let toolColumnCount = max(1, Int((contentWidth + toolItemSpacing) / (toolItemSize + toolItemSpacing)))
+            let toolRowCount = Int(ceil(Double(toolRows.count) / Double(toolColumnCount)))
+            let toolGridHeight = CGFloat(toolRowCount) * toolItemSize
+                + CGFloat(max(0, toolRowCount - 1)) * toolItemSpacing
+            let toolGridTopY = toolsBottomInset + toolGridHeight
 
-            var toolRowY = toolRowsTopY
-            for row in toolRows {
+            for (index, row) in toolRows.enumerated() {
+                let gridRow = index / toolColumnCount
+                let gridColumn = index % toolColumnCount
+                let rowY = toolGridTopY
+                    - CGFloat(gridRow + 1) * toolItemSize
+                    - CGFloat(gridRow) * toolItemSpacing
+                let rowX = sideInset + CGFloat(gridColumn) * (toolItemSize + toolItemSpacing)
                 row.isHidden = false
-                row.frame = NSRect(x: sideInset, y: toolRowY - toolRowHeight, width: contentWidth, height: toolRowHeight)
-                toolRowY -= toolRowHeight + toolRowSpacing
+                row.frame = NSRect(x: rowX, y: rowY, width: toolItemSize, height: toolItemSize)
             }
 
             toolsHeaderLabel.frame = NSRect(
                 x: sideInset,
-                y: toolRowsTopY + 10,
+                y: toolGridTopY + 10,
                 width: contentWidth,
                 height: 13
             )
@@ -835,14 +841,14 @@ fileprivate final class SidebarTabRow: NSView {
 fileprivate final class SidebarToolRow: NSView {
     var onSelect: (() -> Void)?
     private let plugin: SmartPanelPlugin
-    private let iconPlate = CALayer()
     private let iconView = NSImageView()
-    private let titleLabel = NSTextField(labelWithString: "")
+    private let tooltipText: String
     private var isHovered = false
     private var isActive = false
 
     init(plugin: SmartPanelPlugin, isActive: Bool = false) {
         self.plugin = plugin
+        self.tooltipText = "\(plugin.title)\n\(plugin.commandDescription)"
         self.isActive = isActive
         super.init(frame: .zero)
         wantsLayer = true
@@ -850,23 +856,15 @@ fileprivate final class SidebarToolRow: NSView {
         layer?.cornerCurve = .continuous
         layer?.borderWidth = 1
 
-        iconPlate.cornerRadius = 6
-        iconPlate.cornerCurve = .continuous
-        iconPlate.borderWidth = 1
-        layer?.addSublayer(iconPlate)
-
         iconView.image = NSImage(systemSymbolName: plugin.iconName, accessibilityDescription: plugin.title)
         iconView.imageScaling = .scaleProportionallyDown
+        iconView.toolTip = tooltipText
         addSubview(iconView)
-
-        titleLabel.stringValue = plugin.title
-        titleLabel.font = BellithFont.ui(12, weight: .medium)
-        titleLabel.lineBreakMode = .byTruncatingTail
-        titleLabel.maximumNumberOfLines = 1
-        addSubview(titleLabel)
 
         setAccessibilityRole(.button)
         setAccessibilityLabel(plugin.title)
+        setAccessibilityHelp(plugin.commandDescription)
+        toolTip = tooltipText
 
         applyStyle()
     }
@@ -883,51 +881,39 @@ fileprivate final class SidebarToolRow: NSView {
     private func applyStyle() {
         let backgroundColor: NSColor
         let borderColor: NSColor
-        let iconPlateColor: NSColor
-        let iconPlateBorder: NSColor
         let iconColor: NSColor
-        let titleColor: NSColor
 
         if isActive {
-            backgroundColor = NSColor(white: 1.0, alpha: 0.028)
-            borderColor = NSColor.clear
-            iconPlateColor = NSColor.clear
-            iconPlateBorder = NSColor.clear
-            iconColor = Theme.textPrimary
-            titleColor = Theme.textPrimary
+            backgroundColor = Theme.textPrimary.withAlphaComponent(Theme.colors.isLight ? 0.08 : 0.14)
+            borderColor = Theme.textPrimary.withAlphaComponent(Theme.colors.isLight ? 0.12 : 0.18)
+            iconColor = Theme.accent
             layer?.shadowOpacity = 0
         } else if isHovered {
             backgroundColor = Theme.hoverOverlay
-            borderColor = NSColor.clear
-            iconPlateColor = NSColor.clear
-            iconPlateBorder = NSColor.clear
+            borderColor = Theme.borderSubtle
             iconColor = Theme.textPrimary
-            titleColor = Theme.textPrimary
             layer?.shadowOpacity = 0
         } else {
             backgroundColor = NSColor.clear
             borderColor = NSColor.clear
-            iconPlateColor = NSColor.clear
-            iconPlateBorder = NSColor.clear
             iconColor = Theme.textSecondary
-            titleColor = Theme.textSecondary
             layer?.shadowOpacity = 0
         }
 
         iconView.contentTintColor = iconColor
-        titleLabel.textColor = titleColor
-        iconPlate.backgroundColor = iconPlateColor.cgColor
-        iconPlate.borderColor = iconPlateBorder.cgColor
         layer?.backgroundColor = backgroundColor.cgColor
         layer?.borderColor = borderColor.cgColor
     }
 
     override func layout() {
         super.layout()
-        let h = bounds.height
-        iconPlate.frame = NSRect(x: 10, y: (h - 18) / 2, width: 18, height: 18)
-        iconView.frame = NSRect(x: 14, y: (h - 10) / 2, width: 10, height: 10)
-        titleLabel.frame = NSRect(x: 36, y: (h - 16) / 2, width: bounds.width - 44, height: 16)
+        let iconSize = min(bounds.width, bounds.height) - 14
+        iconView.frame = NSRect(
+            x: (bounds.width - iconSize) / 2,
+            y: (bounds.height - iconSize) / 2,
+            width: iconSize,
+            height: iconSize
+        )
     }
 
     override func updateTrackingAreas() {
