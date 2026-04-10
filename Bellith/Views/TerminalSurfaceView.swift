@@ -13,6 +13,8 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     private var markedText = NSMutableAttributedString()
     private var keyTextAccumulator: [String]?
     private var eventMonitor: Any?
+    private var sessionRestoreBanner: SessionRestoreBannerView?
+    private var sessionRestoreDismissWorkItem: DispatchWorkItem?
     private var focused = false
     private let dropIndicatorLayer = CALayer()
     private let temporaryDropDirectoryURL = TerminalSurfaceView.temporaryDropDirectoryURL()
@@ -160,6 +162,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         CATransaction.setDisableActions(true)
         dropIndicatorLayer.frame = bounds.insetBy(dx: 6, dy: 6)
         CATransaction.commit()
+        layoutSessionRestoreBanner()
     }
 
     override func setFrameSize(_ newSize: NSSize) {
@@ -207,6 +210,48 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
 
     func refreshReportedSize() {
         reportGridSize(for: bounds.size)
+    }
+
+    func showSessionRestoreIndicator(title: String, detail: String?) {
+        let banner = sessionRestoreBanner ?? {
+            let view = SessionRestoreBannerView()
+            addSubview(view)
+            sessionRestoreBanner = view
+            return view
+        }()
+
+        sessionRestoreDismissWorkItem?.cancel()
+        banner.configure(title: title, detail: detail)
+        layoutSessionRestoreBanner()
+        banner.alphaValue = 0
+        banner.isHidden = false
+
+        Theme.animate(duration: Theme.animMedium, timing: CAMediaTimingFunction(name: .easeOut), { _ in
+            banner.animator().alphaValue = 1
+        })
+
+        let dismissWorkItem = DispatchWorkItem { [weak banner] in
+            guard let banner else { return }
+            Theme.animate(duration: Theme.animFast, timing: CAMediaTimingFunction(name: .easeIn), { _ in
+                banner.animator().alphaValue = 0
+            }, completion: {
+                banner.isHidden = true
+            })
+        }
+        sessionRestoreDismissWorkItem = dismissWorkItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0, execute: dismissWorkItem)
+    }
+
+    private func layoutSessionRestoreBanner() {
+        guard let sessionRestoreBanner, !sessionRestoreBanner.isHidden else { return }
+        let maxWidth = max(220, min(bounds.width - 24, 360))
+        let size = sessionRestoreBanner.fittingSize(constrainedToWidth: maxWidth)
+        sessionRestoreBanner.frame = NSRect(
+            x: floor((bounds.width - size.width) / 2),
+            y: max(10, bounds.height - size.height - 10),
+            width: size.width,
+            height: size.height
+        )
     }
 
     override func updateLayer() {
@@ -657,5 +702,95 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         // Ghostty uses top-left origin, AppKit uses bottom-left
         let viewRect = NSRect(x: x, y: frame.height - y - h, width: w, height: h)
         return window?.convertToScreen(convert(viewRect, to: nil)) ?? viewRect
+    }
+}
+
+private final class SessionRestoreBannerView: NSView {
+    private let iconView = NSImageView()
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let detailLabel = NSTextField(labelWithString: "")
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.cornerRadius = 11
+        layer?.cornerCurve = .continuous
+        layer?.borderWidth = 1
+
+        iconView.image = NSImage(systemSymbolName: "arrow.clockwise.circle.fill", accessibilityDescription: "Session restored")
+        iconView.imageScaling = .scaleProportionallyDown
+        addSubview(iconView)
+
+        titleLabel.font = .systemFont(ofSize: 11, weight: .semibold)
+        titleLabel.lineBreakMode = .byTruncatingTail
+        addSubview(titleLabel)
+
+        detailLabel.font = .systemFont(ofSize: 10, weight: .regular)
+        detailLabel.lineBreakMode = .byWordWrapping
+        detailLabel.maximumNumberOfLines = 2
+        addSubview(detailLabel)
+
+        refreshTheme()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    func configure(title: String, detail: String?) {
+        titleLabel.stringValue = title
+        detailLabel.stringValue = detail ?? ""
+        detailLabel.isHidden = detail?.isEmpty ?? true
+        refreshTheme()
+        needsLayout = true
+    }
+
+    func fittingSize(constrainedToWidth width: CGFloat) -> NSSize {
+        let textWidth = max(140, width - 46)
+        let titleHeight = titleLabel.sizeThatFits(NSSize(width: textWidth, height: .greatestFiniteMagnitude)).height
+        let detailHeight = detailLabel.isHidden
+            ? 0
+            : detailLabel.sizeThatFits(NSSize(width: textWidth, height: .greatestFiniteMagnitude)).height
+        let contentHeight = detailLabel.isHidden ? max(18, titleHeight) : titleHeight + 2 + detailHeight
+        let totalHeight = contentHeight + 16
+        return NSSize(width: width, height: totalHeight)
+    }
+
+    override func layout() {
+        super.layout()
+        let insetX: CGFloat = 12
+        let insetY: CGFloat = 8
+        let iconSize: CGFloat = 14
+        let textX = insetX + iconSize + 8
+        let textWidth = bounds.width - textX - insetX
+
+        iconView.frame = NSRect(x: insetX, y: bounds.height - insetY - iconSize - 1, width: iconSize, height: iconSize)
+
+        let titleSize = titleLabel.sizeThatFits(NSSize(width: textWidth, height: .greatestFiniteMagnitude))
+        titleLabel.frame = NSRect(
+            x: textX,
+            y: bounds.height - insetY - titleSize.height,
+            width: textWidth,
+            height: titleSize.height
+        )
+
+        if detailLabel.isHidden {
+            detailLabel.frame = .zero
+        } else {
+            let detailSize = detailLabel.sizeThatFits(NSSize(width: textWidth, height: .greatestFiniteMagnitude))
+            detailLabel.frame = NSRect(
+                x: textX,
+                y: insetY,
+                width: textWidth,
+                height: detailSize.height
+            )
+        }
+    }
+
+    private func refreshTheme() {
+        layer?.backgroundColor = Theme.chromePanel.withAlphaComponent(0.92).cgColor
+        layer?.borderColor = Theme.chromeHairline.withAlphaComponent(0.9).cgColor
+        iconView.contentTintColor = Theme.accent
+        titleLabel.textColor = Theme.textPrimary
+        detailLabel.textColor = Theme.textSecondary
     }
 }

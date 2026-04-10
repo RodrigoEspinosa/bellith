@@ -168,11 +168,12 @@ final class TerminalSessionCoordinator {
             surface.currentCwd = cwd
             surfaces.append(surface)
 
-            if let scrollbackText, !scrollbackText.isEmpty {
-                replayScrollback(scrollbackText, on: surface, cwd: cwd, isSSH: restoringSSHProfile != nil)
-            } else if restoringSSHProfile == nil, let cwd, !cwd.isEmpty {
+            let hasScrollback = !(scrollbackText?.isEmpty ?? true)
+            if restoringSSHProfile == nil, let cwd, !cwd.isEmpty {
                 sendCdWhenReady(surface: surface, cwd: cwd)
             }
+            let indicator = Self.restorationIndicator(hasScrollback: hasScrollback, cwd: cwd, isSSH: restoringSSHProfile != nil)
+            surface.showSessionRestoreIndicator(title: indicator.title, detail: indicator.detail)
 
             return SplitPaneView(content: surface)
 
@@ -213,28 +214,29 @@ final class TerminalSessionCoordinator {
         }
     }
 
-    private func replayScrollback(_ text: String, on surface: TerminalSurfaceView, cwd: String?, isSSH: Bool) {
-        // Write scrollback to a temp file, then cat it and cd to the saved directory
-        let tempDir = FileManager.default.temporaryDirectory
-        let tempFile = tempDir.appendingPathComponent("bellith-restore-\(UUID().uuidString)")
-        do {
-            try text.write(to: tempFile, atomically: true, encoding: .utf8)
-        } catch {
-            Logger.app.warning("Session restore: failed to write scrollback temp file: \(error)")
-            if !isSSH, let cwd, !cwd.isEmpty {
-                sendCdWhenReady(surface: surface, cwd: cwd)
-            }
-            return
+    static func restorationIndicator(
+        hasScrollback: Bool,
+        cwd: String?,
+        isSSH: Bool
+    ) -> (title: String, detail: String?) {
+        if hasScrollback {
+            return (
+                "Session Restored",
+                isSSH
+                    ? "Remote session is reconnecting. Previous output was not replayed."
+                    : "Working directory restored. Previous output was not replayed."
+            )
         }
 
-        let path = tempFile.path.replacingOccurrences(of: "'", with: "'\\''")
-        var commands = " cat '\(path)'; rm -f '\(path)'"
-        if !isSSH, let cwd, !cwd.isEmpty {
-            let escaped = cwd.replacingOccurrences(of: "'", with: "'\\''")
-            commands += "; cd '\(escaped)'"
+        if isSSH {
+            return ("Session Restored", "Remote session is reconnecting.")
         }
 
-        sendCommandWhenReady(surface: surface, command: commands)
+        if let cwd, !cwd.isEmpty {
+            return ("Session Restored", "Working directory restored.")
+        }
+
+        return ("Session Restored", nil)
     }
 
     private func sendCdWhenReady(surface: TerminalSurfaceView, cwd: String, attempt: Int = 0) {
