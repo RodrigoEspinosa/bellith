@@ -291,6 +291,40 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertTrue(shortcut?.command ?? false)
     }
 
+    func testShortcutSummaryIncludesAlternates() {
+        settings.legacyPaneSupport = true
+        settings.applyPreset(.bellithHybrid)
+
+        let summary = settings.shortcutSummary(for: "navLeft")
+
+        XCTAssertNotNil(summary)
+        XCTAssertTrue(summary?.contains("←") ?? false)
+        XCTAssertTrue(summary?.contains("H") ?? false)
+    }
+
+    func testApplyPresetUpdatesShortcutPresetAndBindings() {
+        settings.legacyPaneSupport = true
+        settings.applyPreset(.vimNavigation)
+
+        XCTAssertEqual(settings.shortcutPreset, .vimNavigation)
+        XCTAssertEqual(settings.shortcut(for: "navLeft")?.key, "h")
+    }
+
+    func testConflictsIncludeAlternateBindings() {
+        var bindings = settings.keybindings
+        guard let newTabIndex = bindings.firstIndex(where: { $0.id == "newTab" }),
+              let closeTabIndex = bindings.firstIndex(where: { $0.id == "closeTab" }) else {
+            XCTFail("Expected keybindings to contain newTab and closeTab")
+            return
+        }
+
+        bindings[closeTabIndex].alternateShortcuts = [bindings[newTabIndex].primaryShortcut].compactMap { $0 }
+        settings.keybindings = bindings
+
+        let conflicts = settings.conflicts()
+        XCTAssertTrue(conflicts.contains { $0.actionIDs.contains("newTab") && $0.actionIDs.contains("closeTab") })
+    }
+
     // MARK: - Resolved Theme
 
     func testResolvedThemeMatchesDarkName() {

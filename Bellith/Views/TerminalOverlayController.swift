@@ -14,10 +14,12 @@ final class TerminalOverlayController {
     private let settings: BellithSettings
 
     private(set) var isPaletteVisible = false
-    private var isSearchVisible = false
+    private(set) var isSearchVisible = false
+    private(set) var isShortcutCheatSheetVisible = false
     private var searchTotal = 0
     private var commandPalette: CommandPaletteView?
     private var searchBar: SearchBarView?
+    private var shortcutCheatSheet: ShortcutCheatSheetView?
 
     init(
         host: TerminalOverlayControllerHost,
@@ -30,12 +32,13 @@ final class TerminalOverlayController {
     }
 
     var presentedOverlayView: NSView? {
-        commandPalette ?? searchBar
+        commandPalette ?? searchBar ?? shortcutCheatSheet
     }
 
     func refreshTheme() {
         commandPalette?.refreshTheme()
         searchBar?.refreshTheme()
+        shortcutCheatSheet?.refreshTheme()
     }
 
     func toggleCommandPalette() {
@@ -48,6 +51,7 @@ final class TerminalOverlayController {
 
     func showCommandPalette() {
         guard !isPaletteVisible, let host else { return }
+        hideShortcutCheatSheet()
         isPaletteVisible = true
 
         let palette = CommandPaletteView(commandRegistry: commandRegistry, settings: settings)
@@ -70,8 +74,40 @@ final class TerminalOverlayController {
         commandPalette?.hide()
     }
 
+    func toggleShortcutCheatSheet() {
+        if isShortcutCheatSheetVisible {
+            hideShortcutCheatSheet()
+        } else {
+            showShortcutCheatSheet()
+        }
+    }
+
+    func showShortcutCheatSheet() {
+        guard !isShortcutCheatSheetVisible, let host else { return }
+        isShortcutCheatSheetVisible = true
+
+        let view = ShortcutCheatSheetView(settings: settings)
+        view.onDismiss = { [weak self] in
+            guard let self else { return }
+            self.isShortcutCheatSheetVisible = false
+            self.shortcutCheatSheet = nil
+            self.host?.overlayWindow?.makeFirstResponder(self.host?.activeSurfaceForOverlay)
+        }
+        view.setContext(searchVisible: isSearchVisible, paletteVisible: isPaletteVisible)
+
+        shortcutCheatSheet = view
+        view.show(in: host.overlayContainerView)
+        host.overlayWindow?.makeFirstResponder(view)
+    }
+
+    func hideShortcutCheatSheet() {
+        guard isShortcutCheatSheetVisible else { return }
+        shortcutCheatSheet?.hide()
+    }
+
     func showSearch(initialNeedle: String? = nil) {
         guard !isSearchVisible, let host else { return }
+        hideShortcutCheatSheet()
         isSearchVisible = true
 
         let bar = SearchBarView()
@@ -111,6 +147,16 @@ final class TerminalOverlayController {
 
     func updateSearchSelected(_ selected: Int) {
         searchBar?.updateCount(selected: selected, total: searchTotal)
+    }
+
+    func searchNextShortcut() {
+        guard isSearchVisible else { return }
+        searchNext()
+    }
+
+    func searchPrevShortcut() {
+        guard isSearchVisible else { return }
+        searchPrev()
     }
 
     private func performSearch(_ query: String) {

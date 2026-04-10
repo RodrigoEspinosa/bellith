@@ -11,12 +11,14 @@
 		02C8AD21D19DCE280556463E /* TerminalSurfaceViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64B019E37CE2B850357E2B7E /* TerminalSurfaceViewTests.swift */; };
 		0331E3E2063625C041EBDC40 /* TerminalConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 254770B950E6ED2A7FF2ED56 /* TerminalConfigTests.swift */; };
 		03D3A8DFD8754842670312F9 /* TerminalOverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0E3FC50C1923C38393AB64D /* TerminalOverlayController.swift */; };
+		03E8D582B225C22CCB11691B /* ShortcutDefinitions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17F1A89752C176F1F7719413 /* ShortcutDefinitions.swift */; };
 		06F9811AE726F42DEB32D418 /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C9D96FFF53397D45EA101F4 /* PreferencesWindowController.swift */; };
 		0AF8CB135FF10863D353566B /* AIToolSessionDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 850CD5C03E9934E94F040341 /* AIToolSessionDetectorTests.swift */; };
 		0FF0294C8F9B14B9DBB9051F /* SplitPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB50294EC30FB94671823CFA /* SplitPaneView.swift */; };
 		11073F73D52E0F9CEAFB4FB5 /* TerminalWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 973180A10E7387D33EBEA8DC /* TerminalWindow.swift */; };
 		114F10461A0D9F305FF71202 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */; };
 		16B68069486FB637AC3441D2 /* ProcessTreePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A3BDD2B74A3A4A8B0869659 /* ProcessTreePanel.swift */; };
+		17A84CE8AC3D862B81D96202 /* ShortcutCheatSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB30AA7FAF949D6830C55830 /* ShortcutCheatSheetView.swift */; };
 		18245BFE622B231108C45FFC /* ContextBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B6A4E8E8C5D7B65BB385570 /* ContextBadgeView.swift */; };
 		196EB5C6360D08B30D2E9D84 /* SSHLaunchBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2647B775021A2DA7887219B7 /* SSHLaunchBuilderTests.swift */; };
 		1FE6195879EE4D4D65B24CC1 /* KeyShortcutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB945FE301FBB1B34329681 /* KeyShortcutTests.swift */; };
@@ -103,6 +105,7 @@
 		0E054D89080718E9732C73F2 /* TerminalConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalConfig.swift; sourceTree = "<group>"; };
 		0E385EC194464E8BF67BE47B /* SplitPaneViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitPaneViewTests.swift; sourceTree = "<group>"; };
 		1055D889FA5B87C7B010166B /* ThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeTests.swift; sourceTree = "<group>"; };
+		17F1A89752C176F1F7719413 /* ShortcutDefinitions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutDefinitions.swift; sourceTree = "<group>"; };
 		185BCA9A77D1E03020788D4D /* PreferencesComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesComponents.swift; sourceTree = "<group>"; };
 		1B08540536C434953689D04D /* SessionStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStateTests.swift; sourceTree = "<group>"; };
 		1E2025F109793353C35658F9 /* GhosttyKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = GhosttyKit.xcframework; path = Frameworks/GhosttyKit.xcframework; sourceTree = "<group>"; };
@@ -157,6 +160,7 @@
 		A97FAFCF93CCB562713620EE /* BellithFont.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithFont.swift; sourceTree = "<group>"; };
 		AC203E445CE586B521D8FC29 /* GitRepositoryInfoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitRepositoryInfoTests.swift; sourceTree = "<group>"; };
 		B8917D92D4F8962901183EEA /* ThemeGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeGridView.swift; sourceTree = "<group>"; };
+		BB30AA7FAF949D6830C55830 /* ShortcutCheatSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutCheatSheetView.swift; sourceTree = "<group>"; };
 		BC1465B59AFD1A458C9669E1 /* BellithDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithDependencies.swift; sourceTree = "<group>"; };
 		C2EA413DA31A6997580EEAF8 /* SSHSessionDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHSessionDetectorTests.swift; sourceTree = "<group>"; };
 		C6E1C3DB1ADB2A4903FA2FF2 /* TerminalRuntimeInfoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalRuntimeInfoService.swift; sourceTree = "<group>"; };
@@ -268,6 +272,7 @@
 				7B6A4E8E8C5D7B65BB385570 /* ContextBadgeView.swift */,
 				9C964FC62608F8FA41EE01B5 /* QuickTerminalController.swift */,
 				EC69484808B270DA784451B1 /* SearchBarView.swift */,
+				BB30AA7FAF949D6830C55830 /* ShortcutCheatSheetView.swift */,
 				EA87F2112E9FD1A9C106D8F2 /* SidebarView.swift */,
 				CB50294EC30FB94671823CFA /* SplitPaneView.swift */,
 				F00EF9188ECCF6928DD41F54 /* StatusBarView.swift */,
@@ -336,6 +341,7 @@
 				0B8A3CDE542974BFD639F6F0 /* CommandRegistry.swift */,
 				D391C65B83BEE0FDBEAE9ACC /* KeyBindings.swift */,
 				90AD21D2101DAB69E92DFB59 /* SessionState.swift */,
+				17F1A89752C176F1F7719413 /* ShortcutDefinitions.swift */,
 				359237193DE4C0621F16BDD8 /* SSHProfile.swift */,
 				FC5966D19E6F059737E8B875 /* TerminalContext.swift */,
 				772785F1920803E52A7235C8 /* TerminalProfile.swift */,
@@ -544,6 +550,8 @@
 				2BC36AC2F4C1DD3823B68CA5 /* SSHSessionDetector.swift in Sources */,
 				F26474311EB82215B71E0CE0 /* SearchBarView.swift in Sources */,
 				3AA2DA3E813BBA3E1B8CF1B9 /* SessionState.swift in Sources */,
+				17A84CE8AC3D862B81D96202 /* ShortcutCheatSheetView.swift in Sources */,
+				03E8D582B225C22CCB11691B /* ShortcutDefinitions.swift in Sources */,
 				9EECDE6BE4882D41C3F53B22 /* SidebarPane.swift in Sources */,
 				DAA8ECCB0288FD778CA430DD /* SidebarView.swift in Sources */,
 				7B41F3CE5DB2BA28D89D339C /* SmartPanelView.swift in Sources */,

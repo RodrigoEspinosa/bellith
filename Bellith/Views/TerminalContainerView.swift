@@ -522,20 +522,30 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     // MARK: - Key Interception
 
     private func matches(_ event: NSEvent, action actionId: String) -> Bool {
-        guard let shortcut = dependencies.settings.shortcut(for: actionId) else { return false }
-        let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let key = event.charactersIgnoringModifiers ?? ""
-        return mods == shortcut.modifierFlags && key == shortcut.key
+        dependencies.settings.binding(for: actionId)?.matches(event: event) ?? false
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         guard event.type == .keyDown else { return super.performKeyEquivalent(with: event) }
         let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let key = event.charactersIgnoringModifiers ?? ""
+        let key = KeyShortcut.canonicalKey(from: event) ?? ""
 
         if mods == .command && (key == "q" || key == ",") { return super.performKeyEquivalent(with: event) }
 
+        if overlayController.isSearchVisible {
+            if matches(event, action: "dismissOverlay") { hideSearch(); return true }
+            if matches(event, action: "searchNext") { overlayController.searchNextShortcut(); return true }
+            if matches(event, action: "searchPrev") { overlayController.searchPrevShortcut(); return true }
+        }
+
+        if overlayController.isShortcutCheatSheetVisible,
+           matches(event, action: "dismissOverlay") {
+            hideShortcutCheatSheet()
+            return true
+        }
+
         if matches(event, action: "commandPalette") { toggleCommandPalette(); return true }
+        if matches(event, action: "showKeyboardShortcuts") { toggleShortcutCheatSheet(); return true }
         if matches(event, action: "toggleSidebar") { sidebar.toggle(); return true }
         if matches(event, action: "newTab") { createTab(); return true }
         if matches(event, action: "closeTab") { closeCurrentTab(); return true }
@@ -596,6 +606,10 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         if matches(event, action: "reloadConfig") { reloadConfig(); return true }
         if matches(event, action: "reopenTab") { reopenClosedTab(); return true }
         if matches(event, action: "clearBuffer") { clearBuffer(); return true }
+        if matches(event, action: "preferences") {
+            dependencies.preferencesWindowController.showWindow()
+            return true
+        }
 
         if matches(event, action: "newWindow") {
             NotificationCenter.default.post(name: .bellithCreateNewWindow, object: nil)
@@ -1785,6 +1799,14 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     func hideCommandPalette() {
         overlayController.hideCommandPalette()
+    }
+
+    func toggleShortcutCheatSheet() {
+        overlayController.toggleShortcutCheatSheet()
+    }
+
+    func hideShortcutCheatSheet() {
+        overlayController.hideShortcutCheatSheet()
     }
 
     func performCommandPaletteCommand(_ text: String) {

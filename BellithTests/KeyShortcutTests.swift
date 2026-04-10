@@ -50,13 +50,47 @@ final class KeyShortcutTests: XCTestCase {
             id: "test",
             label: "Test Action",
             category: "Test",
-            shortcut: KeyShortcut(key: "z", command: true, shift: false, option: false, control: true)
+            scope: .windowChrome,
+            discoverabilityText: "Test shortcut",
+            primaryShortcut: KeyShortcut(key: "z", command: true, shift: false, option: false, control: true),
+            alternateShortcuts: [
+                KeyShortcut(key: "leftArrow", command: true, shift: false, option: true, control: false)
+            ]
         )
         let data = try JSONEncoder().encode(entry)
         let decoded = try JSONDecoder().decode(KeyBindingEntry.self, from: data)
         XCTAssertEqual(decoded.id, entry.id)
         XCTAssertEqual(decoded.label, entry.label)
         XCTAssertEqual(decoded.category, entry.category)
-        XCTAssertEqual(decoded.shortcut.key, entry.shortcut.key)
+        XCTAssertEqual(decoded.primaryShortcut?.key, entry.primaryShortcut?.key)
+        XCTAssertEqual(decoded.alternateShortcuts.first?.key, "leftArrow")
+    }
+
+    func testSpecialKeyDisplayUsesSymbols() {
+        let shortcut = KeyShortcut(key: "leftArrow", command: true, shift: false, option: true, control: false)
+
+        XCTAssertEqual(shortcut.keycapStrings.last, "←")
+        XCTAssertTrue(shortcut.displayString.contains("←"))
+    }
+
+    func testLegacyShortcutPayloadDecodesIntoPrimaryShortcut() throws {
+        let json = """
+        {
+          "id": "legacy",
+          "label": "Legacy",
+          "category": "Test",
+          "shortcut": {
+            "key": "k",
+            "command": true,
+            "shift": false,
+            "option": false,
+            "control": false
+          }
+        }
+        """
+        let decoded = try JSONDecoder().decode(KeyBindingEntry.self, from: Data(json.utf8))
+
+        XCTAssertEqual(decoded.primaryShortcut?.key, "k")
+        XCTAssertTrue(decoded.alternateShortcuts.isEmpty)
     }
 }

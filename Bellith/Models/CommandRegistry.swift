@@ -325,6 +325,18 @@ final class CommandRegistry {
         })
 
         register(CommandPlugin(
+            id: "showKeyboardShortcuts",
+            title: "Keyboard Shortcuts",
+            description: "Show the contextual shortcut cheat sheet",
+            iconName: "keyboard",
+            shortcutID: "showKeyboardShortcuts",
+            aliases: ["shortcuts", "keys", "keyboard"]
+        ) { container, _ in
+            container.toggleShortcutCheatSheet()
+            return true
+        })
+
+        register(CommandPlugin(
             id: "sshProfiles",
             title: "SSH Profiles",
             description: "Open SSH profile settings",
@@ -340,6 +352,7 @@ final class CommandRegistry {
             title: "Settings",
             description: "Open preferences window",
             iconName: "gear",
+            shortcutID: "preferences",
             aliases: ["settings", "preferences"]
         ) { _, _ in
             PreferencesWindowController.shared.showWindow()

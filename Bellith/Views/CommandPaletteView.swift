@@ -238,6 +238,10 @@ final class CommandPaletteView: NSView {
                 scored.append((cmd, labelScore + 10)) // Boost label matches
             } else if let idScore = fuzzyScore(query: query, target: cmd.id) {
                 scored.append((cmd, idScore))
+            } else if let shortcutId = cmd.shortcutId,
+                      let shortcutText = BellithSettings.shared.shortcutSummary(for: shortcutId),
+                      let shortcutScore = fuzzyScore(query: query, target: shortcutText) {
+                scored.append((cmd, shortcutScore))
             }
         }
         return scored.sorted { $0.score > $1.score }.map { $0.cmd }
@@ -256,13 +260,7 @@ final class CommandPaletteView: NSView {
         selectedResultIndex = filtered.isEmpty ? -1 : 0
 
         for (i, cmd) in filtered.prefix(maxVisibleResults).enumerated() {
-            // Look up keyboard shortcut
-            let shortcutStr: String?
-            if let sid = cmd.shortcutId, let shortcut = settings.shortcut(for: sid) {
-                shortcutStr = shortcut.displayString
-            } else {
-                shortcutStr = nil
-            }
+            let shortcutStr = cmd.shortcutId.flatMap { settings.shortcutSummary(for: $0) }
 
             let row = CommandRow(
                 label: cmd.label,

@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var newWindowObserver: NSObjectProtocol?
     private var appearanceObserver: NSObjectProtocol?
     private var terminalConfigFailureObserver: NSObjectProtocol?
+    private var settingsObserver: NSObjectProtocol?
     private var themeMenu = NSMenu(title: "Theme")
 
     private struct WindowEntry {
@@ -98,6 +99,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Request notification permission
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
 
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: BellithSettings.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.setupMenus()
+        }
+
         // Listen for new window requests
         newWindowObserver = NotificationCenter.default.addObserver(forName: .bellithCreateNewWindow, object: nil, queue: .main) { [weak self] notification in
             let request = notification.object as? WindowLaunchRequest
@@ -153,6 +162,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let obs = terminalConfigFailureObserver {
             NotificationCenter.default.removeObserver(obs)
             terminalConfigFailureObserver = nil
+        }
+        if let obs = settingsObserver {
+            NotificationCenter.default.removeObserver(obs)
+            settingsObserver = nil
         }
 
         // Tear down all windows
@@ -310,8 +323,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "About Bellith", action: #selector(handleAbout), keyEquivalent: "")
         appMenu.addItem(.separator())
-        let prefsItem = NSMenuItem(title: "Settings…", action: #selector(handlePreferences), keyEquivalent: ",")
-        appMenu.addItem(prefsItem)
+        appMenu.addItem(configuredMenuItem(title: "Settings…", action: #selector(handlePreferences), shortcutID: "preferences"))
         appMenu.addItem(.separator())
         let servicesItem = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
         let servicesMenu = NSMenu(title: "Services")
@@ -332,79 +344,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // File menu
         let shellMenu = NSMenu(title: "File")
-        shellMenu.addItem(withTitle: "New Tab", action: #selector(handleNewTab), keyEquivalent: "t")
-        shellMenu.addItem(withTitle: "New Window", action: #selector(handleNewWindow), keyEquivalent: "n")
-        shellMenu.addItem(withTitle: "Connect Host…", action: #selector(handleConnectHost), keyEquivalent: "")
+        shellMenu.addItem(configuredMenuItem(title: "New Tab", action: #selector(handleNewTab), shortcutID: "newTab"))
+        shellMenu.addItem(configuredMenuItem(title: "New Window", action: #selector(handleNewWindow), shortcutID: "newWindow"))
+        shellMenu.addItem(configuredMenuItem(title: "Connect Host…", action: #selector(handleConnectHost)))
         if dependencies.settings.legacyPaneSupport {
             shellMenu.addItem(.separator())
-            let splitRightItem = NSMenuItem(title: "Split Right", action: #selector(handleSplitRight), keyEquivalent: "d")
-            shellMenu.addItem(splitRightItem)
-            let splitDownItem = NSMenuItem(title: "Split Down", action: #selector(handleSplitDown), keyEquivalent: "d")
-            splitDownItem.keyEquivalentModifierMask = [.command, .shift]
-            shellMenu.addItem(splitDownItem)
+            shellMenu.addItem(configuredMenuItem(title: "Split Right", action: #selector(handleSplitRight), shortcutID: "splitRight"))
+            shellMenu.addItem(configuredMenuItem(title: "Split Down", action: #selector(handleSplitDown), shortcutID: "splitDown"))
             shellMenu.addItem(.separator())
-            shellMenu.addItem(withTitle: "Close Pane", action: #selector(handleClosePane), keyEquivalent: "")
+            shellMenu.addItem(configuredMenuItem(title: "Close Pane", action: #selector(handleClosePane), shortcutID: "closePane"))
         }
-        shellMenu.addItem(withTitle: "Close Tab", action: #selector(handleCloseTab), keyEquivalent: "w")
-        shellMenu.addItem(withTitle: "Close Window", action: #selector(handleCloseWindow), keyEquivalent: "")
+        shellMenu.addItem(configuredMenuItem(title: "Close Tab", action: #selector(handleCloseTab), shortcutID: "closeTab"))
+        shellMenu.addItem(configuredMenuItem(title: "Close Window", action: #selector(handleCloseWindow)))
         let shellMenuItem = NSMenuItem()
         shellMenuItem.submenu = shellMenu
         mainMenu.addItem(shellMenuItem)
 
         // Edit menu
         let editMenu = NSMenu(title: "Edit")
-        editMenu.addItem(withTitle: "Copy", action: #selector(handleCopy), keyEquivalent: "c")
-        editMenu.addItem(withTitle: "Paste", action: #selector(handlePaste), keyEquivalent: "v")
-        editMenu.addItem(withTitle: "Select All", action: #selector(handleSelectAll), keyEquivalent: "a")
+        editMenu.addItem(configuredMenuItem(title: "Copy", action: #selector(handleCopy), shortcutID: "copy"))
+        editMenu.addItem(configuredMenuItem(title: "Paste", action: #selector(handlePaste), shortcutID: "paste"))
+        editMenu.addItem(configuredMenuItem(title: "Select All", action: #selector(handleSelectAll), shortcutID: "selectAll"))
         editMenu.addItem(.separator())
-        let findItem = NSMenuItem(title: "Find…", action: #selector(handleFind), keyEquivalent: "f")
-        editMenu.addItem(findItem)
+        editMenu.addItem(configuredMenuItem(title: "Find…", action: #selector(handleFind), shortcutID: "search"))
         editMenu.addItem(.separator())
-        let clearItem = NSMenuItem(title: "Clear Buffer", action: #selector(handleClearBuffer), keyEquivalent: "k")
-        clearItem.keyEquivalentModifierMask = [.command, .shift]
-        editMenu.addItem(clearItem)
+        editMenu.addItem(configuredMenuItem(title: "Clear Buffer", action: #selector(handleClearBuffer), shortcutID: "clearBuffer"))
         let editMenuItem = NSMenuItem()
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
 
         // Tab menu
         let tabMenu = NSMenu(title: "Tab")
-        let nextTab = NSMenuItem(title: "Next Tab", action: #selector(handleNextTab), keyEquivalent: "]")
-        nextTab.keyEquivalentModifierMask = [.command, .shift]
-        tabMenu.addItem(nextTab)
-        let prevTab = NSMenuItem(title: "Previous Tab", action: #selector(handlePrevTab), keyEquivalent: "[")
-        prevTab.keyEquivalentModifierMask = [.command, .shift]
-        tabMenu.addItem(prevTab)
+        tabMenu.addItem(configuredMenuItem(title: "Next Tab", action: #selector(handleNextTab), shortcutID: "nextTab"))
+        tabMenu.addItem(configuredMenuItem(title: "Previous Tab", action: #selector(handlePrevTab), shortcutID: "prevTab"))
         tabMenu.addItem(.separator())
-        let reopenItem = NSMenuItem(title: "Reopen Closed Tab", action: #selector(handleReopenTab), keyEquivalent: "t")
-        reopenItem.keyEquivalentModifierMask = [.command, .shift]
-        tabMenu.addItem(reopenItem)
+        tabMenu.addItem(configuredMenuItem(title: "Reopen Closed Tab", action: #selector(handleReopenTab), shortcutID: "reopenTab"))
         let tabMenuItem = NSMenuItem()
         tabMenuItem.submenu = tabMenu
         mainMenu.addItem(tabMenuItem)
 
         // View menu
         let viewMenu = NSMenu(title: "View")
-        let sidebarItem = NSMenuItem(title: "Toggle Sidebar", action: #selector(handleToggleSidebar), keyEquivalent: "e")
-        sidebarItem.keyEquivalentModifierMask = [.command, .shift]
-        viewMenu.addItem(sidebarItem)
-        let paletteItem = NSMenuItem(title: "Command Palette", action: #selector(handleTogglePalette), keyEquivalent: "k")
-        paletteItem.keyEquivalentModifierMask = .command
-        viewMenu.addItem(paletteItem)
+        viewMenu.addItem(configuredMenuItem(title: "Toggle Sidebar", action: #selector(handleToggleSidebar), shortcutID: "toggleSidebar"))
+        viewMenu.addItem(configuredMenuItem(title: "Command Palette", action: #selector(handleTogglePalette), shortcutID: "commandPalette"))
         let statusBarItem = NSMenuItem(title: "Show Status Bar", action: #selector(handleToggleStatusBar), keyEquivalent: "")
         statusBarItem.target = self
         viewMenu.addItem(statusBarItem)
         viewMenu.addItem(.separator())
-        let fontBiggerItem = NSMenuItem(title: "Increase Font Size", action: #selector(handleFontBigger), keyEquivalent: "=")
-        viewMenu.addItem(fontBiggerItem)
-        let fontSmallerItem = NSMenuItem(title: "Decrease Font Size", action: #selector(handleFontSmaller), keyEquivalent: "-")
-        viewMenu.addItem(fontSmallerItem)
-        let fontResetItem = NSMenuItem(title: "Reset Font Size", action: #selector(handleFontReset), keyEquivalent: "0")
-        viewMenu.addItem(fontResetItem)
+        viewMenu.addItem(configuredMenuItem(title: "Increase Font Size", action: #selector(handleFontBigger), shortcutID: "fontSizeUp"))
+        viewMenu.addItem(configuredMenuItem(title: "Decrease Font Size", action: #selector(handleFontSmaller), shortcutID: "fontSizeDown"))
+        viewMenu.addItem(configuredMenuItem(title: "Reset Font Size", action: #selector(handleFontReset), shortcutID: "fontSizeReset"))
         viewMenu.addItem(.separator())
-        let fullscreenItem = NSMenuItem(title: "Toggle Full Screen", action: #selector(handleFullscreen), keyEquivalent: "")
-        fullscreenItem.keyEquivalentModifierMask = [.command, .control]
-        viewMenu.addItem(fullscreenItem)
+        viewMenu.addItem(configuredMenuItem(title: "Toggle Full Screen", action: #selector(handleFullscreen), shortcutID: "toggleFullscreen"))
+        viewMenu.addItem(configuredMenuItem(title: "Reload Config", action: #selector(handleReloadConfig), shortcutID: "reloadConfig"))
         viewMenu.addItem(.separator())
 
         // Theme submenu
@@ -444,13 +436,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // Help menu
         let helpMenu = NSMenu(title: "Help")
-        helpMenu.addItem(withTitle: "Bellith Help", action: #selector(handleHelp), keyEquivalent: "?")
+        helpMenu.addItem(configuredMenuItem(title: "Keyboard Shortcuts", action: #selector(handleShowKeyboardShortcuts), shortcutID: "showKeyboardShortcuts"))
+        helpMenu.addItem(configuredMenuItem(title: "Bellith Help", action: #selector(handleHelp)))
         let helpMenuItem = NSMenuItem()
         helpMenuItem.submenu = helpMenu
         mainMenu.addItem(helpMenuItem)
         NSApp.helpMenu = helpMenu
 
         NSApp.mainMenu = mainMenu
+    }
+
+    private func configuredMenuItem(
+        title: String,
+        action: Selector,
+        shortcutID: String? = nil
+    ) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        if let shortcutID {
+            applyShortcut(shortcutID, to: item)
+        }
+        return item
+    }
+
+    private func applyShortcut(_ shortcutID: String, to item: NSMenuItem) {
+        guard let shortcut = dependencies.settings.shortcut(for: shortcutID) else {
+            item.keyEquivalent = ""
+            item.keyEquivalentModifierMask = []
+            return
+        }
+        item.keyEquivalent = shortcut.menuKeyEquivalent
+        item.keyEquivalentModifierMask = shortcut.modifierFlags
     }
 
     // MARK: - Menu Actions
@@ -494,12 +510,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     @objc private func handleToggleSidebar() { activeEntry?.container.sidebar.toggle() }
     @objc private func handleTogglePalette() { activeEntry?.container.toggleCommandPalette() }
+    @objc private func handleShowKeyboardShortcuts() { activeEntry?.container.toggleShortcutCheatSheet() }
     @objc private func handleToggleStatusBar() { dependencies.settings.showStatusBar.toggle() }
 
     @objc private func handleFontBigger() { activeEntry?.container.adjustFontSizePublic(delta: 1) }
     @objc private func handleFontSmaller() { activeEntry?.container.adjustFontSizePublic(delta: -1) }
     @objc private func handleFontReset() { activeEntry?.container.resetFontSizePublic() }
     @objc private func handleFullscreen() { NSApp.keyWindow?.toggleFullScreen(nil) }
+    @objc private func handleReloadConfig() { activeEntry?.container.reloadConfig() }
     @objc private func handlePreferences() { dependencies.preferencesWindowController.showWindow() }
     @objc private func handleAbout() {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0"

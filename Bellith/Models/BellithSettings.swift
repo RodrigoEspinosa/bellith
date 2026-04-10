@@ -16,7 +16,7 @@ final class BellithSettings {
         static let stringKeys: Set<String> = [
             "fontFamily", "cursorStyle", "darkThemeName", "lightThemeName", "tabMode",
             "shell", "terminalTerm", "visorHotkey", "visorPosition", "workingDirectory",
-            "bellMode", "wordSeparators",
+            "bellMode", "wordSeparators", "shortcutPreset",
         ]
         static let intKeys: Set<String> = [
             "fontSize", "scrollbackLines", "commandCompletionNotificationThreshold",
@@ -462,18 +462,23 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "legacyPaneSupport"); notify() }
     }
 
+    var shortcutPreset: ShortcutPresetID {
+        get {
+            guard let raw = defaults.string(forKey: "shortcutPreset"),
+                  let preset = ShortcutPresetID(rawValue: raw) else { return .bellithHybrid }
+            return preset
+        }
+        set { defaults.set(newValue.rawValue, forKey: "shortcutPreset"); notify() }
+    }
+
     // Keybindings
     var keybindings: [KeyBindingEntry] {
         get {
             let visibleDefaults = activeDefaultKeybindings
             if let data = defaults.data(forKey: "keybindings"),
                let decoded = try? JSONDecoder().decode([KeyBindingEntry].self, from: data) {
-                // Merge with defaults in case new actions were added
-                var map = Dictionary(uniqueKeysWithValues: decoded.map { ($0.id, $0) })
-                for def in visibleDefaults {
-                    if map[def.id] == nil { map[def.id] = def }
-                }
-                return visibleDefaults.map { map[$0.id] ?? $0 }
+                let map = Dictionary(uniqueKeysWithValues: decoded.map { ($0.id, $0) })
+                return visibleDefaults.map { mergeBinding($0, persisted: map[$0.id]) }
             }
             return visibleDefaults
         }
@@ -486,14 +491,83 @@ final class BellithSettings {
     }
 
     func shortcut(for actionId: String) -> KeyShortcut? {
-        keybindings.first { $0.id == actionId }?.shortcut
+        binding(for: actionId)?.primaryShortcut
+    }
+
+    func shortcuts(for actionId: String) -> [KeyShortcut] {
+        binding(for: actionId)?.allShortcuts ?? []
+    }
+
+    func shortcutSummary(for actionId: String) -> String? {
+        guard let binding = binding(for: actionId), !binding.allShortcuts.isEmpty else { return nil }
+        return binding.shortcutSummary
+    }
+
+    func binding(for actionId: String) -> KeyBindingEntry? {
+        keybindings.first { $0.id == actionId }
+    }
+
+    func effectiveShortcutMap(for scope: ShortcutScope? = nil) -> [String: [KeyShortcut]] {
+        keybindings.reduce(into: [String: [KeyShortcut]]()) { map, binding in
+            guard scope == nil || binding.scope == scope else { return }
+            map[binding.id] = binding.allShortcuts
+        }
+    }
+
+    func conflicts() -> [ShortcutConflict] {
+        let bindings = keybindings
+        var groups: [KeyShortcut: [String]] = [:]
+
+        for binding in bindings {
+            for shortcut in binding.allShortcuts {
+                groups[shortcut, default: []].append(binding.id)
+            }
+        }
+
+        return groups
+            .compactMap { shortcut, actionIDs in
+                let uniqueActionIDs = Array(Set(actionIDs)).sorted()
+                guard uniqueActionIDs.count > 1 else { return nil }
+                return ShortcutConflict(shortcut: shortcut, actionIDs: uniqueActionIDs)
+            }
+            .sorted { $0.shortcut.displayString < $1.shortcut.displayString }
+    }
+
+    func reset(actionId: String) {
+        guard let index = keybindings.firstIndex(where: { $0.id == actionId }),
+              let defaultBinding = activeDefaultKeybindings.first(where: { $0.id == actionId }) else { return }
+        var updated = keybindings
+        updated[index] = defaultBinding
+        keybindings = updated
+    }
+
+    func reset(category: String) {
+        let defaultsByID = Dictionary(uniqueKeysWithValues: activeDefaultKeybindings.map { ($0.id, $0) })
+        let updated = keybindings.map { binding in
+            guard binding.category == category, let defaultBinding = defaultsByID[binding.id] else { return binding }
+            return defaultBinding
+        }
+        keybindings = updated
+    }
+
+    func applyPreset(_ preset: ShortcutPresetID) {
+        defaults.set(preset.rawValue, forKey: "shortcutPreset")
+        keybindings = Self.defaultKeybindings(for: preset, legacyPaneSupport: legacyPaneSupport)
     }
 
     private var activeDefaultKeybindings: [KeyBindingEntry] {
-        if legacyPaneSupport {
-            return Self.defaultKeybindings
+        Self.defaultKeybindings(for: shortcutPreset, legacyPaneSupport: legacyPaneSupport)
+    }
+
+    private func mergeBinding(_ defaultBinding: KeyBindingEntry, persisted: KeyBindingEntry?) -> KeyBindingEntry {
+        guard let persisted else { return defaultBinding }
+        var merged = defaultBinding
+        merged.primaryShortcut = persisted.primaryShortcut
+        merged.alternateShortcuts = persisted.alternateShortcuts.filter {
+            persisted.primaryShortcut == nil || $0 != persisted.primaryShortcut
         }
-        return Self.defaultKeybindings.filter { !Self.legacyPaneActionIDs.contains($0.id) }
+        merged.presetSource = persisted.presetSource
+        return merged
     }
 
     private func migrateLegacyWindowPaddingIfNeeded() {
@@ -511,79 +585,14 @@ final class BellithSettings {
         defaults.set(WindowPaddingDefaults.current, forKey: "windowPaddingY")
     }
 
-    static let defaultKeybindings: [KeyBindingEntry] = [
-        // Tabs
-        KeyBindingEntry(id: "newTab", label: "New Tab", category: "Tabs",
-                        shortcut: KeyShortcut(key: "t", command: true, shift: false, option: false, control: false)),
-        KeyBindingEntry(id: "closeTab", label: "Close Tab", category: "Tabs",
-                        shortcut: KeyShortcut(key: "w", command: true, shift: false, option: false, control: false)),
-        KeyBindingEntry(id: "nextTab", label: "Next Tab", category: "Tabs",
-                        shortcut: KeyShortcut(key: "]", command: true, shift: true, option: false, control: false)),
-        KeyBindingEntry(id: "prevTab", label: "Previous Tab", category: "Tabs",
-                        shortcut: KeyShortcut(key: "[", command: true, shift: true, option: false, control: false)),
-        // Panes
-        KeyBindingEntry(id: "splitRight", label: "Split Right", category: "Panes",
-                        shortcut: KeyShortcut(key: "d", command: true, shift: false, option: false, control: false)),
-        KeyBindingEntry(id: "splitDown", label: "Split Down", category: "Panes",
-                        shortcut: KeyShortcut(key: "d", command: true, shift: true, option: false, control: false)),
-        KeyBindingEntry(id: "closePane", label: "Close Pane", category: "Panes",
-                        shortcut: KeyShortcut(key: "w", command: true, shift: true, option: false, control: false)),
-        KeyBindingEntry(id: "navLeft", label: "Focus Left Pane", category: "Panes",
-                        shortcut: KeyShortcut(key: "h", command: true, shift: false, option: true, control: false)),
-        KeyBindingEntry(id: "navDown", label: "Focus Down Pane", category: "Panes",
-                        shortcut: KeyShortcut(key: "j", command: true, shift: false, option: true, control: false)),
-        KeyBindingEntry(id: "navUp", label: "Focus Up Pane", category: "Panes",
-                        shortcut: KeyShortcut(key: "k", command: true, shift: false, option: true, control: false)),
-        KeyBindingEntry(id: "navRight", label: "Focus Right Pane", category: "Panes",
-                        shortcut: KeyShortcut(key: "l", command: true, shift: false, option: true, control: false)),
-        KeyBindingEntry(id: "resizeLeft", label: "Resize Pane Left", category: "Panes",
-                        shortcut: KeyShortcut(key: "h", command: true, shift: true, option: true, control: false)),
-        KeyBindingEntry(id: "resizeDown", label: "Resize Pane Down", category: "Panes",
-                        shortcut: KeyShortcut(key: "j", command: true, shift: true, option: true, control: false)),
-        KeyBindingEntry(id: "resizeUp", label: "Resize Pane Up", category: "Panes",
-                        shortcut: KeyShortcut(key: "k", command: true, shift: true, option: true, control: false)),
-        KeyBindingEntry(id: "resizeRight", label: "Resize Pane Right", category: "Panes",
-                        shortcut: KeyShortcut(key: "l", command: true, shift: true, option: true, control: false)),
-        KeyBindingEntry(id: "zoomPane", label: "Zoom Pane", category: "Panes",
-                        shortcut: KeyShortcut(key: "\r", command: true, shift: true, option: false, control: false)),
-        KeyBindingEntry(id: "equalizePanes", label: "Equalize Panes", category: "Panes",
-                        shortcut: KeyShortcut(key: "=", command: true, shift: false, option: true, control: false)),
-        KeyBindingEntry(id: "broadcastInput", label: "Broadcast Input", category: "Panes",
-                        shortcut: KeyShortcut(key: "i", command: true, shift: false, option: true, control: false)),
-        // View
-        KeyBindingEntry(id: "toggleSidebar", label: "Toggle Sidebar", category: "View",
-                        shortcut: KeyShortcut(key: "e", command: true, shift: true, option: false, control: false)),
-        KeyBindingEntry(id: "commandPalette", label: "Command Palette", category: "View",
-                        shortcut: KeyShortcut(key: "k", command: true, shift: false, option: false, control: false)),
+    static let defaultKeybindings: [KeyBindingEntry] = defaultKeybindings(for: .bellithHybrid, legacyPaneSupport: false)
 
-        // Edit
-        KeyBindingEntry(id: "copy", label: "Copy", category: "Edit",
-                        shortcut: KeyShortcut(key: "c", command: true, shift: false, option: false, control: false)),
-        KeyBindingEntry(id: "paste", label: "Paste", category: "Edit",
-                        shortcut: KeyShortcut(key: "v", command: true, shift: false, option: false, control: false)),
-        KeyBindingEntry(id: "search", label: "Find", category: "Edit",
-                        shortcut: KeyShortcut(key: "f", command: true, shift: false, option: false, control: false)),
-        // Window
-        KeyBindingEntry(id: "newWindow", label: "New Window", category: "View",
-                        shortcut: KeyShortcut(key: "n", command: true, shift: false, option: false, control: false)),
-        KeyBindingEntry(id: "toggleFullscreen", label: "Toggle Fullscreen", category: "View",
-                        shortcut: KeyShortcut(key: "f", command: true, shift: false, option: false, control: true)),
-        KeyBindingEntry(id: "fontSizeUp", label: "Increase Font Size", category: "View",
-                        shortcut: KeyShortcut(key: "=", command: true, shift: false, option: false, control: false)),
-        KeyBindingEntry(id: "fontSizeDown", label: "Decrease Font Size", category: "View",
-                        shortcut: KeyShortcut(key: "-", command: true, shift: false, option: false, control: false)),
-        KeyBindingEntry(id: "fontSizeReset", label: "Reset Font Size", category: "View",
-                        shortcut: KeyShortcut(key: "0", command: true, shift: false, option: false, control: false)),
-        KeyBindingEntry(id: "reloadConfig", label: "Reload Config", category: "View",
-                        shortcut: KeyShortcut(key: ",", command: true, shift: true, option: false, control: false)),
-        // New actions
-        KeyBindingEntry(id: "reopenTab", label: "Reopen Closed Tab", category: "Tabs",
-                        shortcut: KeyShortcut(key: "t", command: true, shift: true, option: false, control: false)),
-        KeyBindingEntry(id: "clearBuffer", label: "Clear Buffer", category: "Edit",
-                        shortcut: KeyShortcut(key: "k", command: true, shift: true, option: false, control: false)),
-        KeyBindingEntry(id: "selectAll", label: "Select All", category: "Edit",
-                        shortcut: KeyShortcut(key: "a", command: true, shift: false, option: false, control: false)),
-    ]
+    static func defaultKeybindings(
+        for preset: ShortcutPresetID,
+        legacyPaneSupport: Bool
+    ) -> [KeyBindingEntry] {
+        ShortcutDefinitionLibrary.bindings(for: preset, legacyPaneSupport: legacyPaneSupport)
+    }
 
     static let legacyPaneActionIDs: Set<String> = [
         "splitRight",
@@ -741,6 +750,7 @@ final class BellithSettings {
             "showStatusBarPath": showStatusBarPath,
             "showStatusBarProcess": showStatusBarProcess,
             "showStatusBarSize": showStatusBarSize,
+            "shortcutPreset": shortcutPreset.rawValue,
             "sidebarAutoHide": sidebarAutoHide,
             "sidebarPinned": sidebarPinned,
             "sidebarShowTools": sidebarShowTools,

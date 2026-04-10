@@ -70,16 +70,17 @@ final class SettingsCard: NSView {
 // MARK: - Shortcut Badge (click to record)
 
 final class ShortcutBadge: NSView {
-    var onNewShortcut: ((KeyShortcut) -> Void)?
-    private var shortcut: KeyShortcut
+    var onNewShortcut: ((KeyShortcut?) -> Void)?
+    private var shortcut: KeyShortcut?
     private var isRecording = false
     private var trackingArea: NSTrackingArea?
     private var isHovered = false
     private let recordingLabel = NSTextField(labelWithString: "")
+    private let emptyLabel = "Unassigned"
 
     override var mouseDownCanMoveWindow: Bool { false }
 
-    init(shortcut: KeyShortcut) {
+    init(shortcut: KeyShortcut?) {
         self.shortcut = shortcut
         super.init(frame: .zero)
         wantsLayer = true
@@ -112,6 +113,27 @@ final class ShortcutBadge: NSView {
             bp.lineWidth = 1.5
             bp.setLineDash([4, 3], count: 2, phase: 0)
             bp.stroke()
+            return
+        }
+
+        guard let shortcut else {
+            let rect = bounds.insetBy(dx: 0, dy: 3)
+            let fill = isHovered ? Theme.overlay : Theme.surface.withAlphaComponent(0.45)
+            fill.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6).fill()
+
+            Theme.border.setStroke()
+            let borderPath = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: 6, yRadius: 6)
+            borderPath.lineWidth = 0.5
+            borderPath.stroke()
+
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: BellithFont.mono(11, weight: .regular),
+                .foregroundColor: Theme.textMuted,
+            ]
+            let size = (emptyLabel as NSString).size(withAttributes: attrs)
+            let origin = NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2)
+            (emptyLabel as NSString).draw(at: origin, withAttributes: attrs)
             return
         }
 
@@ -174,6 +196,14 @@ final class ShortcutBadge: NSView {
     override func keyDown(with event: NSEvent) {
         guard isRecording else { super.keyDown(with: event); return }
         if event.keyCode == 53 { cancelRecording(); return }
+        if event.keyCode == 51 || event.keyCode == 117 {
+            shortcut = nil
+            isRecording = false
+            recordingLabel.isHidden = true
+            needsDisplay = true
+            onNewShortcut?(nil)
+            return
+        }
         if let newShortcut = KeyShortcut.from(event: event) {
             shortcut = newShortcut
             isRecording = false
@@ -191,6 +221,11 @@ final class ShortcutBadge: NSView {
     private func cancelRecording() {
         isRecording = false
         recordingLabel.isHidden = true
+        needsDisplay = true
+    }
+
+    func setShortcut(_ newShortcut: KeyShortcut?) {
+        shortcut = newShortcut
         needsDisplay = true
     }
 
