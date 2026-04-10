@@ -248,15 +248,13 @@ final class StatusBarView: NSView {
         let prCount = currentGHSummary?.openPRs ?? 0
         let issueCount = currentGHSummary?.openIssues ?? 0
 
-        ghPRSegment.attributedTitle = Self.gitHubCountAttributedText(
+        ghPRSegment.update(
             count: prCount,
-            label: prCount == 1 ? "PR" : "PRS",
-            color: Theme.accent
+            label: prCount == 1 ? "PR" : "PRs"
         )
-        ghIssueSegment.attributedTitle = Self.gitHubCountAttributedText(
+        ghIssueSegment.update(
             count: issueCount,
-            label: issueCount == 1 ? "ISSUE" : "ISSUES",
-            color: Theme.warning
+            label: issueCount == 1 ? "Issue" : "Issues"
         )
 
         ghIcon.isHidden = !showsGitHubLoading
@@ -272,21 +270,6 @@ final class StatusBarView: NSView {
         ghPRSegment.isHighlighted = activeKind == .pullRequests
         ghIssueSegment.isHighlighted = activeKind == .issues
     }
-
-    private static func gitHubCountAttributedText(
-        count: Int,
-        label: String,
-        color: NSColor
-    ) -> NSAttributedString {
-        NSAttributedString(
-            string: "\(label) \(count)",
-            attributes: [
-                .font: BellithFont.mono(10.5, weight: .medium),
-                .foregroundColor: color,
-            ]
-        )
-    }
-
     // MARK: - Update
 
     func updateContext(_ context: TerminalContext?) {
@@ -784,17 +767,18 @@ final class StatusBarView: NSView {
 
         if showsGitHub || showsGitHubLoading {
             placeSeparatorIfNeeded()
-            ghIcon.frame = NSRect(x: x, y: iconY, width: iconSize, height: iconSize)
-            x += iconSize + gap
 
             if showsGitHubLoading {
+                ghIcon.frame = NSRect(x: x, y: iconY, width: iconSize, height: iconSize)
+                x += iconSize + gap
+
                 let spinnerSize: CGFloat = 12
                 ghLoadingIndicator.frame = NSRect(x: x, y: floor((h - spinnerSize) / 2), width: spinnerSize, height: spinnerSize)
                 x += spinnerSize + 5
                 let loadingWidth = ghLoadingLabel.attributedStringValue.size().width + 4
                 ghLoadingLabel.frame = NSRect(x: x, y: labelY, width: loadingWidth, height: labelH)
             } else {
-                let segmentGap: CGFloat = 6
+                let segmentGap: CGFloat = 12
                 if showsGitHubPullRequests {
                     let size = ghPRSegment.intrinsicContentSize
                     ghPRSegment.frame = NSRect(
@@ -893,17 +877,17 @@ private enum GitHubPopoverKind: String, CaseIterable {
 }
 
 private final class GitHubStatusSegmentView: NSView {
-    private let label = NSTextField(labelWithString: "")
-    private let underlineView = NSView()
-    private var tintColor: NSColor
-
-    var attributedTitle: NSAttributedString = NSAttributedString() {
-        didSet {
-            label.attributedStringValue = attributedTitle
-            invalidateIntrinsicContentSize()
-            needsLayout = true
-        }
+    private enum Metrics {
+        static let height: CGFloat = 18
+        static let horizontalInset: CGFloat = 1
+        static let interLabelGap: CGFloat = 5
+        static let underlineInset: CGFloat = 1
     }
+
+    private let countLabel = NSTextField(labelWithString: "")
+    private let descriptorLabel = NSTextField(labelWithString: "")
+    private let underlineLayer = CAShapeLayer()
+    private var tintColor: NSColor
 
     var isHighlighted = false {
         didSet {
@@ -917,15 +901,26 @@ private final class GitHubStatusSegmentView: NSView {
         super.init(frame: .zero)
         wantsLayer = true
 
-        label.isEditable = false
-        label.isBezeled = false
-        label.drawsBackground = false
-        label.maximumNumberOfLines = 1
-        addSubview(label)
+        countLabel.isEditable = false
+        countLabel.isBezeled = false
+        countLabel.drawsBackground = false
+        countLabel.maximumNumberOfLines = 1
+        countLabel.alignment = .left
+        addSubview(countLabel)
 
-        underlineView.wantsLayer = true
-        underlineView.isHidden = true
-        addSubview(underlineView)
+        descriptorLabel.isEditable = false
+        descriptorLabel.isBezeled = false
+        descriptorLabel.drawsBackground = false
+        descriptorLabel.maximumNumberOfLines = 1
+        descriptorLabel.lineBreakMode = .byTruncatingTail
+        descriptorLabel.alignment = .left
+        addSubview(descriptorLabel)
+
+        underlineLayer.fillColor = nil
+        underlineLayer.lineWidth = 1
+        underlineLayer.lineCap = .round
+        underlineLayer.lineDashPattern = [1, 3]
+        layer?.addSublayer(underlineLayer)
 
         refreshTheme(tintColor: tintColor)
     }
@@ -934,26 +929,66 @@ private final class GitHubStatusSegmentView: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     override var intrinsicContentSize: NSSize {
-        let labelWidth = label.attributedStringValue.size().width.rounded(.up)
-        return NSSize(width: labelWidth + 6, height: 18)
+        let countWidth = measuredWidth(for: countLabel)
+        let descriptorWidth = measuredWidth(for: descriptorLabel)
+        let spacing: CGFloat = descriptorLabel.stringValue.isEmpty ? 0 : Metrics.interLabelGap
+        let contentWidth = countWidth + descriptorWidth + spacing + (Metrics.horizontalInset * 2)
+        return NSSize(width: contentWidth, height: Metrics.height)
     }
 
     override func layout() {
         super.layout()
-        label.frame = NSRect(x: 0, y: floor((bounds.height - 13) / 2), width: bounds.width, height: 13)
-        underlineView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: 1)
+        let contentY = floor((bounds.height - 13) / 2) + 1
+        let countWidth = measuredWidth(for: countLabel)
+        let descriptorWidth = min(measuredWidth(for: descriptorLabel), max(0, bounds.width - (Metrics.horizontalInset * 2) - countWidth - Metrics.interLabelGap))
+        let spacing: CGFloat = descriptorLabel.stringValue.isEmpty ? 0 : Metrics.interLabelGap
+        let contentX = Metrics.horizontalInset
+
+        countLabel.frame = NSRect(x: contentX, y: contentY, width: countWidth, height: 13)
+        descriptorLabel.frame = NSRect(
+            x: countLabel.frame.maxX + spacing,
+            y: contentY,
+            width: descriptorWidth,
+            height: 13
+        )
+
+        let underlineY = bounds.minY + 2
+        let underlinePath = CGMutablePath()
+        underlinePath.move(to: CGPoint(x: Metrics.underlineInset, y: underlineY))
+        underlinePath.addLine(to: CGPoint(x: bounds.width - Metrics.underlineInset, y: underlineY))
+        underlineLayer.path = underlinePath
+        underlineLayer.frame = bounds
     }
 
     func refreshTheme(tintColor: NSColor) {
         self.tintColor = tintColor
+        countLabel.font = BellithFont.mono(11, weight: .semibold)
+        descriptorLabel.font = BellithFont.mono(10.5, weight: .medium)
+        invalidateIntrinsicContentSize()
+        needsLayout = true
         applyAppearance(animated: false)
+    }
+
+    func update(count: Int, label: String) {
+        countLabel.stringValue = "\(count)"
+        descriptorLabel.stringValue = label
+        invalidateIntrinsicContentSize()
+        needsLayout = true
+    }
+
+    private func measuredWidth(for label: NSTextField) -> CGFloat {
+        ceil(label.fittingSize.width) + 1
     }
 
     private func applyAppearance(animated: Bool) {
         let updates = {
-            self.underlineView.isHidden = !self.isHighlighted
-            self.underlineView.layer?.backgroundColor = self.tintColor.withAlphaComponent(0.85).cgColor
-            self.label.alphaValue = self.isHighlighted ? 1.0 : 0.92
+            self.countLabel.textColor = self.tintColor
+            self.descriptorLabel.textColor = self.tintColor.withAlphaComponent(self.isHighlighted ? 0.88 : 0.76)
+            self.countLabel.alphaValue = 1.0
+            self.descriptorLabel.alphaValue = 1.0
+            self.layer?.backgroundColor = NSColor.clear.cgColor
+            self.layer?.borderWidth = 0
+            self.underlineLayer.strokeColor = self.tintColor.withAlphaComponent(self.isHighlighted ? 0.9 : 0.52).cgColor
         }
 
         if animated {
@@ -998,7 +1033,6 @@ private final class GitHubHoverPopoverViewController: NSViewController {
     private let emptyStateLabel = NSTextField(labelWithString: "")
     private let loadingIndicator = NSProgressIndicator()
     private var currentModel: Model?
-    private let countLabelVerticalInset: CGFloat = 2
 
     override func loadView() {
         view = contentView
@@ -1074,14 +1108,14 @@ private final class GitHubHoverPopoverViewController: NSViewController {
         let bounds = view.bounds
         headerIconView.frame = NSRect(x: 18, y: bounds.height - 34, width: 15, height: 15)
 
-        let pillWidth = countPill.isHidden ? 0 : max(32, countLabel.intrinsicContentSize.width + 16)
+        let pillWidth = countPill.isHidden ? 0 : max(34, ceil(countLabel.intrinsicContentSize.width) + 18)
         let pillX = bounds.width - pillWidth - 18
         if !countPill.isHidden {
-            countPill.frame = NSRect(x: pillX, y: bounds.height - 37, width: pillWidth, height: 22)
+            countPill.frame = NSRect(x: pillX, y: bounds.height - 38, width: pillWidth, height: 24)
             let labelSize = countLabel.intrinsicContentSize
             countLabel.frame = NSRect(
                 x: floor((pillWidth - labelSize.width) / 2),
-                y: floor((countPill.bounds.height - labelSize.height) / 2) + countLabelVerticalInset,
+                y: floor((countPill.bounds.height - labelSize.height) / 2),
                 width: labelSize.width,
                 height: labelSize.height
             )
@@ -1250,9 +1284,9 @@ private final class GitHubHoverPopoverViewController: NSViewController {
 
         headerIconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
         headerIconView.contentTintColor = accent
-        countPill.layer?.backgroundColor = accent.withAlphaComponent(0.14).cgColor
-        countPill.layer?.borderWidth = 1
-        countPill.layer?.borderColor = accent.withAlphaComponent(0.22).cgColor
+        countPill.layer?.backgroundColor = Theme.chromePanel.blended(withFraction: 0.18, of: accent)?.withAlphaComponent(0.94).cgColor
+        countPill.layer?.borderWidth = 0
+        countPill.layer?.shadowOpacity = 0
         countLabel.textColor = accent
     }
 
@@ -1365,8 +1399,12 @@ private final class GitHubPopoverRowView: NSView {
     private let kind: GitHubPopoverKind
     private let showsDivider: Bool
     private let onPress: (GitHubPopoverRowModel) -> Void
+    private enum Metrics {
+        static let hoverInsetX: CGFloat = 6
+        static let hoverInsetY: CGFloat = 3
+        static let contentInsetX: CGFloat = 20
+    }
     private let backgroundView = NSView()
-    private let accentBar = NSView()
     private let titleLabel = NSTextField(labelWithString: "")
     private let subtitleLabel = NSTextField(labelWithString: "")
     private let dividerLine = NSView()
@@ -1387,13 +1425,9 @@ private final class GitHubPopoverRowView: NSView {
         wantsLayer = true
 
         backgroundView.wantsLayer = true
+        backgroundView.layer?.cornerRadius = 9
+        backgroundView.layer?.cornerCurve = .continuous
         addSubview(backgroundView)
-
-        accentBar.wantsLayer = true
-        accentBar.layer?.cornerRadius = 1
-        accentBar.layer?.cornerCurve = .continuous
-        accentBar.isHidden = true
-        backgroundView.addSubview(accentBar)
 
         titleLabel.font = BellithFont.ui(13, weight: .semibold)
         titleLabel.lineBreakMode = .byTruncatingTail
@@ -1450,11 +1484,20 @@ private final class GitHubPopoverRowView: NSView {
 
     override func layout() {
         super.layout()
-        backgroundView.frame = bounds
-        accentBar.frame = NSRect(x: 0, y: 8, width: 2, height: bounds.height - 16)
-        titleLabel.frame = NSRect(x: 12, y: bounds.height - 24, width: bounds.width - 20, height: 17)
-        subtitleLabel.frame = NSRect(x: 12, y: 10, width: bounds.width - 20, height: 14)
-        dividerLine.frame = NSRect(x: 12, y: 0, width: bounds.width - 12, height: 1)
+        backgroundView.frame = bounds.insetBy(dx: Metrics.hoverInsetX, dy: Metrics.hoverInsetY)
+        titleLabel.frame = NSRect(
+            x: Metrics.contentInsetX,
+            y: backgroundView.frame.maxY - 21,
+            width: bounds.width - (Metrics.contentInsetX * 2),
+            height: 17
+        )
+        subtitleLabel.frame = NSRect(
+            x: Metrics.contentInsetX,
+            y: backgroundView.frame.minY + 8,
+            width: bounds.width - (Metrics.contentInsetX * 2),
+            height: 14
+        )
+        dividerLine.frame = NSRect(x: Metrics.contentInsetX, y: 0, width: bounds.width - (Metrics.contentInsetX * 2), height: 1)
     }
 
     private func refreshTheme() {
@@ -1464,11 +1507,10 @@ private final class GitHubPopoverRowView: NSView {
         case .issues:
             Theme.warning
         }
-        backgroundView.layer?.backgroundColor = isHovered ? Theme.hoverOverlay.withAlphaComponent(1.35).cgColor : NSColor.clear.cgColor
-        accentBar.isHidden = !isHovered
-        accentBar.layer?.backgroundColor = accent.cgColor
+        let hoverColor = Theme.chromeElevated.blended(withFraction: 0.12, of: accent) ?? Theme.chromeElevated
+        backgroundView.layer?.backgroundColor = isHovered ? hoverColor.withAlphaComponent(0.66).cgColor : NSColor.clear.cgColor
         titleLabel.attributedStringValue = Self.makeTitle(row.title, accent: accent)
-        subtitleLabel.textColor = Theme.textTertiary
+        subtitleLabel.textColor = isHovered ? Theme.textSecondary : Theme.textTertiary
         dividerLine.layer?.backgroundColor = Theme.borderSubtle.cgColor
     }
 
