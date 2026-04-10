@@ -172,12 +172,6 @@ private final class ToolActivityRow: NSView {
 
     private func tintColor(for kind: ToolActivityEvent.Kind) -> NSColor {
         switch kind {
-        case .fileAdded:
-            return Theme.success
-        case .fileModified:
-            return Theme.accent
-        case .fileRemoved:
-            return Theme.warning
         case .processStarted:
             return Theme.textPrimary
         case .networkOpened:
