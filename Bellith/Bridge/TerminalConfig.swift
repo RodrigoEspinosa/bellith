@@ -8,6 +8,7 @@ enum TerminalConfigError: LocalizedError {
     case configurationDirectoryUnavailable
     case failedToCreateConfigDirectory(URL, underlying: Error)
     case failedToWriteConfigFile(URL, underlying: Error)
+    case failedToWriteThemeFile(URL, underlying: Error)
 
     var errorDescription: String? {
         switch self {
@@ -19,6 +20,8 @@ enum TerminalConfigError: LocalizedError {
             return "Bellith could not create its configuration directory at \(url.path)."
         case .failedToWriteConfigFile(let url, _):
             return "Bellith could not write its configuration file at \(url.path)."
+        case .failedToWriteThemeFile(let url, _):
+            return "Bellith could not write its generated theme file at \(url.path)."
         }
     }
 
@@ -26,7 +29,9 @@ enum TerminalConfigError: LocalizedError {
         switch self {
         case .failedToCreateGhosttyConfig, .configurationDirectoryUnavailable:
             return nil
-        case .failedToCreateConfigDirectory(_, let underlying), .failedToWriteConfigFile(_, let underlying):
+        case .failedToCreateConfigDirectory(_, let underlying),
+             .failedToWriteConfigFile(_, let underlying),
+             .failedToWriteThemeFile(_, let underlying):
             return underlying.localizedDescription
         }
     }
@@ -43,6 +48,8 @@ final class TerminalConfig {
     }
     private enum RuntimeConfig {
         static let generatedFileName = "generated.conf"
+        static let generatedThemePrefix = "ghostty-theme-"
+        static let generatedThemeExtension = "theme"
         static let applicationSupportDirectoryName = "com.rec.bellith"
     }
 
@@ -102,10 +109,11 @@ final class TerminalConfig {
 
         let s = settings
         let file = paths.generatedConfigFile
+        let themeReference = try ghosttyThemeReference(for: s.resolvedTheme, in: dir)
         var lines = [
             "font-family = \(s.fontFamily)",
             "font-size = \(s.fontSize)",
-            "theme = \(s.resolvedTheme.ghosttyTheme)",
+            "theme = \(themeReference)",
             "term = \(s.effectiveTerminalTerm)",
             "background-opacity = \(s.backgroundOpacity)",
             "window-padding-x = \(Self.windowPaddingXValue(for: s))",
@@ -181,6 +189,23 @@ final class TerminalConfig {
     static func generatedConfigurationDirectory(fileManager: FileManager = .default) -> URL? {
         fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
             .appendingPathComponent(RuntimeConfig.applicationSupportDirectoryName, isDirectory: true)
+    }
+
+    private static func ghosttyThemeReference(for theme: ThemeColors, in directory: URL) throws -> String {
+        guard let definition = theme.ghosttyThemeDefinition else {
+            return theme.ghosttyTheme
+        }
+
+        let file = directory
+            .appendingPathComponent(RuntimeConfig.generatedThemePrefix + definition.fileStem)
+            .appendingPathExtension(RuntimeConfig.generatedThemeExtension)
+
+        do {
+            try definition.contents.write(to: file, atomically: true, encoding: .utf8)
+            return file.path
+        } catch {
+            throw TerminalConfigError.failedToWriteThemeFile(file, underlying: error)
+        }
     }
 
     private static func windowPaddingXValue(for settings: BellithSettings) -> Int {

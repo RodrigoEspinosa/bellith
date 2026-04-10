@@ -2,6 +2,20 @@ import AppKit
 
 // MARK: - Theme Definition
 
+enum DarkChromeStyle: Equatable {
+    case standard
+    case oled
+}
+
+struct GhosttyThemeDefinition {
+    let fileStem: String
+    let lines: [String]
+
+    var contents: String {
+        lines.joined(separator: "\n") + "\n"
+    }
+}
+
 struct ThemeColors {
     let name: String
     let base: NSColor
@@ -13,8 +27,10 @@ struct ThemeColors {
     let textMuted: NSColor
     let border: NSColor
     let borderSubtle: NSColor
-    /// Ghostty theme name (from ghostty's built-in themes)
+    /// Ghostty theme identifier. For generated themes, this is the internal Bellith name.
     let ghosttyTheme: String
+    var darkChromeStyle: DarkChromeStyle = .standard
+    var ghosttyThemeDefinition: GhosttyThemeDefinition?
     /// Whether this is a light theme (affects window appearance)
     var isLight: Bool {
         let rgb = base.usingColorSpace(.sRGB) ?? base
@@ -24,50 +40,93 @@ struct ThemeColors {
 
     var accentSubtle: NSColor { accent.withAlphaComponent(isLight ? 0.12 : 0.14) }
     var accentGlow: NSColor { accent.withAlphaComponent(isLight ? 0.05 : 0.04) }
+    var usesOLEDChrome: Bool { !isLight && darkChromeStyle == .oled }
 
     /// Keep dark chrome close to the reference: cool slate, not heavily accent-tinted.
     var frame: NSColor {
-        isLight
-            ? base.mixing(with: .white, baseFraction: 0.78)
-            : NSColor(red: 0.118, green: 0.122, blue: 0.161, alpha: 1.0)
+        if isLight {
+            return base.mixing(with: .white, baseFraction: 0.78)
+        }
+
+        switch darkChromeStyle {
+        case .standard:
+            return NSColor(red: 0.118, green: 0.122, blue: 0.161, alpha: 1.0)
+        case .oled:
+            return base
+        }
     }
 
     var chrome: NSColor {
-        isLight
-            ? surface.mixing(with: .white, baseFraction: 0.82)
-            : NSColor(red: 0.154, green: 0.158, blue: 0.205, alpha: 1.0)
+        if isLight {
+            return surface.mixing(with: .white, baseFraction: 0.82)
+        }
+
+        switch darkChromeStyle {
+        case .standard:
+            return NSColor(red: 0.154, green: 0.158, blue: 0.205, alpha: 1.0)
+        case .oled:
+            return surface
+        }
     }
 
     var chromeElevated: NSColor {
-        isLight
-            ? overlay.mixing(with: .white, baseFraction: 0.74)
-            : NSColor(red: 0.180, green: 0.184, blue: 0.235, alpha: 1.0)
+        if isLight {
+            return overlay.mixing(with: .white, baseFraction: 0.74)
+        }
+
+        switch darkChromeStyle {
+        case .standard:
+            return NSColor(red: 0.180, green: 0.184, blue: 0.235, alpha: 1.0)
+        case .oled:
+            return overlay
+        }
     }
 
     var chromePanel: NSColor {
-        isLight
-            ? surface.mixing(with: .white, baseFraction: 0.86)
-            : NSColor(red: 0.176, green: 0.180, blue: 0.231, alpha: 1.0)
+        if isLight {
+            return surface.mixing(with: .white, baseFraction: 0.86)
+        }
+
+        switch darkChromeStyle {
+        case .standard:
+            return NSColor(red: 0.176, green: 0.180, blue: 0.231, alpha: 1.0)
+        case .oled:
+            return surface.mixing(with: overlay, baseFraction: 0.58)
+        }
     }
 
     var selectionFill: NSColor {
-        isLight
-            ? accent.withAlphaComponent(0.08)
-            : NSColor(white: 1.0, alpha: 0.045)
+        if isLight {
+            return accent.withAlphaComponent(0.08)
+        }
+
+        switch darkChromeStyle {
+        case .standard:
+            return NSColor(white: 1.0, alpha: 0.045)
+        case .oled:
+            return accent.withAlphaComponent(0.14)
+        }
     }
 
     var selectionStroke: NSColor {
-        isLight
-            ? accent.withAlphaComponent(0.16)
-            : NSColor(white: 1.0, alpha: 0.08)
+        if isLight {
+            return accent.withAlphaComponent(0.16)
+        }
+
+        switch darkChromeStyle {
+        case .standard:
+            return NSColor(white: 1.0, alpha: 0.08)
+        case .oled:
+            return accent.withAlphaComponent(0.24)
+        }
     }
 
     var chromeStroke: NSColor {
-        border.scaledAlpha(isLight ? 1.1 : 1.35)
+        border.scaledAlpha(isLight ? 1.1 : (usesOLEDChrome ? 1.2 : 1.35))
     }
 
     var chromeHairline: NSColor {
-        border.scaledAlpha(isLight ? 1.35 : 1.75)
+        border.scaledAlpha(isLight ? 1.35 : (usesOLEDChrome ? 1.5 : 1.75))
     }
 }
 
@@ -100,6 +159,48 @@ extension ThemeColors {
         border: NSColor(white: 1.0, alpha: 0.06),
         borderSubtle: NSColor(white: 1.0, alpha: 0.03),
         ghosttyTheme: "catppuccin-mocha"
+    )
+
+    static let midnightOLED = ThemeColors(
+        name: "Midnight OLED",
+        base: NSColor(red: 0.020, green: 0.027, blue: 0.039, alpha: 1.0),
+        surface: NSColor(red: 0.043, green: 0.059, blue: 0.078, alpha: 1.0),
+        overlay: NSColor(red: 0.071, green: 0.094, blue: 0.137, alpha: 1.0),
+        accent: NSColor(red: 0.486, green: 0.776, blue: 1.000, alpha: 1.0),
+        textPrimary: NSColor(red: 0.867, green: 0.906, blue: 1.000, alpha: 1.0),
+        textSecondary: NSColor(red: 0.490, green: 0.553, blue: 0.702, alpha: 1.0),
+        textMuted: NSColor(red: 0.286, green: 0.325, blue: 0.439, alpha: 1.0),
+        border: NSColor(white: 1.0, alpha: 0.09),
+        borderSubtle: NSColor(white: 1.0, alpha: 0.04),
+        ghosttyTheme: "Bellith Midnight OLED",
+        darkChromeStyle: .oled,
+        ghosttyThemeDefinition: GhosttyThemeDefinition(
+            fileStem: "midnight-oled",
+            lines: [
+                "palette = 0=#0B0F14",
+                "palette = 1=#FF7A90",
+                "palette = 2=#62D196",
+                "palette = 3=#F6C177",
+                "palette = 4=#66B8FF",
+                "palette = 5=#C099FF",
+                "palette = 6=#4FD6BE",
+                "palette = 7=#C7D2F5",
+                "palette = 8=#2A3245",
+                "palette = 9=#FF93A7",
+                "palette = 10=#7AE3AA",
+                "palette = 11=#FFD58A",
+                "palette = 12=#7CC6FF",
+                "palette = 13=#D0AEFF",
+                "palette = 14=#73E6D1",
+                "palette = 15=#F3F6FF",
+                "background = #05070A",
+                "foreground = #DDE7FF",
+                "cursor-color = #7CC6FF",
+                "cursor-text = #05070A",
+                "selection-background = #17304A",
+                "selection-foreground = #F3F6FF",
+            ]
+        )
     )
 
     static let gruvboxDark = ThemeColors(
@@ -245,7 +346,7 @@ extension ThemeColors {
     )
 
     static let builtInThemes: [ThemeColors] = [
-        .tokyonight, .catppuccinMocha, .gruvboxDark, .rosePine, .nord, .solarizedDark, .dracula, .kanagawaWave,
+        .tokyonight, .midnightOLED, .catppuccinMocha, .gruvboxDark, .rosePine, .nord, .solarizedDark, .dracula, .kanagawaWave,
         .tokyonightLight, .catppuccinLatte, .solarizedLight, .oneLight,
     ]
 
@@ -418,9 +519,13 @@ enum Theme {
 
     // Hover
     static var hoverOverlay: NSColor {
-        colors.isLight
-            ? colors.textPrimary.withAlphaComponent(0.035)
-            : NSColor(white: 1.0, alpha: 0.028)
+        if colors.isLight {
+            return colors.textPrimary.withAlphaComponent(0.035)
+        }
+        if colors.usesOLEDChrome {
+            return NSColor(white: 1.0, alpha: 0.05)
+        }
+        return NSColor(white: 1.0, alpha: 0.028)
     }
 
     // Focus

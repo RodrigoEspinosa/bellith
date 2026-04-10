@@ -10,6 +10,7 @@ final class ThemeTests: XCTestCase {
     func testBuiltInThemeNames() {
         let names = Set(ThemeColors.allThemes.map(\.name))
         XCTAssertTrue(names.contains("Tokyo Night"))
+        XCTAssertTrue(names.contains("Midnight OLED"))
         XCTAssertTrue(names.contains("Catppuccin Mocha"))
         XCTAssertTrue(names.contains("Gruvbox Dark"))
         XCTAssertTrue(names.contains("Nord"))
@@ -49,5 +50,14 @@ final class ThemeTests: XCTestCase {
         ThemeManager.shared.apply(gruvbox)
 
         wait(for: [expectation], timeout: 1.0)
+    }
+
+    func testMidnightOLEDUsesOLEDChrome() throws {
+        let theme = try XCTUnwrap(ThemeColors.allThemes.first { $0.name == "Midnight OLED" })
+
+        XCTAssertTrue(theme.usesOLEDChrome)
+        XCTAssertNotNil(theme.ghosttyThemeDefinition)
+        XCTAssertTrue(theme.frame.isEqual(theme.base))
+        XCTAssertTrue(theme.chrome.isEqual(theme.surface))
     }
 }

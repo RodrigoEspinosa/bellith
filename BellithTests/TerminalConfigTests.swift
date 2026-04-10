@@ -68,6 +68,23 @@ final class TerminalConfigTests: XCTestCase {
         )
     }
 
+    func testOLEDThemeWritesGeneratedGhosttyThemeFile() throws {
+        settings.darkThemeName = "Midnight OLED"
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TerminalConfigTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let path = try TerminalConfig.writeConfigFile(settings: settings, configurationDirectory: directory)
+        let contents = try String(contentsOfFile: path, encoding: .utf8)
+        let themeFile = directory.appendingPathComponent("ghostty-theme-midnight-oled.theme")
+        let themeContents = try String(contentsOf: themeFile, encoding: .utf8)
+
+        XCTAssertTrue(contents.contains("theme = \(themeFile.path)"))
+        XCTAssertTrue(themeContents.contains("background = #05070A"))
+        XCTAssertTrue(themeContents.contains("cursor-color = #7CC6FF"))
+        XCTAssertTrue(themeContents.contains("palette = 0=#0B0F14"))
+    }
+
     func testVerticalPaddingKeepsMinimumTopInset() throws {
         settings.windowPaddingY = 2
 
