@@ -23,6 +23,7 @@ final class TerminalConfigTests: XCTestCase {
     func testWriteConfigFileReturnsPath() {
         let path = try? TerminalConfig.writeConfigFile(settings: settings)
         XCTAssertNotNil(path, "Config file write should return a path")
+        XCTAssertTrue(path?.hasSuffix("/generated.conf") ?? false, "Generated config should use the runtime generated file name")
     }
 
     func testWrittenFileContainsExpectedKeys() throws {
@@ -146,5 +147,45 @@ final class TerminalConfigTests: XCTestCase {
         } else {
             XCTFail("Expected failedToCreateConfigDirectory")
         }
+    }
+
+    func testRuntimeConfigurationDirectoryUsesXDGConfigHome() {
+        let directory = TerminalConfig.settingsConfigurationDirectory(
+            environment: ["XDG_CONFIG_HOME": "/tmp/bellith-xdg-home"]
+        )
+
+        XCTAssertEqual(directory, URL(fileURLWithPath: "/tmp/bellith-xdg-home", isDirectory: true)
+            .appendingPathComponent("bellith", isDirectory: true))
+    }
+
+    func testRuntimeConfigurationDirectoryFallsBackToDotConfigInHomeDirectory() {
+        let directory = TerminalConfig.settingsConfigurationDirectory(environment: [:])
+
+        XCTAssertEqual(
+            directory,
+            FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".config", isDirectory: true)
+                .appendingPathComponent("bellith", isDirectory: true)
+        )
+    }
+
+    func testGeneratedConfigPathsUseApplicationSupportDirectory() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TerminalConfigTests-\(UUID().uuidString)", isDirectory: true)
+
+        let paths = try TerminalConfig.configPaths(configurationDirectory: directory)
+
+        XCTAssertEqual(paths.directory, directory)
+        XCTAssertEqual(paths.generatedConfigFile, directory.appendingPathComponent("generated.conf"))
+    }
+
+    func testGeneratedConfigurationDirectoryUsesApplicationSupport() {
+        let directory = TerminalConfig.generatedConfigurationDirectory()
+
+        XCTAssertEqual(
+            directory,
+            FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+                .appendingPathComponent("com.rec.bellith", isDirectory: true)
+        )
     }
 }

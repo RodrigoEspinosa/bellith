@@ -5,18 +5,24 @@ final class BellithSettingsTests: XCTestCase {
     private var suiteName: String!
     private var defaults: UserDefaults!
     private var settings: BellithSettings!
+    private var settingsFileURL: URL!
 
     override func setUp() {
         super.setUp()
         suiteName = "BellithSettingsTests-\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suiteName)!
-        settings = BellithSettings(defaults: defaults)
+        settingsFileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BellithSettingsTests-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("settings.json")
+        settings = BellithSettings(defaults: defaults, settingsFileURL: settingsFileURL)
     }
 
     override func tearDown() {
         defaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: settingsFileURL.deletingLastPathComponent())
         defaults = nil
         settings = nil
+        settingsFileURL = nil
         super.tearDown()
     }
 
@@ -304,5 +310,67 @@ final class BellithSettingsTests: XCTestCase {
         let theme = settings.resolvedTheme
         // Should fallback to Tokyo Night
         XCTAssertFalse(theme.name.isEmpty)
+    }
+
+    func testInitializationLoadsSettingsFromJSONFile() throws {
+        let json = """
+        {
+          "fontFamily" : "Monaco",
+          "fontSize" : 19,
+          "showStatusBar" : false,
+          "sidebarTools" : [
+            "performance"
+          ]
+        }
+        """
+        try FileManager.default.createDirectory(
+            at: settingsFileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try json.write(to: settingsFileURL, atomically: true, encoding: .utf8)
+
+        let loaded = BellithSettings(defaults: defaults, settingsFileURL: settingsFileURL)
+
+        XCTAssertEqual(loaded.fontFamily, "Monaco")
+        XCTAssertEqual(loaded.fontSize, 19)
+        XCTAssertFalse(loaded.showStatusBar)
+        XCTAssertEqual(loaded.sidebarTools, ["performance"])
+    }
+
+    func testUpdatingSettingsPersistsSettingsJSONFile() throws {
+        settings.fontFamily = "JetBrains Mono"
+        settings.fontSize = 18
+        settings.showStatusBar = false
+
+        let data = try Data(contentsOf: settingsFileURL)
+        let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(object["fontFamily"] as? String, "JetBrains Mono")
+        XCTAssertEqual((object["fontSize"] as? NSNumber)?.intValue, 18)
+        XCTAssertEqual((object["showStatusBar"] as? NSNumber)?.boolValue, false)
+    }
+
+    func testPersistedSettingsJSONRoundsDecimalValuesToTwoPlaces() throws {
+        settings.backgroundOpacity = 0.55098011363636368
+        settings.visorWidthPercent = 0.8567
+        settings.visorHeightPercent = 0.4549
+        settings.noiseIntensity = 0.6666
+
+        let data = try Data(contentsOf: settingsFileURL)
+        let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual((object["backgroundOpacity"] as? NSNumber)?.doubleValue, 0.55, accuracy: 0.0001)
+        XCTAssertEqual((object["visorWidthPercent"] as? NSNumber)?.doubleValue, 0.86, accuracy: 0.0001)
+        XCTAssertEqual((object["visorHeightPercent"] as? NSNumber)?.doubleValue, 0.45, accuracy: 0.0001)
+        XCTAssertEqual((object["noiseIntensity"] as? NSNumber)?.doubleValue, 0.67, accuracy: 0.0001)
+    }
+
+    func testDefaultSettingsFileContainsCurrentDefaults() throws {
+        let data = try Data(contentsOf: settingsFileURL)
+        let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(object["fontFamily"] as? String, "Hack Nerd Font Mono")
+        XCTAssertEqual((object["fontSize"] as? NSNumber)?.intValue, 15)
+        XCTAssertEqual((object["showStatusBar"] as? NSNumber)?.boolValue, true)
     }
 }

@@ -5,7 +5,7 @@ import GhosttyKit
 
 enum TerminalConfigError: LocalizedError {
     case failedToCreateGhosttyConfig
-    case applicationSupportDirectoryUnavailable
+    case configurationDirectoryUnavailable
     case failedToCreateConfigDirectory(URL, underlying: Error)
     case failedToWriteConfigFile(URL, underlying: Error)
 
@@ -13,8 +13,8 @@ enum TerminalConfigError: LocalizedError {
         switch self {
         case .failedToCreateGhosttyConfig:
             return "Bellith could not initialize Ghostty's configuration."
-        case .applicationSupportDirectoryUnavailable:
-            return "Bellith could not locate the Application Support directory."
+        case .configurationDirectoryUnavailable:
+            return "Bellith could not locate its configuration directory."
         case .failedToCreateConfigDirectory(let url, _):
             return "Bellith could not create its configuration directory at \(url.path)."
         case .failedToWriteConfigFile(let url, _):
@@ -24,7 +24,7 @@ enum TerminalConfigError: LocalizedError {
 
     var failureReason: String? {
         switch self {
-        case .failedToCreateGhosttyConfig, .applicationSupportDirectoryUnavailable:
+        case .failedToCreateGhosttyConfig, .configurationDirectoryUnavailable:
             return nil
         case .failedToCreateConfigDirectory(_, let underlying), .failedToWriteConfigFile(_, let underlying):
             return underlying.localizedDescription
@@ -41,6 +41,15 @@ final class TerminalConfig {
         static let minimumHorizontalInset = 4
         static let minimumTopInset = 8
     }
+    private enum RuntimeConfig {
+        static let generatedFileName = "generated.conf"
+        static let applicationSupportDirectoryName = "com.rec.bellith"
+    }
+
+    struct ConfigPaths: Equatable {
+        let directory: URL
+        let generatedConfigFile: URL
+    }
 
     private(set) var config: ghostty_config_t?
     private(set) var configurationError: TerminalConfigError?
@@ -53,12 +62,12 @@ final class TerminalConfig {
         }
 
         do {
-            let path = try Self.writeConfigFile(configurationDirectory: configurationDirectory)
-            path.withCString { ghostty_config_load_file(config, $0) }
+            let generatedConfigPath = try Self.writeConfigFile(configurationDirectory: configurationDirectory)
+            generatedConfigPath.withCString { ghostty_config_load_file(config, $0) }
         } catch let error as TerminalConfigError {
             report(error)
         } catch {
-            report(.applicationSupportDirectoryUnavailable)
+            report(.configurationDirectoryUnavailable)
         }
 
         ghostty_config_finalize(config)
@@ -82,10 +91,8 @@ final class TerminalConfig {
         settings: BellithSettings = .shared,
         configurationDirectory: URL? = nil
     ) throws -> String {
-        let defaultDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-        guard let dir = configurationDirectory ?? defaultDirectory?.appendingPathComponent("com.rec.bellith", isDirectory: true) else {
-            throw TerminalConfigError.applicationSupportDirectoryUnavailable
-        }
+        let paths = try configPaths(configurationDirectory: configurationDirectory)
+        let dir = paths.directory
 
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -94,7 +101,7 @@ final class TerminalConfig {
         }
 
         let s = settings
-        let file = dir.appendingPathComponent("config.conf")
+        let file = paths.generatedConfigFile
         var lines = [
             "font-family = \(s.fontFamily)",
             "font-size = \(s.fontSize)",
@@ -126,6 +133,54 @@ final class TerminalConfig {
         } catch {
             throw TerminalConfigError.failedToWriteConfigFile(file, underlying: error)
         }
+    }
+
+    static func configPaths(
+        configurationDirectory: URL? = nil,
+        fileManager: FileManager = .default
+    ) throws -> ConfigPaths {
+        let directory: URL
+        if let configurationDirectory {
+            directory = configurationDirectory
+        } else if let resolved = generatedConfigurationDirectory(fileManager: fileManager) {
+            directory = resolved
+        } else {
+            throw TerminalConfigError.configurationDirectoryUnavailable
+        }
+
+        return ConfigPaths(
+            directory: directory,
+            generatedConfigFile: directory.appendingPathComponent(RuntimeConfig.generatedFileName)
+        )
+    }
+
+    static func settingsConfigurationDirectory(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default
+    ) -> URL? {
+        if let xdgConfigHome = environment["XDG_CONFIG_HOME"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !xdgConfigHome.isEmpty {
+            return URL(fileURLWithPath: NSString(string: xdgConfigHome).expandingTildeInPath, isDirectory: true)
+                .appendingPathComponent("bellith", isDirectory: true)
+        }
+
+        let homeDirectory = fileManager.homeDirectoryForCurrentUser
+        return homeDirectory
+            .appendingPathComponent(".config", isDirectory: true)
+            .appendingPathComponent("bellith", isDirectory: true)
+    }
+
+    static func runtimeConfigurationDirectory(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default
+    ) -> URL? {
+        settingsConfigurationDirectory(environment: environment, fileManager: fileManager)
+    }
+
+    static func generatedConfigurationDirectory(fileManager: FileManager = .default) -> URL? {
+        fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent(RuntimeConfig.applicationSupportDirectoryName, isDirectory: true)
     }
 
     private static func windowPaddingXValue(for settings: BellithSettings) -> Int {

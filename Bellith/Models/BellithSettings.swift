@@ -12,14 +12,56 @@ final class BellithSettings {
         static let legacyY = 38
         static let current = 0
     }
+    private enum PersistedKeys {
+        static let stringKeys: Set<String> = [
+            "fontFamily", "cursorStyle", "darkThemeName", "lightThemeName", "tabMode",
+            "shell", "terminalTerm", "visorHotkey", "visorPosition", "workingDirectory",
+            "bellMode", "wordSeparators",
+        ]
+        static let intKeys: Set<String> = [
+            "fontSize", "scrollbackLines", "commandCompletionNotificationThreshold",
+            "windowPaddingX", "windowPaddingY",
+        ]
+        static let doubleKeys: Set<String> = [
+            "backgroundOpacity", "visorWidthPercent", "visorHeightPercent", "noiseIntensity",
+        ]
+        static let boolKeys: Set<String> = [
+            "mouseHideWhileTyping", "confirmClose", "restoreSession", "cursorBlink",
+            "shellIntegrationEnabled", "shellIntegrationCursor", "shellIntegrationTitle",
+            "shellIntegrationPath", "shellIntegrationSSHEnv", "shellIntegrationSSHTerminfo",
+            "commandCompletionNotificationsEnabled", "sidebarPinned", "sidebarAutoHide",
+            "sidebarShowTools", "visorHideOnFocusLoss", "trafficLightAutoHide",
+            "showStatusBar", "showStatusBarContext", "showStatusBarPath",
+            "showStatusBarGitWorktree", "showStatusBarGitBranch", "showStatusBarProcess",
+            "showStatusBarGitHub", "showStatusBarSize",
+        ]
+        static let stringArrayKeys: Set<String> = [
+            "sidebarTools",
+        ]
+        static let keybindings = "keybindings"
+        static let all: Set<String> = stringKeys
+            .union(intKeys)
+            .union(doubleKeys)
+            .union(boolKeys)
+            .union(stringArrayKeys)
+            .union([keybindings])
+    }
 
     let defaults: UserDefaults
     private let smartPanelRegistry: SmartPanelRegistry
+    private let settingsFileURL: URL?
 
-    init(defaults: UserDefaults = .standard, smartPanelRegistry: SmartPanelRegistry = .shared) {
+    init(
+        defaults: UserDefaults = .standard,
+        smartPanelRegistry: SmartPanelRegistry = .shared,
+        settingsFileURL: URL? = nil
+    ) {
         self.defaults = defaults
         self.smartPanelRegistry = smartPanelRegistry
+        self.settingsFileURL = settingsFileURL ?? Self.defaultSettingsFileURL(for: defaults)
+        loadSettingsFileIfNeeded()
         migrateLegacyWindowPaddingIfNeeded()
+        persistSettingsFileIfNeeded()
     }
 
     // Appearance
@@ -530,6 +572,7 @@ final class BellithSettings {
     ]
 
     func notify() {
+        persistSettingsFileIfNeeded()
         NotificationCenter.default.post(name: Self.didChangeNotification, object: self)
     }
 
@@ -557,5 +600,137 @@ final class BellithSettings {
     var effectiveTerminalTerm: String {
         let trimmed = terminalTerm.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? Self.defaultTerminalTerm : trimmed
+    }
+
+    private static func defaultSettingsFileURL(for defaults: UserDefaults) -> URL? {
+        guard defaults === UserDefaults.standard else { return nil }
+        return TerminalConfig.settingsConfigurationDirectory()?
+            .appendingPathComponent("settings.json", isDirectory: false)
+    }
+
+    private func loadSettingsFileIfNeeded() {
+        guard let settingsFileURL,
+              let data = try? Data(contentsOf: settingsFileURL),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return
+        }
+
+        PersistedKeys.all.forEach { defaults.removeObject(forKey: $0) }
+        for (key, value) in object {
+            applyPersistedValue(value, forKey: key)
+        }
+    }
+
+    private func applyPersistedValue(_ value: Any, forKey key: String) {
+        switch key {
+        case PersistedKeys.keybindings:
+            guard JSONSerialization.isValidJSONObject(value),
+                  let jsonData = try? JSONSerialization.data(withJSONObject: value),
+                  let decoded = try? JSONDecoder().decode([KeyBindingEntry].self, from: jsonData),
+                  let encoded = try? JSONEncoder().encode(decoded) else { return }
+            defaults.set(encoded, forKey: key)
+
+        case _ where PersistedKeys.stringKeys.contains(key):
+            guard let stringValue = value as? String else { return }
+            defaults.set(stringValue, forKey: key)
+
+        case _ where PersistedKeys.intKeys.contains(key):
+            guard let number = value as? NSNumber else { return }
+            defaults.set(number.intValue, forKey: key)
+
+        case _ where PersistedKeys.doubleKeys.contains(key):
+            guard let number = value as? NSNumber else { return }
+            defaults.set(number.doubleValue, forKey: key)
+
+        case _ where PersistedKeys.boolKeys.contains(key):
+            guard let number = value as? NSNumber else { return }
+            defaults.set(number.boolValue, forKey: key)
+
+        case _ where PersistedKeys.stringArrayKeys.contains(key):
+            guard let arrayValue = value as? [String] else { return }
+            defaults.set(arrayValue, forKey: key)
+
+        default:
+            return
+        }
+    }
+
+    private func persistSettingsFileIfNeeded() {
+        guard let settingsFileURL else { return }
+        let directory = settingsFileURL.deletingLastPathComponent()
+
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let data = try settingsFileData()
+            try data.write(to: settingsFileURL, options: .atomic)
+        } catch {
+            return
+        }
+    }
+
+    private func settingsFileData() throws -> Data {
+        let encodedKeybindings: Any
+        do {
+            let encoded = try JSONEncoder().encode(keybindings)
+            encodedKeybindings = try JSONSerialization.jsonObject(with: encoded)
+        } catch {
+            encodedKeybindings = []
+        }
+
+        let object: [String: Any] = [
+            "backgroundOpacity": roundedForSettingsFile(backgroundOpacity),
+            "bellMode": bellMode,
+            "commandCompletionNotificationThreshold": commandCompletionNotificationThreshold,
+            "commandCompletionNotificationsEnabled": commandCompletionNotificationsEnabled,
+            "confirmClose": confirmClose,
+            "cursorBlink": cursorBlink,
+            "cursorStyle": cursorStyle,
+            "darkThemeName": darkThemeName,
+            "fontFamily": fontFamily,
+            "fontSize": fontSize,
+            "keybindings": encodedKeybindings,
+            "lightThemeName": lightThemeName,
+            "mouseHideWhileTyping": mouseHideWhileTyping,
+            "noiseIntensity": roundedForSettingsFile(noiseIntensity),
+            "restoreSession": restoreSession,
+            "scrollbackLines": scrollbackLines,
+            "shell": shell,
+            "shellIntegrationCursor": shellIntegrationCursor,
+            "shellIntegrationEnabled": shellIntegrationEnabled,
+            "shellIntegrationPath": shellIntegrationPath,
+            "shellIntegrationSSHEnv": shellIntegrationSSHEnv,
+            "shellIntegrationSSHTerminfo": shellIntegrationSSHTerminfo,
+            "shellIntegrationTitle": shellIntegrationTitle,
+            "showStatusBar": showStatusBar,
+            "showStatusBarContext": showStatusBarContext,
+            "showStatusBarGitBranch": showStatusBarGitBranch,
+            "showStatusBarGitHub": showStatusBarGitHub,
+            "showStatusBarGitWorktree": showStatusBarGitWorktree,
+            "showStatusBarPath": showStatusBarPath,
+            "showStatusBarProcess": showStatusBarProcess,
+            "showStatusBarSize": showStatusBarSize,
+            "sidebarAutoHide": sidebarAutoHide,
+            "sidebarPinned": sidebarPinned,
+            "sidebarShowTools": sidebarShowTools,
+            "sidebarTools": sidebarTools,
+            "tabMode": tabMode,
+            "terminalTerm": terminalTerm,
+            "trafficLightAutoHide": trafficLightAutoHide,
+            "visorHeightPercent": roundedForSettingsFile(visorHeightPercent),
+            "visorHideOnFocusLoss": visorHideOnFocusLoss,
+            "visorHotkey": visorHotkey,
+            "visorPosition": visorPosition,
+            "visorWidthPercent": roundedForSettingsFile(visorWidthPercent),
+            "windowPaddingX": windowPaddingX,
+            "windowPaddingY": windowPaddingY,
+            "wordSeparators": wordSeparators,
+            "workingDirectory": workingDirectory,
+        ]
+
+        return try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+    }
+
+    private func roundedForSettingsFile(_ value: Double) -> Double {
+        (value * 100).rounded() / 100
     }
 }
