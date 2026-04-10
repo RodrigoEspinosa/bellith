@@ -3,6 +3,11 @@ import Foundation
 // MARK: - Session State
 
 struct SessionState: Codable {
+    struct TerminalSnapshot: Codable, Equatable {
+        let cwd: String?
+        let hadScrollback: Bool
+    }
+
     struct TabState: Codable {
         enum Kind: String, Codable {
             case terminal
@@ -11,20 +16,20 @@ struct SessionState: Codable {
 
         let title: String
         let kind: Kind
-        let splitTree: SplitNodeState?
+        let terminalSnapshot: TerminalSnapshot?
         let smartPanelID: String?
         let terminalContext: TerminalContext?
         let sshProfileID: UUID?
 
         init(
             title: String,
-            splitTree: SplitNodeState,
+            terminalSnapshot: TerminalSnapshot,
             terminalContext: TerminalContext? = nil,
             sshProfileID: UUID? = nil
         ) {
             self.title = title
             self.kind = .terminal
-            self.splitTree = splitTree
+            self.terminalSnapshot = terminalSnapshot
             self.smartPanelID = nil
             self.terminalContext = terminalContext
             self.sshProfileID = sshProfileID
@@ -33,7 +38,7 @@ struct SessionState: Codable {
         init(title: String, smartPanelID: String) {
             self.title = title
             self.kind = .smart
-            self.splitTree = nil
+            self.terminalSnapshot = nil
             self.smartPanelID = smartPanelID
             self.terminalContext = nil
             self.sshProfileID = nil
@@ -42,20 +47,37 @@ struct SessionState: Codable {
         private enum CodingKeys: String, CodingKey {
             case title
             case kind
-            case splitTree
+            case terminalSnapshot
             case smartPanelID
             case terminalContext
             case sshProfileID
+            case splitTree
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             title = try container.decode(String.self, forKey: .title)
             kind = try container.decodeIfPresent(Kind.self, forKey: .kind) ?? .terminal
-            splitTree = try container.decodeIfPresent(SplitNodeState.self, forKey: .splitTree)
             smartPanelID = try container.decodeIfPresent(String.self, forKey: .smartPanelID)
             terminalContext = try container.decodeIfPresent(TerminalContext.self, forKey: .terminalContext)
             sshProfileID = try container.decodeIfPresent(UUID.self, forKey: .sshProfileID)
+            if let snapshot = try container.decodeIfPresent(TerminalSnapshot.self, forKey: .terminalSnapshot) {
+                terminalSnapshot = snapshot
+            } else if let legacySplitTree = try container.decodeIfPresent(SplitNodeState.self, forKey: .splitTree) {
+                terminalSnapshot = legacySplitTree.flattenedSnapshot()
+            } else {
+                terminalSnapshot = nil
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(title, forKey: .title)
+            try container.encode(kind, forKey: .kind)
+            try container.encodeIfPresent(terminalSnapshot, forKey: .terminalSnapshot)
+            try container.encodeIfPresent(smartPanelID, forKey: .smartPanelID)
+            try container.encodeIfPresent(terminalContext, forKey: .terminalContext)
+            try container.encodeIfPresent(sshProfileID, forKey: .sshProfileID)
         }
     }
 
@@ -121,6 +143,23 @@ indirect enum SplitNodeState: Codable {
             let cwd = try c.decodeIfPresent(String.self, forKey: .cwd)
             let scrollbackText = try c.decodeIfPresent(String.self, forKey: .scrollbackText)
             self = .leaf(cwd: cwd, scrollbackText: scrollbackText)
+        }
+    }
+
+    func flattenedSnapshot() -> SessionState.TerminalSnapshot {
+        switch self {
+        case .leaf(let cwd, let scrollbackText):
+            return SessionState.TerminalSnapshot(
+                cwd: cwd,
+                hadScrollback: !(scrollbackText?.isEmpty ?? true)
+            )
+        case .branch(_, _, let first, let second):
+            let firstSnapshot = first.flattenedSnapshot()
+            let secondSnapshot = second.flattenedSnapshot()
+            return SessionState.TerminalSnapshot(
+                cwd: firstSnapshot.cwd ?? secondSnapshot.cwd,
+                hadScrollback: firstSnapshot.hadScrollback || secondSnapshot.hadScrollback
+            )
         }
     }
 }

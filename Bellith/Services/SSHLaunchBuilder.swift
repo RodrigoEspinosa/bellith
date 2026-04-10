@@ -39,9 +39,8 @@ enum SSHLaunchBuilder {
             commands.append("cd \(shellQuoted(profile.defaultDirectory))")
         }
 
-        if !profile.tmuxSession.isEmpty {
-            let session = shellQuoted(profile.tmuxSession)
-            commands.append("tmux attach -t \(session) || tmux new -s \(session)")
+        if let multiplexerCommand = sessionBootstrapCommand(for: profile) {
+            commands.append(multiplexerCommand)
         }
 
         if !profile.startupCommand.isEmpty {
@@ -50,6 +49,21 @@ enum SSHLaunchBuilder {
 
         guard !commands.isEmpty else { return nil }
         return commands.joined(separator: " && ")
+    }
+
+    private static func sessionBootstrapCommand(for profile: SSHProfile) -> String? {
+        switch profile.sessionBootstrap {
+        case .none:
+            return nil
+        case .tmux:
+            guard !profile.sessionName.isEmpty else { return "tmux" }
+            let session = shellQuoted(profile.sessionName)
+            return "tmux attach -t \(session) || tmux new -s \(session)"
+        case .zellij:
+            guard !profile.sessionName.isEmpty else { return "zellij" }
+            let session = shellQuoted(profile.sessionName)
+            return "zellij options --session-name \(session) --attach-to-session true"
+        }
     }
 
     private static func shellQuoted(_ value: String) -> String {

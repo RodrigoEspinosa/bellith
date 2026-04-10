@@ -2,6 +2,14 @@ import XCTest
 @testable import Bellith
 
 final class SessionStateTests: XCTestCase {
+    func testTerminalSnapshotRoundtrip() throws {
+        let snapshot = SessionState.TerminalSnapshot(cwd: "/Users/test/projects", hadScrollback: true)
+        let data = try JSONEncoder().encode(snapshot)
+        let decoded = try JSONDecoder().decode(SessionState.TerminalSnapshot.self, from: data)
+
+        XCTAssertEqual(decoded, snapshot)
+    }
+
     func testLeafEncodeDecode() throws {
         let leaf = SplitNodeState.leaf(cwd: "/Users/test/projects", scrollbackText: nil)
         let data = try JSONEncoder().encode(leaf)
@@ -96,12 +104,17 @@ final class SessionStateTests: XCTestCase {
         )
         let state = SessionState(
             tabs: [
-                SessionState.TabState(title: "Tab 1", splitTree: .leaf(cwd: "/home", scrollbackText: nil), terminalContext: context, sshProfileID: context.sshProfileID),
+                SessionState.TabState(
+                    title: "Tab 1",
+                    terminalSnapshot: .init(cwd: "/home", hadScrollback: false),
+                    terminalContext: context,
+                    sshProfileID: context.sshProfileID
+                ),
                 SessionState.TabState(title: "Inspector", smartPanelID: "performance"),
-                SessionState.TabState(title: "Tab 2", splitTree: .branch(
-                    orientation: "horizontal", ratio: 0.5,
-                    first: .leaf(cwd: "/tmp", scrollbackText: nil), second: .leaf(cwd: nil, scrollbackText: nil)
-                )),
+                SessionState.TabState(
+                    title: "Tab 2",
+                    terminalSnapshot: .init(cwd: "/tmp", hadScrollback: true)
+                ),
             ],
             selectedTabIndex: 1,
             sidebarExpanded: true
@@ -115,16 +128,18 @@ final class SessionStateTests: XCTestCase {
         XCTAssertEqual(decoded.tabs[0].title, "Tab 1")
         XCTAssertEqual(decoded.tabs[0].terminalContext, context)
         XCTAssertEqual(decoded.tabs[0].sshProfileID, context.sshProfileID)
+        XCTAssertEqual(decoded.tabs[0].terminalSnapshot, .init(cwd: "/home", hadScrollback: false))
         XCTAssertEqual(decoded.tabs[1].title, "Inspector")
         XCTAssertEqual(decoded.tabs[1].kind, .smart)
         XCTAssertEqual(decoded.tabs[1].smartPanelID, "performance")
         XCTAssertEqual(decoded.tabs[2].title, "Tab 2")
+        XCTAssertEqual(decoded.tabs[2].terminalSnapshot, .init(cwd: "/tmp", hadScrollback: true))
     }
 
     func testWindowSessionStateRoundtrip() throws {
         let windowState = WindowSessionState(
             session: SessionState(
-                tabs: [SessionState.TabState(title: "Tab 1", splitTree: .leaf(cwd: "/tmp", scrollbackText: nil))],
+                tabs: [SessionState.TabState(title: "Tab 1", terminalSnapshot: .init(cwd: "/tmp", hadScrollback: false))],
                 selectedTabIndex: 0,
                 sidebarExpanded: nil
             ),
@@ -136,5 +151,38 @@ final class SessionStateTests: XCTestCase {
 
         XCTAssertEqual(decoded.session.tabs.count, 1)
         XCTAssertEqual(decoded.frameDescriptor, "{{10, 20}, {900, 600}}")
+    }
+
+    func testLegacySplitTreeDecodesIntoFlattenedTerminalSnapshot() throws {
+        let json = """
+        {
+          "tabs": [
+            {
+              "title": "Legacy",
+              "kind": "terminal",
+              "splitTree": {
+                "type": "branch",
+                "orientation": "horizontal",
+                "ratio": 0.5,
+                "first": {
+                  "type": "leaf",
+                  "cwd": "/tmp",
+                  "scrollbackText": "hello"
+                },
+                "second": {
+                  "type": "leaf",
+                  "cwd": "/home",
+                  "scrollbackText": null
+                }
+              }
+            }
+          ],
+          "selectedTabIndex": 0
+        }
+        """
+
+        let decoded = try JSONDecoder().decode(SessionState.self, from: Data(json.utf8))
+
+        XCTAssertEqual(decoded.tabs.first?.terminalSnapshot, .init(cwd: "/tmp", hadScrollback: true))
     }
 }

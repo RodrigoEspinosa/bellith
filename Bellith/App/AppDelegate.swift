@@ -335,14 +335,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         shellMenu.addItem(withTitle: "New Tab", action: #selector(handleNewTab), keyEquivalent: "t")
         shellMenu.addItem(withTitle: "New Window", action: #selector(handleNewWindow), keyEquivalent: "n")
         shellMenu.addItem(withTitle: "Connect Host…", action: #selector(handleConnectHost), keyEquivalent: "")
-        shellMenu.addItem(.separator())
-        let splitRightItem = NSMenuItem(title: "Split Right", action: #selector(handleSplitRight), keyEquivalent: "d")
-        shellMenu.addItem(splitRightItem)
-        let splitDownItem = NSMenuItem(title: "Split Down", action: #selector(handleSplitDown), keyEquivalent: "d")
-        splitDownItem.keyEquivalentModifierMask = [.command, .shift]
-        shellMenu.addItem(splitDownItem)
-        shellMenu.addItem(.separator())
-        shellMenu.addItem(withTitle: "Close Pane", action: #selector(handleClosePane), keyEquivalent: "")
+        if dependencies.settings.legacyPaneSupport {
+            shellMenu.addItem(.separator())
+            let splitRightItem = NSMenuItem(title: "Split Right", action: #selector(handleSplitRight), keyEquivalent: "d")
+            shellMenu.addItem(splitRightItem)
+            let splitDownItem = NSMenuItem(title: "Split Down", action: #selector(handleSplitDown), keyEquivalent: "d")
+            splitDownItem.keyEquivalentModifierMask = [.command, .shift]
+            shellMenu.addItem(splitDownItem)
+            shellMenu.addItem(.separator())
+            shellMenu.addItem(withTitle: "Close Pane", action: #selector(handleClosePane), keyEquivalent: "")
+        }
         shellMenu.addItem(withTitle: "Close Tab", action: #selector(handleCloseTab), keyEquivalent: "w")
         shellMenu.addItem(withTitle: "Close Window", action: #selector(handleCloseWindow), keyEquivalent: "")
         let shellMenuItem = NSMenuItem()

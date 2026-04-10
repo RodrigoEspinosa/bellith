@@ -44,15 +44,18 @@ final class CommandRegistry {
     private let smartPanelRegistry: SmartPanelRegistry
     private let sshProfileStore: SSHProfileStore
     private let preferencesWindowController: PreferencesWindowController
+    private let settings: BellithSettings
 
     init(
         smartPanelRegistry: SmartPanelRegistry = .shared,
         sshProfileStore: SSHProfileStore = .shared,
-        preferencesWindowController: PreferencesWindowController = .shared
+        preferencesWindowController: PreferencesWindowController = .shared,
+        settings: BellithSettings = .shared
     ) {
         self.smartPanelRegistry = smartPanelRegistry
         self.sshProfileStore = sshProfileStore
         self.preferencesWindowController = preferencesWindowController
+        self.settings = settings
         registerBuiltIns()
     }
 
@@ -162,113 +165,115 @@ final class CommandRegistry {
             return true
         })
 
-        register(CommandPlugin(
-            id: "splitRight",
-            title: "Split Right",
-            description: "Split pane to the right",
-            iconName: "rectangle.split.1x2",
-            shortcutID: "splitRight",
-            aliases: ["split", "split right", "vsplit"]
-        ) { container, _ in
-            container.splitPane(direction: .vertical)
-            return true
-        })
+        if settings.legacyPaneSupport {
+            register(CommandPlugin(
+                id: "splitRight",
+                title: "Split Right",
+                description: "Split pane to the right",
+                iconName: "rectangle.split.1x2",
+                shortcutID: "splitRight",
+                aliases: ["split", "split right", "vsplit"]
+            ) { container, _ in
+                container.splitPane(direction: .vertical)
+                return true
+            })
 
-        register(CommandPlugin(
-            id: "splitDown",
-            title: "Split Down",
-            description: "Split pane downward",
-            iconName: "rectangle.split.2x1",
-            shortcutID: "splitDown",
-            aliases: ["split down", "hsplit"]
-        ) { container, _ in
-            container.splitPane(direction: .horizontal)
-            return true
-        })
+            register(CommandPlugin(
+                id: "splitDown",
+                title: "Split Down",
+                description: "Split pane downward",
+                iconName: "rectangle.split.2x1",
+                shortcutID: "splitDown",
+                aliases: ["split down", "hsplit"]
+            ) { container, _ in
+                container.splitPane(direction: .horizontal)
+                return true
+            })
 
-        register(CommandPlugin(
-            id: "closePane",
-            title: "Close Pane",
-            description: "Close the current pane",
-            iconName: "xmark.rectangle",
-            shortcutID: "closePane",
-            aliases: ["close pane", "closepane"]
-        ) { container, _ in
-            container.closePane()
-            return true
-        })
+            register(CommandPlugin(
+                id: "closePane",
+                title: "Close Pane",
+                description: "Close the current pane",
+                iconName: "xmark.rectangle",
+                shortcutID: "closePane",
+                aliases: ["close pane", "closepane"]
+            ) { container, _ in
+                container.closePane()
+                return true
+            })
 
-        register(CommandPlugin(
-            id: "zoomPane",
-            title: "Zoom Pane",
-            description: "Toggle pane zoom",
-            iconName: "arrow.up.left.and.arrow.down.right",
-            shortcutID: "zoomPane",
-            aliases: ["zoom", "maximize"]
-        ) { container, _ in
-            container.togglePaneZoom()
-            return true
-        })
+            register(CommandPlugin(
+                id: "zoomPane",
+                title: "Zoom Pane",
+                description: "Toggle pane zoom",
+                iconName: "arrow.up.left.and.arrow.down.right",
+                shortcutID: "zoomPane",
+                aliases: ["zoom", "maximize"]
+            ) { container, _ in
+                container.togglePaneZoom()
+                return true
+            })
 
-        register(CommandPlugin(
-            id: "equalizePanes",
-            title: "Equalize Panes",
-            description: "Reset all pane sizes",
-            iconName: "equal.square",
-            shortcutID: "equalizePanes",
-            aliases: ["equalize", "equal"]
-        ) { container, _ in
-            container.equalizeAllPanes()
-            return true
-        })
+            register(CommandPlugin(
+                id: "equalizePanes",
+                title: "Equalize Panes",
+                description: "Reset all pane sizes",
+                iconName: "equal.square",
+                shortcutID: "equalizePanes",
+                aliases: ["equalize", "equal"]
+            ) { container, _ in
+                container.equalizeAllPanes()
+                return true
+            })
 
-        register(CommandPlugin(
-            id: "navLeft",
-            title: "Focus Left Pane",
-            description: "Move focus left",
-            iconName: "arrow.left.square",
-            shortcutID: "navLeft",
-            aliases: ["focus left"]
-        ) { container, _ in
-            container.focusPane(.left)
-            return true
-        })
+            register(CommandPlugin(
+                id: "navLeft",
+                title: "Focus Left Pane",
+                description: "Move focus left",
+                iconName: "arrow.left.square",
+                shortcutID: "navLeft",
+                aliases: ["focus left"]
+            ) { container, _ in
+                container.focusPane(.left)
+                return true
+            })
 
-        register(CommandPlugin(
-            id: "navRight",
-            title: "Focus Right Pane",
-            description: "Move focus right",
-            iconName: "arrow.right.square",
-            shortcutID: "navRight",
-            aliases: ["focus right"]
-        ) { container, _ in
-            container.focusPane(.right)
-            return true
-        })
+            register(CommandPlugin(
+                id: "navRight",
+                title: "Focus Right Pane",
+                description: "Move focus right",
+                iconName: "arrow.right.square",
+                shortcutID: "navRight",
+                aliases: ["focus right"]
+            ) { container, _ in
+                container.focusPane(.right)
+                return true
+            })
 
-        register(CommandPlugin(
-            id: "navUp",
-            title: "Focus Up Pane",
-            description: "Move focus up",
-            iconName: "arrow.up.square",
-            shortcutID: "navUp",
-            aliases: ["focus up"]
-        ) { container, _ in
-            container.focusPane(.up)
-            return true
-        })
+            register(CommandPlugin(
+                id: "navUp",
+                title: "Focus Up Pane",
+                description: "Move focus up",
+                iconName: "arrow.up.square",
+                shortcutID: "navUp",
+                aliases: ["focus up"]
+            ) { container, _ in
+                container.focusPane(.up)
+                return true
+            })
 
-        register(CommandPlugin(
-            id: "navDown",
-            title: "Focus Down Pane",
-            description: "Move focus down",
-            iconName: "arrow.down.square",
-            shortcutID: "navDown",
-            aliases: ["focus down"]
-        ) { container, _ in
-            container.focusPane(.down)
-            return true
-        })
+            register(CommandPlugin(
+                id: "navDown",
+                title: "Focus Down Pane",
+                description: "Move focus down",
+                iconName: "arrow.down.square",
+                shortcutID: "navDown",
+                aliases: ["focus down"]
+            ) { container, _ in
+                container.focusPane(.down)
+                return true
+            })
+        }
 
         register(CommandPlugin(
             id: "toggleSidebar",
@@ -293,17 +298,19 @@ final class CommandRegistry {
             return true
         })
 
-        register(CommandPlugin(
-            id: "toggleBroadcast",
-            title: "Broadcast Mode",
-            description: "Send input to all panes",
-            iconName: "antenna.radiowaves.left.and.right",
-            shortcutID: "broadcastInput",
-            aliases: ["broadcast"]
-        ) { container, _ in
-            container.toggleBroadcastMode()
-            return true
-        })
+        if settings.legacyPaneSupport {
+            register(CommandPlugin(
+                id: "toggleBroadcast",
+                title: "Broadcast Mode",
+                description: "Send input to all panes",
+                iconName: "antenna.radiowaves.left.and.right",
+                shortcutID: "broadcastInput",
+                aliases: ["broadcast"]
+            ) { container, _ in
+                container.toggleBroadcastMode()
+                return true
+            })
+        }
 
         register(CommandPlugin(
             id: "find",

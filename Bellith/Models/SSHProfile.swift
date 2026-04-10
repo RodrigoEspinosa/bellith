@@ -1,5 +1,22 @@
 import Foundation
 
+enum SSHSessionBootstrap: String, Codable, CaseIterable {
+    case none
+    case tmux
+    case zellij
+
+    var title: String {
+        switch self {
+        case .none:
+            return "None"
+        case .tmux:
+            return "tmux"
+        case .zellij:
+            return "zellij"
+        }
+    }
+}
+
 struct SSHProfile: Codable, Equatable, Identifiable {
     let id: UUID
     var name: String
@@ -10,7 +27,8 @@ struct SSHProfile: Codable, Equatable, Identifiable {
     var proxyJump: String
     var defaultDirectory: String
     var startupCommand: String
-    var tmuxSession: String
+    var sessionBootstrap: SSHSessionBootstrap
+    var sessionName: String
     var environmentTag: String
     var isSensitive: Bool
     var notes: String
@@ -25,11 +43,26 @@ struct SSHProfile: Codable, Equatable, Identifiable {
         proxyJump: String = "",
         defaultDirectory: String = "",
         startupCommand: String = "",
-        tmuxSession: String = "",
+        sessionBootstrap: SSHSessionBootstrap = .none,
+        sessionName: String = "",
+        tmuxSession: String? = nil,
         environmentTag: String = "",
         isSensitive: Bool = false,
         notes: String = ""
     ) {
+        let resolvedBootstrap: SSHSessionBootstrap
+        let resolvedSessionName: String
+        if let tmuxSession,
+           !Self.trimmed(tmuxSession).isEmpty,
+           Self.trimmed(sessionName).isEmpty,
+           sessionBootstrap == .none {
+            resolvedBootstrap = .tmux
+            resolvedSessionName = tmuxSession
+        } else {
+            resolvedBootstrap = sessionBootstrap
+            resolvedSessionName = sessionName
+        }
+
         self.id = id
         self.name = name
         self.host = host
@@ -39,7 +72,8 @@ struct SSHProfile: Codable, Equatable, Identifiable {
         self.proxyJump = proxyJump
         self.defaultDirectory = defaultDirectory
         self.startupCommand = startupCommand
-        self.tmuxSession = tmuxSession
+        self.sessionBootstrap = resolvedBootstrap
+        self.sessionName = resolvedSessionName
         self.environmentTag = environmentTag
         self.isSensitive = isSensitive
         self.notes = notes
@@ -88,7 +122,8 @@ struct SSHProfile: Codable, Equatable, Identifiable {
             proxyJump: trimmedProxyJump,
             defaultDirectory: trimmedDefaultDirectory,
             startupCommand: trimmedStartupCommand,
-            tmuxSession: trimmedTmuxSession,
+            sessionBootstrap: trimmedSessionName.isEmpty ? .none : sessionBootstrap,
+            sessionName: trimmedSessionName,
             environmentTag: trimmedEnvironmentTag,
             isSensitive: isSensitive,
             notes: trimmedNotes
@@ -102,11 +137,78 @@ struct SSHProfile: Codable, Equatable, Identifiable {
     private var trimmedProxyJump: String { Self.trimmed(proxyJump) }
     private var trimmedDefaultDirectory: String { Self.trimmed(defaultDirectory) }
     private var trimmedStartupCommand: String { Self.trimmed(startupCommand) }
-    private var trimmedTmuxSession: String { Self.trimmed(tmuxSession) }
+    private var trimmedSessionName: String { Self.trimmed(sessionName) }
     private var trimmedEnvironmentTag: String { Self.trimmed(environmentTag) }
     private var trimmedNotes: String { Self.trimmed(notes) }
 
     private static func trimmed(_ value: String) -> String {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case host
+        case user
+        case port
+        case identityPath
+        case proxyJump
+        case defaultDirectory
+        case startupCommand
+        case sessionBootstrap
+        case sessionName
+        case tmuxSession
+        case environmentTag
+        case isSensitive
+        case notes
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let legacyTmuxSession = try container.decodeIfPresent(String.self, forKey: .tmuxSession) ?? ""
+        let decodedBootstrap = try container.decodeIfPresent(SSHSessionBootstrap.self, forKey: .sessionBootstrap) ?? .none
+        let decodedSessionName = try container.decodeIfPresent(String.self, forKey: .sessionName) ?? ""
+        let migratedSessionName = Self.trimmed(decodedSessionName).isEmpty ? legacyTmuxSession : decodedSessionName
+        let migratedBootstrap: SSHSessionBootstrap
+        if !Self.trimmed(legacyTmuxSession).isEmpty && Self.trimmed(decodedSessionName).isEmpty {
+            migratedBootstrap = .tmux
+        } else {
+            migratedBootstrap = decodedBootstrap
+        }
+
+        self.init(
+            id: try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID(),
+            name: try container.decodeIfPresent(String.self, forKey: .name) ?? "New Host",
+            host: try container.decodeIfPresent(String.self, forKey: .host) ?? "",
+            user: try container.decodeIfPresent(String.self, forKey: .user) ?? "",
+            port: try container.decodeIfPresent(Int.self, forKey: .port) ?? 22,
+            identityPath: try container.decodeIfPresent(String.self, forKey: .identityPath) ?? "",
+            proxyJump: try container.decodeIfPresent(String.self, forKey: .proxyJump) ?? "",
+            defaultDirectory: try container.decodeIfPresent(String.self, forKey: .defaultDirectory) ?? "",
+            startupCommand: try container.decodeIfPresent(String.self, forKey: .startupCommand) ?? "",
+            sessionBootstrap: migratedBootstrap,
+            sessionName: migratedSessionName,
+            environmentTag: try container.decodeIfPresent(String.self, forKey: .environmentTag) ?? "",
+            isSensitive: try container.decodeIfPresent(Bool.self, forKey: .isSensitive) ?? false,
+            notes: try container.decodeIfPresent(String.self, forKey: .notes) ?? ""
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(host, forKey: .host)
+        try container.encode(user, forKey: .user)
+        try container.encode(port, forKey: .port)
+        try container.encode(identityPath, forKey: .identityPath)
+        try container.encode(proxyJump, forKey: .proxyJump)
+        try container.encode(defaultDirectory, forKey: .defaultDirectory)
+        try container.encode(startupCommand, forKey: .startupCommand)
+        try container.encode(sessionBootstrap, forKey: .sessionBootstrap)
+        try container.encode(sessionName, forKey: .sessionName)
+        try container.encode(environmentTag, forKey: .environmentTag)
+        try container.encode(isSensitive, forKey: .isSensitive)
+        try container.encode(notes, forKey: .notes)
     }
 }

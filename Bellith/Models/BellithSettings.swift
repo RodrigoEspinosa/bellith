@@ -31,6 +31,7 @@ final class BellithSettings {
             "shellIntegrationPath", "shellIntegrationSSHEnv", "shellIntegrationSSHTerminfo",
             "commandCompletionNotificationsEnabled", "sidebarPinned", "sidebarAutoHide",
             "sidebarShowTools", "visorHideOnFocusLoss", "trafficLightAutoHide",
+            "legacyPaneSupport",
             "showStatusBar", "showStatusBarContext", "showStatusBarPath",
             "showStatusBarGitWorktree", "showStatusBarGitBranch", "showStatusBarProcess",
             "showStatusBarGitHub", "showStatusBarSize",
@@ -456,19 +457,25 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "windowPaddingY"); notify() }
     }
 
+    var legacyPaneSupport: Bool {
+        get { defaults.bool(forKey: "legacyPaneSupport") }
+        set { defaults.set(newValue, forKey: "legacyPaneSupport"); notify() }
+    }
+
     // Keybindings
     var keybindings: [KeyBindingEntry] {
         get {
+            let visibleDefaults = activeDefaultKeybindings
             if let data = defaults.data(forKey: "keybindings"),
                let decoded = try? JSONDecoder().decode([KeyBindingEntry].self, from: data) {
                 // Merge with defaults in case new actions were added
                 var map = Dictionary(uniqueKeysWithValues: decoded.map { ($0.id, $0) })
-                for def in Self.defaultKeybindings {
+                for def in visibleDefaults {
                     if map[def.id] == nil { map[def.id] = def }
                 }
-                return Self.defaultKeybindings.map { map[$0.id] ?? $0 }
+                return visibleDefaults.map { map[$0.id] ?? $0 }
             }
-            return Self.defaultKeybindings
+            return visibleDefaults
         }
         set {
             if let data = try? JSONEncoder().encode(newValue) {
@@ -480,6 +487,13 @@ final class BellithSettings {
 
     func shortcut(for actionId: String) -> KeyShortcut? {
         keybindings.first { $0.id == actionId }?.shortcut
+    }
+
+    private var activeDefaultKeybindings: [KeyBindingEntry] {
+        if legacyPaneSupport {
+            return Self.defaultKeybindings
+        }
+        return Self.defaultKeybindings.filter { !Self.legacyPaneActionIDs.contains($0.id) }
     }
 
     private func migrateLegacyWindowPaddingIfNeeded() {
@@ -569,6 +583,23 @@ final class BellithSettings {
                         shortcut: KeyShortcut(key: "k", command: true, shift: true, option: false, control: false)),
         KeyBindingEntry(id: "selectAll", label: "Select All", category: "Edit",
                         shortcut: KeyShortcut(key: "a", command: true, shift: false, option: false, control: false)),
+    ]
+
+    static let legacyPaneActionIDs: Set<String> = [
+        "splitRight",
+        "splitDown",
+        "closePane",
+        "navLeft",
+        "navDown",
+        "navUp",
+        "navRight",
+        "resizeLeft",
+        "resizeDown",
+        "resizeUp",
+        "resizeRight",
+        "zoomPane",
+        "equalizePanes",
+        "broadcastInput",
     ]
 
     func notify() {
@@ -695,6 +726,7 @@ final class BellithSettings {
             "restoreSession": restoreSession,
             "scrollbackLines": scrollbackLines,
             "shell": shell,
+            "legacyPaneSupport": legacyPaneSupport,
             "shellIntegrationCursor": shellIntegrationCursor,
             "shellIntegrationEnabled": shellIntegrationEnabled,
             "shellIntegrationPath": shellIntegrationPath,

@@ -59,4 +59,19 @@ final class SSHProfileStoreTests: XCTestCase {
         defaults.set(Data([0x00, 0x01, 0x02]), forKey: "sshProfiles")
         XCTAssertTrue(store.profiles.isEmpty)
     }
+
+    func testLegacyTmuxSessionMigratesToSessionBootstrap() throws {
+        let object: [[String: Any]] = [[
+            "id": UUID().uuidString,
+            "name": "Prod",
+            "host": "prod.example.com",
+            "tmuxSession": "prod"
+        ]]
+        let data = try JSONSerialization.data(withJSONObject: object)
+        defaults.set(data, forKey: "sshProfiles")
+
+        let loaded = try XCTUnwrap(store.profiles.first)
+        XCTAssertEqual(loaded.sessionBootstrap, .tmux)
+        XCTAssertEqual(loaded.sessionName, "prod")
+    }
 }

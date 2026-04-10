@@ -359,10 +359,10 @@ final class BellithSettingsTests: XCTestCase {
         let data = try Data(contentsOf: settingsFileURL)
         let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
 
-        XCTAssertEqual((object["backgroundOpacity"] as? NSNumber)?.doubleValue, 0.55, accuracy: 0.0001)
-        XCTAssertEqual((object["visorWidthPercent"] as? NSNumber)?.doubleValue, 0.86, accuracy: 0.0001)
-        XCTAssertEqual((object["visorHeightPercent"] as? NSNumber)?.doubleValue, 0.45, accuracy: 0.0001)
-        XCTAssertEqual((object["noiseIntensity"] as? NSNumber)?.doubleValue, 0.67, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(object["backgroundOpacity"] as? NSNumber).doubleValue, 0.55, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(object["visorWidthPercent"] as? NSNumber).doubleValue, 0.86, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(object["visorHeightPercent"] as? NSNumber).doubleValue, 0.45, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(object["noiseIntensity"] as? NSNumber).doubleValue, 0.67, accuracy: 0.0001)
     }
 
     func testDefaultSettingsFileContainsCurrentDefaults() throws {

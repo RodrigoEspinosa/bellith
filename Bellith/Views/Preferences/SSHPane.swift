@@ -35,8 +35,10 @@ final class SSHPane: NSView {
     private var cwdField: PrefTextField!
     private let startupLabel = CardRowLabel("Startup Command")
     private var startupField: PrefTextField!
-    private let tmuxLabel = CardRowLabel("Tmux Session")
-    private var tmuxField: PrefTextField!
+    private let multiplexerLabel = CardRowLabel("Session Manager")
+    private var multiplexerSegment: PrefSegment!
+    private let sessionNameLabel = CardRowLabel("Session Name")
+    private var sessionNameField: PrefTextField!
     private let environmentLabel = CardRowLabel("Environment Tag")
     private var environmentField: PrefTextField!
     private let sensitiveLabel = CardRowLabel("Sensitive Host")
@@ -92,12 +94,39 @@ final class SSHPane: NSView {
 
         cwdField = PrefTextField(text: "") { [weak self] value in self?.mutateSelectedProfile { $0.defaultDirectory = value } }
         startupField = PrefTextField(text: "") { [weak self] value in self?.mutateSelectedProfile { $0.startupCommand = value } }
-        tmuxField = PrefTextField(text: "") { [weak self] value in self?.mutateSelectedProfile { $0.tmuxSession = value } }
+        multiplexerSegment = PrefSegment(
+            labels: SSHSessionBootstrap.allCases.map(\.title),
+            selected: 0
+        ) { [weak self] idx in
+            guard let bootstrap = SSHSessionBootstrap.allCases[safe: idx] else { return }
+            self?.mutateSelectedProfile { profile in
+                profile.sessionBootstrap = bootstrap
+                if bootstrap == .none {
+                    profile.sessionName = ""
+                }
+            }
+        }
+        sessionNameField = PrefTextField(text: "") { [weak self] value in self?.mutateSelectedProfile { $0.sessionName = value } }
         environmentField = PrefTextField(text: "") { [weak self] value in self?.mutateSelectedProfile { $0.environmentTag = value } }
         sensitiveToggle = PrefToggle(isOn: false) { [weak self] value in self?.mutateSelectedProfile { $0.isSensitive = value } }
         notesField = PrefTextField(text: "") { [weak self] value in self?.mutateSelectedProfile { $0.notes = value } }
         content.addSubview(sessionCard)
-        for view: NSView in [cwdLabel, cwdField, startupLabel, startupField, tmuxLabel, tmuxField, environmentLabel, environmentField, sensitiveLabel, sensitiveToggle, notesLabel, notesField] {
+        for view: NSView in [
+            cwdLabel,
+            cwdField,
+            startupLabel,
+            startupField,
+            multiplexerLabel,
+            multiplexerSegment,
+            sessionNameLabel,
+            sessionNameField,
+            environmentLabel,
+            environmentField,
+            sensitiveLabel,
+            sensitiveToggle,
+            notesLabel,
+            notesField,
+        ] {
             sessionCard.addSubview(view)
         }
 
@@ -169,10 +198,11 @@ final class SSHPane: NSView {
 
     private func updateFieldValues() {
         guard let profile = selectedProfile else {
-            for field in [nameField, hostField, userField, identityField, proxyJumpField, cwdField, startupField, tmuxField, environmentField, notesField] {
+            for field in [nameField, hostField, userField, identityField, proxyJumpField, cwdField, startupField, sessionNameField, environmentField, notesField] {
                 field?.updateText("")
             }
             portField.setValue(22)
+            multiplexerSegment.setSelected(0)
             sensitiveToggle.setOn(false)
             return
         }
@@ -185,7 +215,8 @@ final class SSHPane: NSView {
         proxyJumpField.updateText(profile.proxyJump)
         cwdField.updateText(profile.defaultDirectory)
         startupField.updateText(profile.startupCommand)
-        tmuxField.updateText(profile.tmuxSession)
+        multiplexerSegment.setSelected(SSHSessionBootstrap.allCases.firstIndex(of: profile.sessionBootstrap) ?? 0)
+        sessionNameField.updateText(profile.sessionName)
         environmentField.updateText(profile.environmentTag)
         sensitiveToggle.setOn(profile.isSensitive)
         notesField.updateText(profile.notes)
@@ -294,15 +325,16 @@ final class SSHPane: NSView {
             y += connectionHeight + PreferencesLayout.sectionGap
 
             let sessionHeight = sessionCard.headerHeight
-                + 6 * PreferencesLayout.rowH
-                + 5 * PreferencesLayout.rowGap
+                + 7 * PreferencesLayout.rowH
+                + 6 * PreferencesLayout.rowGap
                 + PreferencesLayout.cardPad
             sessionCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: sessionHeight)
             var sessionRowY = sessionHeight - sessionCard.headerHeight - PreferencesLayout.rowH
             for (label, control) in [
                 (cwdLabel, cwdField as NSView),
                 (startupLabel, startupField as NSView),
-                (tmuxLabel, tmuxField as NSView),
+                (multiplexerLabel, multiplexerSegment as NSView),
+                (sessionNameLabel, sessionNameField as NSView),
                 (environmentLabel, environmentField as NSView),
                 (sensitiveLabel, sensitiveToggle as NSView),
                 (notesLabel, notesField as NSView),
@@ -316,6 +348,12 @@ final class SSHPane: NSView {
         }
 
         content.frame = NSRect(x: 0, y: 0, width: width, height: max(y, bounds.height))
+    }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }
 

@@ -11,8 +11,6 @@ protocol TerminalSessionCoordinatorHost: AnyObject {
 }
 
 final class TerminalSessionCoordinator {
-    private static let maxSplitDepth = 8
-
     weak var host: TerminalSessionCoordinatorHost?
 
     init(host: TerminalSessionCoordinatorHost) {
@@ -22,14 +20,12 @@ final class TerminalSessionCoordinator {
     func saveSession(from tabs: [TerminalTabEntry], selectedTabIndex: Int, sidebarExpanded: Bool) -> SessionState {
         let tabStates = tabs.compactMap { tab -> SessionState.TabState? in
             switch tab.content {
-            case .terminal(let root, _, _):
-                let tree = root.serialize { view in
-                    (view as? TerminalSurfaceView)?.currentCwd
-                }
+            case .terminal:
+                guard let snapshot = terminalSnapshot(for: tab) else { return nil }
                 let context = tab.persistedContext
                 return SessionState.TabState(
                     title: tab.title,
-                    splitTree: tree,
+                    terminalSnapshot: snapshot,
                     terminalContext: context,
                     sshProfileID: context?.sshProfileID
                 )
@@ -51,14 +47,12 @@ final class TerminalSessionCoordinator {
 
         let tabState: SessionState.TabState
         switch tab.content {
-        case .terminal(let root, _, _):
-            let tree = root.serialize { view in
-                (view as? TerminalSurfaceView)?.currentCwd
-            }
+        case .terminal:
+            guard let snapshot = terminalSnapshot(for: tab) else { return nil }
             let context = tab.persistedContext
             tabState = SessionState.TabState(
                 title: tab.title,
-                splitTree: tree,
+                terminalSnapshot: snapshot,
                 terminalContext: context,
                 sshProfileID: context?.sshProfileID
             )
@@ -79,7 +73,7 @@ final class TerminalSessionCoordinator {
 
             switch tabState.kind {
             case .terminal:
-                guard let splitTree = tabState.splitTree else { continue }
+                guard let terminalSnapshot = tabState.terminalSnapshot else { continue }
                 let sshProfile = tabState.sshProfileID.flatMap { SSHProfileStore.shared.profile(id: $0) }
                 let restoredContext: TerminalContext
                 if let sshProfile {
@@ -90,40 +84,38 @@ final class TerminalSessionCoordinator {
                     restoredContext = tabState.terminalContext ?? .local
                 }
 
-                var surfaces: [TerminalSurfaceView] = []
-                let splitRoot = buildSplitTree(
-                    splitTree,
-                    tabId: id,
-                    surfaces: &surfaces,
-                    depth: 0,
-                    context: restoredContext,
-                    restoringSSHProfile: sshProfile,
-                    host: host
-                )
-
-                let validSurfaces = surfaces.filter(\.isReady)
-                guard !validSurfaces.isEmpty else {
+                let surface = host.makeSurface(tabId: id, context: restoredContext)
+                guard surface.isReady else {
                     Logger.app.warning("Session restore: skipping tab '\(tabState.title)' - no valid surfaces")
-                    splitRoot.removeFromSuperview()
                     continue
                 }
+                surface.currentCwd = terminalSnapshot.cwd
+
+                if sshProfile == nil, let cwd = terminalSnapshot.cwd, !cwd.isEmpty {
+                    sendCdWhenReady(surface: surface, cwd: cwd)
+                }
+                let indicator = Self.restorationIndicator(
+                    hasScrollback: terminalSnapshot.hadScrollback,
+                    cwd: terminalSnapshot.cwd,
+                    isSSH: sshProfile != nil
+                )
+                surface.showSessionRestoreIndicator(title: indicator.title, detail: indicator.detail)
+                let splitRoot = SplitPaneView(content: surface)
 
                 var entry = TerminalTabEntry(
                     id: id,
                     title: tabState.title,
                     cwd: nil,
-                    content: .terminal(splitRoot: splitRoot, surfaces: validSurfaces, focusedSurface: validSurfaces.first)
+                    content: .terminal(splitRoot: splitRoot, surfaces: [surface], focusedSurface: surface)
                 )
-                entry.cwd = validSurfaces.first?.currentCwd
+                entry.cwd = surface.currentCwd
                 restoredTabs.append(entry)
                 host.addRestoredTabRootView(splitRoot)
                 splitRoot.isHidden = true
 
                 if let sshProfile {
-                    for surface in validSurfaces {
-                        surface.terminalContext = sshProfile.launchContext
-                        send(command: SSHLaunchBuilder.command(for: sshProfile), to: surface)
-                    }
+                    surface.terminalContext = sshProfile.launchContext
+                    send(command: SSHLaunchBuilder.command(for: sshProfile), to: surface)
                 }
 
             case .smart:
@@ -151,67 +143,6 @@ final class TerminalSessionCoordinator {
 
     func send(command: String, to surface: TerminalSurfaceView) {
         sendCommandWhenReady(surface: surface, command: command)
-    }
-
-    private func buildSplitTree(
-        _ node: SplitNodeState,
-        tabId: UUID,
-        surfaces: inout [TerminalSurfaceView],
-        depth: Int,
-        context: TerminalContext,
-        restoringSSHProfile: SSHProfile?,
-        host: TerminalSessionCoordinatorHost
-    ) -> SplitPaneView {
-        switch node {
-        case .leaf(let cwd, let scrollbackText):
-            let surface = host.makeSurface(tabId: tabId, context: context)
-            surface.currentCwd = cwd
-            surfaces.append(surface)
-
-            let hasScrollback = !(scrollbackText?.isEmpty ?? true)
-            if restoringSSHProfile == nil, let cwd, !cwd.isEmpty {
-                sendCdWhenReady(surface: surface, cwd: cwd)
-            }
-            let indicator = Self.restorationIndicator(hasScrollback: hasScrollback, cwd: cwd, isSSH: restoringSSHProfile != nil)
-            surface.showSessionRestoreIndicator(title: indicator.title, detail: indicator.detail)
-
-            return SplitPaneView(content: surface)
-
-        case .branch(let orientation, let ratio, let firstNode, let secondNode):
-            guard depth < Self.maxSplitDepth else {
-                Logger.app.warning("Session restore: split depth limit reached, collapsing to leaf")
-                let surface = host.makeSurface(tabId: tabId, context: context)
-                surfaces.append(surface)
-                return SplitPaneView(content: surface)
-            }
-
-            let resolvedOrientation: SplitPaneView.Orientation = orientation == "horizontal" ? .horizontal : .vertical
-            let firstChild = buildSplitTree(
-                firstNode,
-                tabId: tabId,
-                surfaces: &surfaces,
-                depth: depth + 1,
-                context: context,
-                restoringSSHProfile: restoringSSHProfile,
-                host: host
-            )
-            let secondChild = buildSplitTree(
-                secondNode,
-                tabId: tabId,
-                surfaces: &surfaces,
-                depth: depth + 1,
-                context: context,
-                restoringSSHProfile: restoringSSHProfile,
-                host: host
-            )
-
-            return SplitPaneView.makeBranch(
-                orientation: resolvedOrientation,
-                ratio: CGFloat(ratio),
-                first: firstChild,
-                second: secondChild
-            )
-        }
     }
 
     static func restorationIndicator(
@@ -283,5 +214,14 @@ final class TerminalSessionCoordinator {
                 self?.host?.refreshSmartPanelContexts()
             }
         }
+    }
+
+    private func terminalSnapshot(for tab: TerminalTabEntry) -> SessionState.TerminalSnapshot? {
+        guard let surface = tab.focusedSurface ?? tab.surfaces.first else { return nil }
+        let scrollback = surface.readScreenText()
+        return SessionState.TerminalSnapshot(
+            cwd: surface.currentCwd,
+            hadScrollback: !(scrollback?.isEmpty ?? true)
+        )
     }
 }
