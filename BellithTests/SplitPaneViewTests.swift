@@ -75,7 +75,7 @@ final class SplitPaneViewTests: XCTestCase {
         }
         XCTAssertEqual(orientation, "vertical")
 
-        guard case .leaf(let firstCwd) = first else {
+        guard case .leaf(let firstCwd, _) = first else {
             return XCTFail("Expected first child leaf")
         }
         XCTAssertEqual(firstCwd, "/one")
@@ -85,12 +85,12 @@ final class SplitPaneViewTests: XCTestCase {
         }
         XCTAssertEqual(nestedOrientation, "horizontal")
 
-        guard case .leaf(let nestedFirstCwd) = nestedFirst else {
+        guard case .leaf(let nestedFirstCwd, _) = nestedFirst else {
             return XCTFail("Expected nested first leaf")
         }
         XCTAssertEqual(nestedFirstCwd, "/two")
 
-        guard case .leaf(let nestedSecondCwd) = nestedSecond else {
+        guard case .leaf(let nestedSecondCwd, _) = nestedSecond else {
             return XCTFail("Expected nested second leaf")
         }
         XCTAssertEqual(nestedSecondCwd, "/three")

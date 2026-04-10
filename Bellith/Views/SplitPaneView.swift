@@ -314,14 +314,15 @@ final class SplitPaneView: NSView {
     func serialize(cwdLookup: (NSView) -> String?) -> SplitNodeState {
         if isLeaf {
             let cwd = contentView.flatMap { cwdLookup($0) }
-            return .leaf(cwd: cwd)
+            let scrollbackText = (contentView as? TerminalSurfaceView)?.readScreenText()
+            return .leaf(cwd: cwd, scrollbackText: scrollbackText)
         }
         let ori = orientation == .horizontal ? "horizontal" : "vertical"
         return .branch(
             orientation: ori,
             ratio: Double(ratio),
-            first: first?.serialize(cwdLookup: cwdLookup) ?? .leaf(cwd: nil),
-            second: second?.serialize(cwdLookup: cwdLookup) ?? .leaf(cwd: nil)
+            first: first?.serialize(cwdLookup: cwdLookup) ?? .leaf(cwd: nil, scrollbackText: nil),
+            second: second?.serialize(cwdLookup: cwdLookup) ?? .leaf(cwd: nil, scrollbackText: nil)
         )
     }
 

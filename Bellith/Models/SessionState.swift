@@ -61,6 +61,7 @@ struct SessionState: Codable {
 
     let tabs: [TabState]
     let selectedTabIndex: Int
+    let sidebarExpanded: Bool?
 }
 
 struct WindowSessionState: Codable {
@@ -83,19 +84,20 @@ extension Notification.Name {
 }
 
 indirect enum SplitNodeState: Codable {
-    case leaf(cwd: String?)
+    case leaf(cwd: String?, scrollbackText: String?)
     case branch(orientation: String, ratio: Double, first: SplitNodeState, second: SplitNodeState)
 
     private enum CodingKeys: String, CodingKey {
-        case type, cwd, orientation, ratio, first, second
+        case type, cwd, scrollbackText, orientation, ratio, first, second
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .leaf(let cwd):
+        case .leaf(let cwd, let scrollbackText):
             try c.encode("leaf", forKey: .type)
             try c.encodeIfPresent(cwd, forKey: .cwd)
+            try c.encodeIfPresent(scrollbackText, forKey: .scrollbackText)
         case .branch(let orientation, let ratio, let first, let second):
             try c.encode("branch", forKey: .type)
             try c.encode(orientation, forKey: .orientation)
@@ -117,7 +119,8 @@ indirect enum SplitNodeState: Codable {
             self = .branch(orientation: orientation, ratio: ratio, first: first, second: second)
         default:
             let cwd = try c.decodeIfPresent(String.self, forKey: .cwd)
-            self = .leaf(cwd: cwd)
+            let scrollbackText = try c.decodeIfPresent(String.self, forKey: .scrollbackText)
+            self = .leaf(cwd: cwd, scrollbackText: scrollbackText)
         }
     }
 }

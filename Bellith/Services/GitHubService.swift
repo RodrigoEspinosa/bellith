@@ -39,6 +39,19 @@ enum GitHubService {
         let openIssues: Int
     }
 
+    struct StatusDetails: Equatable {
+        let repoName: String
+        let openPRs: Int
+        let openIssues: Int
+        let pullRequests: [PullRequest]
+        let issues: [Issue]
+
+        var summary: StatusSummary? {
+            guard openPRs > 0 || openIssues > 0 else { return nil }
+            return StatusSummary(repoName: repoName, openPRs: openPRs, openIssues: openIssues)
+        }
+    }
+
     enum GitHubError: Error {
         case ghNotInstalled
         case notARepository
@@ -106,27 +119,41 @@ enum GitHubService {
 
     /// Quick summary of open PRs and issues for the status bar. Runs two fast `gh` commands.
     static func statusSummary(in directory: String) -> StatusSummary? {
-        guard ghPath() != nil else { return nil }
+        statusDetails(in: directory)?.summary
+    }
 
+    /// Detailed PR and issue metadata for hover affordances in the status bar.
+    static func statusDetails(
+        in directory: String,
+        countLimit: Int = 100,
+        previewLimit: Int = 8
+    ) -> StatusDetails? {
+        guard ghPath() != nil else { return nil }
         guard case .success(let repo) = repoInfo(in: directory) else { return nil }
 
-        // Use minimal JSON fields for speed
-        let prCount: Int
-        if case .success(let prs) = listPullRequests(in: directory, limit: 100) {
-            prCount = prs.count
+        let prs: [PullRequest]
+        if case .success(let result) = listPullRequests(in: directory, limit: countLimit) {
+            prs = result
         } else {
-            prCount = 0
+            prs = []
         }
 
-        let issueCount: Int
-        if case .success(let issues) = listIssues(in: directory, limit: 100) {
-            issueCount = issues.count
+        let issues: [Issue]
+        if case .success(let result) = listIssues(in: directory, limit: countLimit) {
+            issues = result
         } else {
-            issueCount = 0
+            issues = []
         }
 
-        guard prCount > 0 || issueCount > 0 else { return nil }
-        return StatusSummary(repoName: repo.fullName, openPRs: prCount, openIssues: issueCount)
+        guard !prs.isEmpty || !issues.isEmpty else { return nil }
+
+        return StatusDetails(
+            repoName: repo.fullName,
+            openPRs: prs.count,
+            openIssues: issues.count,
+            pullRequests: Array(prs.prefix(previewLimit)),
+            issues: Array(issues.prefix(previewLimit))
+        )
     }
 
     /// List open issues for the repo at the given directory.

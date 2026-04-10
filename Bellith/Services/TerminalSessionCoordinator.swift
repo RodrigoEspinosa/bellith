@@ -19,7 +19,7 @@ final class TerminalSessionCoordinator {
         self.host = host
     }
 
-    func saveSession(from tabs: [TerminalTabEntry], selectedTabIndex: Int) -> SessionState {
+    func saveSession(from tabs: [TerminalTabEntry], selectedTabIndex: Int, sidebarExpanded: Bool) -> SessionState {
         let tabStates = tabs.compactMap { tab -> SessionState.TabState? in
             switch tab.content {
             case .terminal(let root, _, _):
@@ -40,7 +40,8 @@ final class TerminalSessionCoordinator {
 
         return SessionState(
             tabs: tabStates,
-            selectedTabIndex: min(selectedTabIndex, max(tabStates.count - 1, 0))
+            selectedTabIndex: min(selectedTabIndex, max(tabStates.count - 1, 0)),
+            sidebarExpanded: sidebarExpanded
         )
     }
 
@@ -65,7 +66,7 @@ final class TerminalSessionCoordinator {
             tabState = SessionState.TabState(title: tab.title, smartPanelID: panel.pluginID)
         }
 
-        return SessionState(tabs: [tabState], selectedTabIndex: 0)
+        return SessionState(tabs: [tabState], selectedTabIndex: 0, sidebarExpanded: nil)
     }
 
     func restoreSession(_ state: SessionState) -> [TerminalTabEntry] {
@@ -162,12 +163,14 @@ final class TerminalSessionCoordinator {
         host: TerminalSessionCoordinatorHost
     ) -> SplitPaneView {
         switch node {
-        case .leaf(let cwd):
+        case .leaf(let cwd, let scrollbackText):
             let surface = host.makeSurface(tabId: tabId, context: context)
             surface.currentCwd = cwd
             surfaces.append(surface)
 
-            if restoringSSHProfile == nil, let cwd, !cwd.isEmpty {
+            if let scrollbackText, !scrollbackText.isEmpty {
+                replayScrollback(scrollbackText, on: surface, cwd: cwd, isSSH: restoringSSHProfile != nil)
+            } else if restoringSSHProfile == nil, let cwd, !cwd.isEmpty {
                 sendCdWhenReady(surface: surface, cwd: cwd)
             }
 
@@ -208,6 +211,30 @@ final class TerminalSessionCoordinator {
                 second: secondChild
             )
         }
+    }
+
+    private func replayScrollback(_ text: String, on surface: TerminalSurfaceView, cwd: String?, isSSH: Bool) {
+        // Write scrollback to a temp file, then cat it and cd to the saved directory
+        let tempDir = FileManager.default.temporaryDirectory
+        let tempFile = tempDir.appendingPathComponent("bellith-restore-\(UUID().uuidString)")
+        do {
+            try text.write(to: tempFile, atomically: true, encoding: .utf8)
+        } catch {
+            Logger.app.warning("Session restore: failed to write scrollback temp file: \(error)")
+            if !isSSH, let cwd, !cwd.isEmpty {
+                sendCdWhenReady(surface: surface, cwd: cwd)
+            }
+            return
+        }
+
+        let path = tempFile.path.replacingOccurrences(of: "'", with: "'\\''")
+        var commands = " cat '\(path)'; rm -f '\(path)'"
+        if !isSSH, let cwd, !cwd.isEmpty {
+            let escaped = cwd.replacingOccurrences(of: "'", with: "'\\''")
+            commands += "; cd '\(escaped)'"
+        }
+
+        sendCommandWhenReady(surface: surface, command: commands)
     }
 
     private func sendCdWhenReady(surface: TerminalSurfaceView, cwd: String, attempt: Int = 0) {

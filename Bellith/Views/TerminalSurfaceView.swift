@@ -82,6 +82,50 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
 
     // MARK: - View Lifecycle
 
+    /// Read all visible + scrollback text from this surface.
+    func readScreenText() -> String? {
+        guard let surface else { return nil }
+        let size = ghostty_surface_size(surface)
+        guard size.columns > 0, size.rows > 0 else { return nil }
+
+        // Select from top of scrollback (screen row 0) to bottom-right of viewport
+        let sel = ghostty_selection_s(
+            top_left: ghostty_point_s(
+                tag: GHOSTTY_POINT_SCREEN,
+                coord: GHOSTTY_POINT_COORD_TOP_LEFT,
+                x: 0,
+                y: 0
+            ),
+            bottom_right: ghostty_point_s(
+                tag: GHOSTTY_POINT_ACTIVE,
+                coord: GHOSTTY_POINT_COORD_BOTTOM_RIGHT,
+                x: UInt32(size.columns - 1),
+                y: UInt32(size.rows - 1)
+            ),
+            rectangle: false
+        )
+
+        var text = ghostty_text_s()
+        guard ghostty_surface_read_text(surface, sel, &text) else { return nil }
+        defer { ghostty_surface_free_text(surface, &text) }
+        guard text.text_len > 0 else { return nil }
+
+        var result = String(cString: text.text)
+
+        // Trim trailing empty lines
+        while result.hasSuffix("\n\n") {
+            result = String(result.dropLast())
+        }
+        guard !result.isEmpty else { return nil }
+
+        // Cap at ~512KB per surface to keep UserDefaults reasonable
+        let maxLen = 512 * 1024
+        if result.utf8.count > maxLen {
+            return String(result.suffix(maxLen))
+        }
+        return result
+    }
+
     override var acceptsFirstResponder: Bool { true }
 
     override func becomeFirstResponder() -> Bool {

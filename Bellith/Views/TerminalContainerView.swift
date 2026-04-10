@@ -930,16 +930,18 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         lastGitHubCwd = cwd
 
         statusBar.updateGitHub(nil)
+        statusBar.updateGitHubDetails(nil)
         statusBar.setGitHubLoading(dependencies.settings.showStatusBarGitHub)
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            let summary = GitHubService.statusSummary(in: cwd)
+            let details = GitHubService.statusDetails(in: cwd)
 
             DispatchQueue.main.async {
                 guard let self,
                       self.selectedTabIndex < self.tabs.count,
                       self.tabs[self.selectedTabIndex].cwd == cwd else { return }
-                self.statusBar.updateGitHub(summary)
+                self.statusBar.updateGitHub(details?.summary)
+                self.statusBar.updateGitHubDetails(details)
                 self.statusBar.setGitHubLoading(false)
             }
         }
@@ -1914,7 +1916,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     // MARK: - Session Save / Restore
 
     func saveSession() -> SessionState {
-        sessionCoordinator.saveSession(from: tabs, selectedTabIndex: selectedTabIndex)
+        sessionCoordinator.saveSession(from: tabs, selectedTabIndex: selectedTabIndex, sidebarExpanded: sidebar.isExpanded)
     }
 
     func sessionState(forTabAt index: Int) -> SessionState? {
@@ -1937,6 +1939,15 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         let idx = min(state.selectedTabIndex, tabs.count - 1)
         selectTab(max(idx, 0))
         refreshTabUI()
+
+        // Restore sidebar expanded/collapsed state
+        if let sidebarExpanded = state.sidebarExpanded {
+            if sidebarExpanded && !sidebar.isExpanded {
+                sidebar.show()
+            } else if !sidebarExpanded && sidebar.isExpanded {
+                sidebar.hide()
+            }
+        }
     }
 
     // MARK: - Surface Factory
