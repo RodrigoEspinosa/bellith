@@ -2248,6 +2248,11 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         openWorkingDirectory(cwd, in: surface)
     }
 
+    func runInActiveSurface(_ command: String) {
+        guard let surface = activeSurface else { return }
+        sessionCoordinator.send(command: command, to: surface)
+    }
+
     func openFileInEditor(_ fileURL: URL, titleOverride: String? = nil) {
         let command = Self.editorCommand(for: fileURL)
         let workingDirectory = fileURL.deletingLastPathComponent().path

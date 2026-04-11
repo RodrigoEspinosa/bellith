@@ -22,5 +22,16 @@
 	<string>14.0</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.rec.bellith.url</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>bellith</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
