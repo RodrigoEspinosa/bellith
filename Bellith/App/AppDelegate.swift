@@ -92,6 +92,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.handleSystemAppearanceChanged()
         }
 
+        // Observe "Increase Contrast" accessibility toggle so we can promote
+        // to/from the high-contrast theme variant at runtime.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(handleAccessibilityDisplayOptionsChanged),
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil
+        )
+
         // Request notification permission
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
 
@@ -579,6 +588,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.representedObject = theme
             item.state = theme.name == settings.lightThemeName ? .on : .off
             themeMenu.addItem(item)
+        }
+    }
+
+    @objc private func handleAccessibilityDisplayOptionsChanged() {
+        DispatchQueue.main.async { [weak self] in
+            self?.applyResolvedAppearanceAndTheme()
         }
     }
 

@@ -345,9 +345,100 @@ extension ThemeColors {
         ghosttyTheme: "One Light"
     )
 
+    // MARK: - Accessibility Themes
+
+    /// High-contrast dark theme. Passes WCAG 2.2 AAA contrast ratios against the
+    /// background for all text roles and uses a saturated accent that remains
+    /// visible under "Increase Contrast" system setting.
+    static let highContrastDark = ThemeColors(
+        name: "High Contrast Dark",
+        base: NSColor(white: 0.0, alpha: 1.0),
+        surface: NSColor(white: 0.055, alpha: 1.0),
+        overlay: NSColor(white: 0.110, alpha: 1.0),
+        accent: NSColor(red: 1.000, green: 0.839, blue: 0.000, alpha: 1.0), // #FFD600
+        textPrimary: NSColor(white: 1.0, alpha: 1.0),
+        textSecondary: NSColor(white: 0.92, alpha: 1.0),
+        textMuted: NSColor(white: 0.80, alpha: 1.0),
+        border: NSColor(white: 1.0, alpha: 0.55),
+        borderSubtle: NSColor(white: 1.0, alpha: 0.30),
+        ghosttyTheme: "Bellith High Contrast Dark",
+        darkChromeStyle: .oled,
+        ghosttyThemeDefinition: GhosttyThemeDefinition(
+            fileStem: "high-contrast-dark",
+            lines: [
+                "palette = 0=#000000",
+                "palette = 1=#FF6B6B",
+                "palette = 2=#7BFF7B",
+                "palette = 3=#FFD600",
+                "palette = 4=#6AB0FF",
+                "palette = 5=#FF7BFF",
+                "palette = 6=#7BFFFF",
+                "palette = 7=#FFFFFF",
+                "palette = 8=#7A7A7A",
+                "palette = 9=#FF9A9A",
+                "palette = 10=#A6FFA6",
+                "palette = 11=#FFE866",
+                "palette = 12=#9AC9FF",
+                "palette = 13=#FF9AFF",
+                "palette = 14=#9AFFFF",
+                "palette = 15=#FFFFFF",
+                "background = #000000",
+                "foreground = #FFFFFF",
+                "cursor-color = #FFD600",
+                "cursor-text = #000000",
+                "selection-background = #FFD600",
+                "selection-foreground = #000000",
+            ]
+        )
+    )
+
+    /// High-contrast light theme — paper-white background, near-black text, saturated blue accent.
+    static let highContrastLight = ThemeColors(
+        name: "High Contrast Light",
+        base: NSColor(white: 1.0, alpha: 1.0),
+        surface: NSColor(white: 0.965, alpha: 1.0),
+        overlay: NSColor(white: 0.920, alpha: 1.0),
+        accent: NSColor(red: 0.000, green: 0.235, blue: 0.686, alpha: 1.0), // #003CAF
+        textPrimary: NSColor(white: 0.0, alpha: 1.0),
+        textSecondary: NSColor(white: 0.10, alpha: 1.0),
+        textMuted: NSColor(white: 0.25, alpha: 1.0),
+        border: NSColor(white: 0.0, alpha: 0.55),
+        borderSubtle: NSColor(white: 0.0, alpha: 0.30),
+        ghosttyTheme: "Bellith High Contrast Light",
+        ghosttyThemeDefinition: GhosttyThemeDefinition(
+            fileStem: "high-contrast-light",
+            lines: [
+                "palette = 0=#000000",
+                "palette = 1=#B00020",
+                "palette = 2=#006400",
+                "palette = 3=#7A4A00",
+                "palette = 4=#003CAF",
+                "palette = 5=#7A0099",
+                "palette = 6=#005C6B",
+                "palette = 7=#000000",
+                "palette = 8=#404040",
+                "palette = 9=#D00032",
+                "palette = 10=#008A00",
+                "palette = 11=#A46400",
+                "palette = 12=#1F5CFF",
+                "palette = 13=#A000CC",
+                "palette = 14=#008AA0",
+                "palette = 15=#000000",
+                "background = #FFFFFF",
+                "foreground = #000000",
+                "cursor-color = #003CAF",
+                "cursor-text = #FFFFFF",
+                "selection-background = #003CAF",
+                "selection-foreground = #FFFFFF",
+            ]
+        )
+    )
+
     static let builtInThemes: [ThemeColors] = [
         .tokyonight, .midnightOLED, .catppuccinMocha, .gruvboxDark, .rosePine, .nord, .solarizedDark, .dracula, .kanagawaWave,
+        .highContrastDark,
         .tokyonightLight, .catppuccinLatte, .solarizedLight, .oneLight,
+        .highContrastLight,
     ]
 
     static var allThemes: [ThemeColors] {
