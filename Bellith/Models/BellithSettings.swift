@@ -747,6 +747,12 @@ final class BellithSettings {
     }
 
     var resolvedTheme: ThemeColors {
+        // Honor the macOS "Increase Contrast" accessibility setting by promoting
+        // to a high-contrast variant. Users who have explicitly picked a
+        // high-contrast theme already get it unchanged.
+        if NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast {
+            return resolvedIsDark ? .highContrastDark : .highContrastLight
+        }
         let name = resolvedIsDark ? darkThemeName : lightThemeName
         return ThemeColors.allThemes.first { $0.name == name } ?? .tokyonight
     }
