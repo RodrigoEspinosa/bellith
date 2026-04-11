@@ -8,6 +8,7 @@ final class TabBarView: NSView {
         let id: UUID
         var title: String
         var kind: TerminalContainerView.TabKind = .terminal
+        var isPinned: Bool = false
     }
 
     private(set) var tabs: [Tab] = []
@@ -18,6 +19,7 @@ final class TabBarView: NSView {
     var onCloseTab: ((Int) -> Void)?
     var onNewTab: (() -> Void)?
     var onReorderTab: ((Int, Int) -> Void)?
+    var onTogglePin: ((Int) -> Void)?
 
     private var dragSourceIndex: Int?
     private var dragTargetIndex: Int?
@@ -101,11 +103,13 @@ final class TabBarView: NSView {
             let pill = TabPillView(
                 title: tab.title,
                 isSelected: i == selectedIndex,
+                isPinned: tab.isPinned,
                 kind: tab.kind,
                 smartPanelRegistry: smartPanelRegistry
             )
             pill.onSelect = { [weak self] in self?.onSelectTab?(i) }
             pill.onClose = { [weak self] in self?.onCloseTab?(i) }
+            pill.onTogglePin = { [weak self] in self?.onTogglePin?(i) }
             pill.onDragBegan = { [weak self] in self?.beginDrag(fromIndex: i) }
             pill.onDragMoved = { [weak self] loc in self?.updateDrag(location: loc) }
             pill.onDragEnded = { [weak self] in self?.endDrag() }
@@ -206,6 +210,7 @@ final class TabBarView: NSView {
 fileprivate final class TabPillView: NSView {
     var onSelect: (() -> Void)?
     var onClose: (() -> Void)?
+    var onTogglePin: (() -> Void)?
     var onDragBegan: (() -> Void)?
     var onDragMoved: ((NSPoint) -> Void)?
     var onDragEnded: (() -> Void)?
@@ -215,17 +220,21 @@ fileprivate final class TabPillView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
 
     private let iconView = NSImageView()
+    private let pinView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
     private let closeButton = NSButton()
     private let isSelected: Bool
+    private let isPinned: Bool
     private let kind: TerminalContainerView.TabKind
     private let smartPanelRegistry: SmartPanelRegistry
     private var trackingArea: NSTrackingArea?
     private var isHovered = false
 
     var idealWidth: CGFloat {
-        let iconWidth: CGFloat = isSmartTab ? 22 : 0
-        return titleLabel.attributedStringValue.size().width + 40 + iconWidth
+        let iconWidth: CGFloat = (isSmartTab || isPinned) ? 22 : 0
+        // Pinned tabs render compactly — no trailing close button gap.
+        let trailing: CGFloat = isPinned ? 20 : 40
+        return titleLabel.attributedStringValue.size().width + trailing + iconWidth
     }
 
     private var isSmartTab: Bool {
@@ -236,10 +245,12 @@ fileprivate final class TabPillView: NSView {
     init(
         title: String,
         isSelected: Bool,
+        isPinned: Bool,
         kind: TerminalContainerView.TabKind,
         smartPanelRegistry: SmartPanelRegistry
     ) {
         self.isSelected = isSelected
+        self.isPinned = isPinned
         self.kind = kind
         self.smartPanelRegistry = smartPanelRegistry
         super.init(frame: .zero)
@@ -249,16 +260,22 @@ fileprivate final class TabPillView: NSView {
 
         // Accessibility
         setAccessibilityRole(.button)
-        setAccessibilityLabel("Tab: \(title)")
+        let pinnedSuffix = isPinned ? ", pinned" : ""
+        setAccessibilityLabel("Tab: \(title)\(pinnedSuffix)")
         setAccessibilityValue(isSelected ? "selected" : "")
 
-        // Icon for smart tabs
+        // Leading icon: smart-tab icon takes priority over pin glyph.
         if case .smart(let pluginID) = kind,
            let plugin = smartPanelRegistry.plugin(for: pluginID) {
             iconView.image = NSImage(systemSymbolName: plugin.iconName, accessibilityDescription: nil)
             iconView.contentTintColor = isSelected ? Theme.textPrimary : Theme.textTertiary
             iconView.imageScaling = .scaleProportionallyDown
             addSubview(iconView)
+        } else if isPinned {
+            pinView.image = NSImage(systemSymbolName: "pin.fill", accessibilityDescription: "Pinned")
+            pinView.contentTintColor = isSelected ? Theme.accent : Theme.textTertiary
+            pinView.imageScaling = .scaleProportionallyDown
+            addSubview(pinView)
         }
 
         titleLabel.stringValue = title
@@ -268,15 +285,17 @@ fileprivate final class TabPillView: NSView {
         titleLabel.maximumNumberOfLines = 1
         addSubview(titleLabel)
 
-        closeButton.isBordered = false
-        closeButton.title = ""
-        closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close")
-        closeButton.contentTintColor = Theme.textTertiary
-        closeButton.setFrameSize(NSSize(width: 18, height: 18))
-        closeButton.target = self
-        closeButton.action = #selector(handleClose)
-        closeButton.alphaValue = 0
-        addSubview(closeButton)
+        if !isPinned {
+            closeButton.isBordered = false
+            closeButton.title = ""
+            closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close")
+            closeButton.contentTintColor = Theme.textTertiary
+            closeButton.setFrameSize(NSSize(width: 18, height: 18))
+            closeButton.target = self
+            closeButton.action = #selector(handleClose)
+            closeButton.alphaValue = 0
+            addSubview(closeButton)
+        }
 
         updateAppearance()
     }
@@ -291,10 +310,16 @@ fileprivate final class TabPillView: NSView {
         if isSmartTab {
             iconView.frame = NSRect(x: 10, y: (bounds.height - 12) / 2, width: 12, height: 12)
             labelX = 28
+        } else if isPinned {
+            pinView.frame = NSRect(x: 10, y: (bounds.height - 11) / 2, width: 11, height: 11)
+            labelX = 26
         }
 
-        titleLabel.frame = NSRect(x: labelX, y: (bounds.height - 16) / 2, width: bounds.width - labelX - 28, height: 16)
-        closeButton.frame = NSRect(x: bounds.width - 24, y: (bounds.height - 18) / 2, width: 18, height: 18)
+        let trailingInset: CGFloat = isPinned ? 10 : 28
+        titleLabel.frame = NSRect(x: labelX, y: (bounds.height - 16) / 2, width: max(0, bounds.width - labelX - trailingInset), height: 16)
+        if !isPinned {
+            closeButton.frame = NSRect(x: bounds.width - 24, y: (bounds.height - 18) / 2, width: 18, height: 18)
+        }
     }
 
     override func updateTrackingAreas() {
@@ -312,6 +337,7 @@ fileprivate final class TabPillView: NSView {
     override func mouseEntered(with event: NSEvent) {
         isHovered = true
         updateAppearance()
+        guard !isPinned else { return }
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = Theme.animFast
             closeButton.animator().alphaValue = 1
@@ -321,10 +347,30 @@ fileprivate final class TabPillView: NSView {
     override func mouseExited(with event: NSEvent) {
         isHovered = false
         updateAppearance()
+        guard !isPinned else { return }
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = Theme.animFast
             closeButton.animator().alphaValue = 0
         }
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        let menu = NSMenu()
+        let pinTitle = isPinned ? "Unpin Tab" : "Pin Tab"
+        let pinItem = NSMenuItem(title: pinTitle, action: #selector(handleTogglePin), keyEquivalent: "")
+        pinItem.target = self
+        menu.addItem(pinItem)
+        if !isPinned {
+            menu.addItem(.separator())
+            let closeItem = NSMenuItem(title: "Close Tab", action: #selector(handleClose), keyEquivalent: "")
+            closeItem.target = self
+            menu.addItem(closeItem)
+        }
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
+    }
+
+    @objc private func handleTogglePin() {
+        onTogglePin?()
     }
 
     override func mouseDown(with event: NSEvent) {

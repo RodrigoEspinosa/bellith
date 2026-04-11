@@ -41,12 +41,14 @@ struct SessionState: Codable {
         let smartPanelID: String?
         let terminalContext: TerminalContext?
         let sshProfileID: UUID?
+        let isPinned: Bool
 
         init(
             title: String,
             terminalSnapshot: TerminalSnapshot,
             terminalContext: TerminalContext? = nil,
-            sshProfileID: UUID? = nil
+            sshProfileID: UUID? = nil,
+            isPinned: Bool = false
         ) {
             self.title = title
             self.kind = .terminal
@@ -54,15 +56,17 @@ struct SessionState: Codable {
             self.smartPanelID = nil
             self.terminalContext = terminalContext
             self.sshProfileID = sshProfileID
+            self.isPinned = isPinned
         }
 
-        init(title: String, smartPanelID: String) {
+        init(title: String, smartPanelID: String, isPinned: Bool = false) {
             self.title = title
             self.kind = .smart
             self.terminalSnapshot = nil
             self.smartPanelID = smartPanelID
             self.terminalContext = nil
             self.sshProfileID = nil
+            self.isPinned = isPinned
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -73,6 +77,7 @@ struct SessionState: Codable {
             case terminalContext
             case sshProfileID
             case splitTree
+            case isPinned
         }
 
         init(from decoder: Decoder) throws {
@@ -82,6 +87,7 @@ struct SessionState: Codable {
             smartPanelID = try container.decodeIfPresent(String.self, forKey: .smartPanelID)
             terminalContext = try container.decodeIfPresent(TerminalContext.self, forKey: .terminalContext)
             sshProfileID = try container.decodeIfPresent(UUID.self, forKey: .sshProfileID)
+            isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
             if let snapshot = try container.decodeIfPresent(TerminalSnapshot.self, forKey: .terminalSnapshot) {
                 terminalSnapshot = snapshot
             } else if let legacySplitTree = try container.decodeIfPresent(SplitNodeState.self, forKey: .splitTree) {
@@ -99,6 +105,9 @@ struct SessionState: Codable {
             try container.encodeIfPresent(smartPanelID, forKey: .smartPanelID)
             try container.encodeIfPresent(terminalContext, forKey: .terminalContext)
             try container.encodeIfPresent(sshProfileID, forKey: .sshProfileID)
+            if isPinned {
+                try container.encode(isPinned, forKey: .isPinned)
+            }
         }
     }
 
