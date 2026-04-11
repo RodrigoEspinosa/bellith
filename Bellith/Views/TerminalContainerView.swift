@@ -36,6 +36,18 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     var overlayContainerView: NSView { self }
     var overlayWindow: NSWindow? { window }
     var activeSurfaceForOverlay: TerminalSurfaceView? { activeSurface }
+    var terminalTabHintsForOverlay: [ShortcutTabHint] {
+        let terminalIndices = Self.shortcutSelectableTerminalTabIndices(for: tabs.map(\.kind))
+        let highlightedIndex = toolContextTerminalIndex()
+
+        return terminalIndices.prefix(9).enumerated().map { visibleIndex, tabIndex in
+            ShortcutTabHint(
+                shortcutDigit: visibleIndex + 1,
+                title: tabs[tabIndex].title,
+                isSelected: tabIndex == highlightedIndex
+            )
+        }
+    }
     var isPaletteVisible: Bool { overlayController.isPaletteVisible }
     private var overlayReferenceView: NSView? { overlayController.presentedOverlayView }
     private var isClosingTab = false
@@ -59,6 +71,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private var lastKnownStatusBarVisible = false
     private var observationCancellables = Set<AnyCancellable>()
     private var windowObservationCancellables = Set<AnyCancellable>()
+    private var eventMonitorTokens: [Any] = []
 
     private let noiseLayer = CALayer()
     private let contentBackdropLayer = CALayer()
@@ -159,10 +172,13 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             }
             .store(in: &observationCancellables)
 
+        installEventMonitorsIfNeeded()
         createTab()
     }
 
-    deinit {}
+    deinit {
+        removeEventMonitors()
+    }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
@@ -371,6 +387,22 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         TerminalRuntimeInfoService.gitRepositoryInfo(in: directory)
     }
 
+    static func shortcutSelectableTerminalTabIndices(for tabKinds: [TerminalTabKind]) -> [Int] {
+        tabKinds.enumerated().compactMap { index, kind in
+            if case .terminal = kind {
+                return index
+            }
+            return nil
+        }
+    }
+
+    static func shortcutSelectableTerminalTabIndex(for digit: Int, tabKinds: [TerminalTabKind]) -> Int? {
+        let terminalIndices = shortcutSelectableTerminalTabIndices(for: tabKinds)
+        guard !terminalIndices.isEmpty else { return nil }
+        let clampedPosition = min(max(digit - 1, 0), terminalIndices.count - 1)
+        return terminalIndices[clampedPosition]
+    }
+
     private func updateRuntimeStatusObservers() {
         windowObservationCancellables.removeAll()
         guard let window else { return }
@@ -382,12 +414,49 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             }
             .store(in: &windowObservationCancellables)
 
+        NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification, object: window)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.overlayController.hideModifierHints()
+            }
+            .store(in: &windowObservationCancellables)
+
         NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification, object: window)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.refreshActiveRuntimeStatusIfNeeded()
             }
             .store(in: &windowObservationCancellables)
+    }
+
+    private func installEventMonitorsIfNeeded() {
+        guard eventMonitorTokens.isEmpty else { return }
+
+        let token = NSEvent.addLocalMonitorForEvents(
+            matching: [.flagsChanged, .keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] event in
+            guard let self, event.window == self.window else { return event }
+
+            switch event.type {
+            case .flagsChanged:
+                self.overlayController.handleModifierFlagsChanged(
+                    event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                )
+            case .keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown:
+                self.overlayController.handleKeyEventBegan()
+            default:
+                break
+            }
+
+            return event
+        }
+
+        eventMonitorTokens = [token]
+    }
+
+    private func removeEventMonitors() {
+        eventMonitorTokens.forEach { NSEvent.removeMonitor($0) }
+        eventMonitorTokens.removeAll()
     }
 
     // MARK: - Focus Indicator
@@ -566,7 +635,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
 
         if mods == .command, let digit = Int(key), digit >= 1 && digit <= 9 {
-            selectTab(min(digit - 1, tabs.count - 1))
+            if let tabIndex = Self.shortcutSelectableTerminalTabIndex(for: digit, tabKinds: tabs.map(\.kind)) {
+                selectTab(tabIndex)
+            }
             return true
         }
 

@@ -1,14 +1,25 @@
 import AppKit
 import GhosttyKit
 
+struct ShortcutTabHint {
+    let shortcutDigit: Int
+    let title: String
+    let isSelected: Bool
+}
+
 protocol TerminalOverlayControllerHost: AnyObject {
     var overlayContainerView: NSView { get }
     var overlayWindow: NSWindow? { get }
     var activeSurfaceForOverlay: TerminalSurfaceView? { get }
+    var terminalTabHintsForOverlay: [ShortcutTabHint] { get }
     func performCommandPaletteCommand(_ text: String)
 }
 
 final class TerminalOverlayController {
+    private enum Metrics {
+        static let modifierHintDelay: TimeInterval = 0.22
+    }
+
     weak var host: TerminalOverlayControllerHost?
     private let commandRegistry: CommandRegistry
     private let settings: BellithSettings
@@ -20,6 +31,9 @@ final class TerminalOverlayController {
     private var commandPalette: CommandPaletteView?
     private var searchBar: SearchBarView?
     private var shortcutCheatSheet: ShortcutCheatSheetView?
+    private var modifierHintOverlay: ModifierShortcutHintsView?
+    private var pendingModifierHintWorkItem: DispatchWorkItem?
+    private var pendingModifierFlags: NSEvent.ModifierFlags = []
 
     init(
         host: TerminalOverlayControllerHost,
@@ -39,6 +53,7 @@ final class TerminalOverlayController {
         commandPalette?.refreshTheme()
         searchBar?.refreshTheme()
         shortcutCheatSheet?.refreshTheme()
+        modifierHintOverlay?.refreshTheme()
     }
 
     func toggleCommandPalette() {
@@ -51,6 +66,7 @@ final class TerminalOverlayController {
 
     func showCommandPalette() {
         guard !isPaletteVisible, let host else { return }
+        hideModifierHints()
         hideShortcutCheatSheet()
         isPaletteVisible = true
 
@@ -84,6 +100,7 @@ final class TerminalOverlayController {
 
     func showShortcutCheatSheet() {
         guard !isShortcutCheatSheetVisible, let host else { return }
+        hideModifierHints()
         isShortcutCheatSheetVisible = true
 
         let view = ShortcutCheatSheetView(settings: settings)
@@ -107,6 +124,7 @@ final class TerminalOverlayController {
 
     func showSearch(initialNeedle: String? = nil) {
         guard !isSearchVisible, let host else { return }
+        hideModifierHints()
         hideShortcutCheatSheet()
         isSearchVisible = true
 
@@ -157,6 +175,154 @@ final class TerminalOverlayController {
     func searchPrevShortcut() {
         guard isSearchVisible else { return }
         searchPrev()
+    }
+
+    func handleModifierFlagsChanged(_ flags: NSEvent.ModifierFlags) {
+        let normalizedFlags = normalizedModifierFlags(flags)
+        pendingModifierFlags = normalizedFlags
+
+        guard !isPaletteVisible, !isSearchVisible, !isShortcutCheatSheetVisible else {
+            cancelPendingModifierHints()
+            hideModifierHints()
+            return
+        }
+
+        guard !normalizedFlags.isEmpty else {
+            cancelPendingModifierHints()
+            hideModifierHints()
+            return
+        }
+
+        if modifierHintOverlay?.superview != nil {
+            showModifierHints(for: normalizedFlags)
+            return
+        }
+
+        cancelPendingModifierHints()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, self.pendingModifierFlags == normalizedFlags else { return }
+            self.showModifierHints(for: normalizedFlags)
+        }
+        pendingModifierHintWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + Metrics.modifierHintDelay, execute: workItem)
+    }
+
+    func handleKeyEventBegan() {
+        cancelPendingModifierHints()
+        hideModifierHints()
+    }
+
+    func hideModifierHints() {
+        cancelPendingModifierHints()
+        modifierHintOverlay?.hide()
+    }
+
+    private func showModifierHints(for flags: NSEvent.ModifierFlags) {
+        guard let host else { return }
+
+        let tabHints = flags == [.command] ? host.terminalTabHintsForOverlay : []
+        let sections = modifierHintSections(for: flags, tabHints: tabHints)
+        guard !sections.isEmpty else {
+            hideModifierHints()
+            return
+        }
+
+        let title = "\(displayModifierString(for: flags)) shortcuts"
+        let subtitle: String
+        if flags == [.command], !tabHints.isEmpty {
+            subtitle = "Release modifiers to dismiss · ⌘1–9 always follows terminal tabs, never tools"
+        } else {
+            subtitle = "Release modifiers to dismiss"
+        }
+
+        let view = modifierHintOverlay ?? ModifierShortcutHintsView()
+        view.update(title: title, subtitle: subtitle, sections: sections)
+        if modifierHintOverlay == nil {
+            modifierHintOverlay = view
+        }
+        view.show(in: host.overlayContainerView)
+    }
+
+    private func modifierHintSections(
+        for flags: NSEvent.ModifierFlags,
+        tabHints: [ShortcutTabHint]
+    ) -> [ModifierShortcutHintsView.Section] {
+        var sections: [ModifierShortcutHintsView.Section] = []
+
+        if flags == [.command], !tabHints.isEmpty {
+            sections.append(
+                ModifierShortcutHintsView.Section(
+                    title: "Terminal Tabs",
+                    items: tabHints.map {
+                        ModifierShortcutHintsView.Item(
+                            key: "\($0.shortcutDigit)",
+                            label: $0.title,
+                            detail: $0.isSelected ? "Current terminal tab" : "Jump to this tab",
+                            isSelected: $0.isSelected
+                        )
+                    }
+                )
+            )
+        }
+
+        let matchingBindings = settings.keybindings.compactMap { binding -> (String, ModifierShortcutHintsView.Item)? in
+            let shortcuts = binding.allShortcuts.filter { normalizedModifierFlags($0.modifierFlags) == flags }
+            guard !shortcuts.isEmpty else { return nil }
+
+            let keys = shortcuts
+                .map { KeyShortcut.displayKey(for: $0.normalizedKey) }
+                .reduce(into: [String]()) { orderedKeys, key in
+                    if !orderedKeys.contains(key) {
+                        orderedKeys.append(key)
+                    }
+                }
+                .joined(separator: " · ")
+
+            return (
+                binding.category,
+                ModifierShortcutHintsView.Item(
+                    key: keys,
+                    label: binding.label,
+                    detail: binding.discoverabilityText,
+                    isSelected: false
+                )
+            )
+        }
+
+        let categoryOrder = settings.keybindings.map(\.category).reduce(into: [String]()) { order, category in
+            if !order.contains(category) {
+                order.append(category)
+            }
+        }
+
+        for category in categoryOrder {
+            let items = matchingBindings.compactMap { bindingCategory, item in
+                bindingCategory == category ? item : nil
+            }
+            if !items.isEmpty {
+                sections.append(ModifierShortcutHintsView.Section(title: category, items: items))
+            }
+        }
+
+        return sections
+    }
+
+    private func normalizedModifierFlags(_ flags: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
+        flags.intersection([.command, .shift, .option, .control])
+    }
+
+    private func displayModifierString(for flags: NSEvent.ModifierFlags) -> String {
+        var parts: [String] = []
+        if flags.contains(.control) { parts.append("⌃") }
+        if flags.contains(.option) { parts.append("⌥") }
+        if flags.contains(.shift) { parts.append("⇧") }
+        if flags.contains(.command) { parts.append("⌘") }
+        return parts.joined()
+    }
+
+    private func cancelPendingModifierHints() {
+        pendingModifierHintWorkItem?.cancel()
+        pendingModifierHintWorkItem = nil
     }
 
     private func performSearch(_ query: String) {
