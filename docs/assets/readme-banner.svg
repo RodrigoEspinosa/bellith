@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Bellith README banner</title>
+  <desc id="desc">A dark promotional banner for the Bellith macOS terminal app showing the Bellith logo, product name, tagline, and feature chips.</desc>
+  <defs>
+    <linearGradient id="bg" x1="80" y1="40" x2="1180" y2="620" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0E1420"/>
+      <stop offset="55%" stop-color="#0A0E17"/>
+      <stop offset="100%" stop-color="#06080D"/>
+    </linearGradient>
+    <radialGradient id="bgGlowA" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(320 140) rotate(18) scale(420 260)">
+      <stop offset="0%" stop-color="#D0AEFF" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#D0AEFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="bgGlowB" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1040 520) rotate(180) scale(460 240)">
+      <stop offset="0%" stop-color="#4FD6BE" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#4FD6BE" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="wordmark" x1="540" y1="160" x2="980" y2="310" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#DDE7FF"/>
+    </linearGradient>
+
+    <linearGradient id="logo-bg" x1="144" y1="136" x2="880" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#141924"/>
+      <stop offset="100%" stop-color="#090C13"/>
+    </linearGradient>
+    <linearGradient id="logo-stroke" x1="184" y1="152" x2="850" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.05"/>
+    </linearGradient>
+    <linearGradient id="logo-glyph" x1="326" y1="408" x2="662" y2="632" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#EEF3FF"/>
+    </linearGradient>
+    <linearGradient id="logo-accent" x1="560" y1="432" x2="650" y2="626" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#D0AEFF"/>
+      <stop offset="100%" stop-color="#7CC6FF"/>
+    </linearGradient>
+    <filter id="logo-shadow" x="84" y="96" width="856" height="872" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset dy="22"/>
+      <feGaussianBlur stdDeviation="24"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.01 0 0 0 0 0.03 0 0 0 0 0.08 0 0 0 0.28 0"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="640" rx="36" fill="url(#bg)"/>
+  <rect width="1280" height="640" rx="36" fill="url(#bgGlowA)"/>
+  <rect width="1280" height="640" rx="36" fill="url(#bgGlowB)"/>
+
+  <g opacity="0.08">
+    <path d="M728 146H1138" stroke="#DDE7FF" stroke-width="2" stroke-linecap="round"/>
+    <path d="M728 186H1056" stroke="#DDE7FF" stroke-width="2" stroke-linecap="round"/>
+    <path d="M728 226H1090" stroke="#DDE7FF" stroke-width="2" stroke-linecap="round"/>
+    <path d="M728 266H1006" stroke="#DDE7FF" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <g transform="translate(48.14 44.14) scale(0.480198)">
+    <g filter="url(#logo-shadow)">
+      <rect x="108" y="108" width="808" height="808" rx="184" fill="url(#logo-bg)"/>
+    </g>
+    <rect x="108" y="108" width="808" height="808" rx="184" fill="url(#logo-bg)"/>
+    <rect x="108.5" y="108.5" width="807" height="807" rx="183.5" stroke="url(#logo-stroke)"/>
+    <g stroke="url(#logo-glyph)" stroke-width="52" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="332,428 454,528 332,628"/>
+    </g>
+    <rect x="514" y="502" width="58" height="58" rx="14" fill="url(#logo-glyph)"/>
+    <rect x="602" y="430" width="78" height="196" rx="20" fill="url(#logo-accent)"/>
+    <rect x="294" y="736" width="436" height="12" rx="6" fill="#FFFFFF" fill-opacity="0.05"/>
+  </g>
+
+  <text x="540" y="220" fill="#98A8C8" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="20" letter-spacing="0.22em">MACOS TERMINAL</text>
+  <text x="540" y="308" fill="url(#wordmark)" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif" font-size="88" font-weight="700" letter-spacing="-0.04em">Bellith</text>
+  <text x="540" y="362" fill="#DDE7FF" fill-opacity="0.92" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif" font-size="29" font-weight="500">A native macOS terminal emulator built on GhosttyKit.</text>
+  <text x="540" y="408" fill="#9EACC9" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif" font-size="19">GPU rendering • tabs &amp; split panes • smart panels • quick terminal</text>
+
+  <g font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="18" font-weight="500" fill="#DDE7FF" text-anchor="middle">
+    <rect x="540" y="452" width="128" height="40" rx="20" fill="#141B29" stroke="#FFFFFF" stroke-opacity="0.08"/>
+    <text x="604" y="478">Swift</text>
+
+    <rect x="682" y="452" width="170" height="40" rx="20" fill="#141B29" stroke="#FFFFFF" stroke-opacity="0.08"/>
+    <text x="767" y="478">GhosttyKit</text>
+
+    <rect x="866" y="452" width="144" height="40" rx="20" fill="#141B29" stroke="#FFFFFF" stroke-opacity="0.08"/>
+    <text x="938" y="478">macOS 14+</text>
+
+    <rect x="1024" y="452" width="148" height="40" rx="20" fill="#141B29" stroke="#FFFFFF" stroke-opacity="0.08"/>
+    <text x="1098" y="478">Native UI</text>
+  </g>
+
+  <g opacity="0.9" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="16">
+    <rect x="540" y="526" width="620" height="62" rx="18" fill="#0D1320" stroke="#FFFFFF" stroke-opacity="0.07"/>
+    <text x="572" y="563" fill="#7CC6FF">$</text>
+    <text x="600" y="563" fill="#DDE7FF">bellith</text>
+    <text x="680" y="563" fill="#93A4C4">— native terminal for macOS power workflows</text>
+  </g>
+</svg>

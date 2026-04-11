@@ -1,6 +1,10 @@
 # Bellith
 
-A native macOS terminal emulator built with Swift and [Ghostty](https://ghostty.org)'s rendering engine.
+<p align="center">
+  <img src="docs/assets/readme-banner.svg" alt="Bellith banner" width="100%" />
+</p>
+
+<p align="center"><strong>A native macOS terminal emulator built with Swift and <a href="https://ghostty.org">Ghostty</a>'s rendering engine.</strong></p>
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14.0%2B-blue)
 ![Swift 5.10](https://img.shields.io/badge/Swift-5.10-orange)

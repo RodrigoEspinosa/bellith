@@ -32,12 +32,7 @@ final class AboutPane: NSView {
         super.init(frame: frame)
         wantsLayer = true
 
-        if let icon = NSApp.applicationIconImage {
-            appIcon.image = icon
-        } else {
-            appIcon.image = NSImage(systemSymbolName: "terminal", accessibilityDescription: "Bellith")
-            appIcon.contentTintColor = Theme.accent
-        }
+        appIcon.image = BellithBranding.logoImage(accessibilityDescription: BellithBranding.appName)
         appIcon.imageScaling = .scaleProportionallyUpOrDown
         addSubview(appIcon)
 
@@ -99,14 +94,12 @@ final class AboutPane: NSView {
 
         addSubview(linksCard)
         githubBtn.onClick = {
-            if let url = URL(string: "https://github.com/RodrigoEspinosa/bellith") {
-                NSWorkspace.shared.open(url)
-            }
+            guard let url = BellithBranding.repoURL else { return }
+            NSWorkspace.shared.open(url)
         }
         docsBtn.onClick = {
-            if let url = URL(string: "https://github.com/RodrigoEspinosa/bellith#readme") {
-                NSWorkspace.shared.open(url)
-            }
+            guard let url = BellithBranding.docsURL else { return }
+            NSWorkspace.shared.open(url)
         }
         linksCard.addSubview(githubBtn)
         linksCard.addSubview(docsBtn)

@@ -520,21 +520,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func handleReloadConfig() { activeEntry?.container.reloadConfig() }
     @objc private func handlePreferences() { dependencies.preferencesWindowController.showWindow() }
     @objc private func handleAbout() {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
-        NSApp.orderFrontStandardAboutPanel(options: [
-            .applicationName: "Bellith",
-            .applicationVersion: version,
-            .version: build,
-            .credits: NSAttributedString(string: "A native macOS terminal powered by GhosttyKit.")
-        ])
+        NSApp.orderFrontStandardAboutPanel(options: BellithBranding.aboutPanelOptions())
         NSApp.activate(ignoringOtherApps: true)
     }
     @objc private func handleHelp() {
         // Open help/documentation — for now open the custom themes folder as a basic help action
-        if let url = URL(string: "https://github.com/RodrigoEspinosa/bellith") {
-            NSWorkspace.shared.open(url)
-        }
+        guard let url = BellithBranding.repoURL else { return }
+        NSWorkspace.shared.open(url)
     }
 
     // Smart panel plugin actions

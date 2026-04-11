@@ -187,6 +187,7 @@ final class PrefSidebar: NSView {
     private let bottomItems = PreferencesPaneRegistry.shared.footerPlugins
     private var mainViews: [PrefSidebarItem] = []
     private var bottomViews: [PrefSidebarItem] = []
+    private let logoView = NSImageView()
     private let overlineLabel = NSTextField(labelWithString: "BELLITH")
     private let titleLabel = NSTextField(labelWithString: "SETTINGS")
     private let versionLabel = NSTextField(labelWithString: "")
@@ -195,6 +196,10 @@ final class PrefSidebar: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
+
+        logoView.image = BellithBranding.logoImage(accessibilityDescription: BellithBranding.appName)
+        logoView.imageScaling = .scaleProportionallyUpOrDown
+        addSubview(logoView)
 
         overlineLabel.font = BellithFont.mono(10, weight: .regular)
         overlineLabel.textColor = Theme.textSecondary
@@ -238,6 +243,7 @@ final class PrefSidebar: NSView {
         overlineLabel.textColor = Theme.textSecondary
         titleLabel.textColor = Theme.textDisplay
         versionLabel.textColor = Theme.textMuted
+        logoView.alphaValue = 0.96
         separatorLine.layer?.backgroundColor = Theme.border.cgColor
         updateItems()
         needsDisplay = true
@@ -256,12 +262,14 @@ final class PrefSidebar: NSView {
         super.layout()
         let padding: CGFloat = 14
         let itemH: CGFloat = 36
+        let logoSize: CGFloat = 28
 
-        overlineLabel.frame = NSRect(x: padding + 14, y: bounds.height - 42, width: bounds.width - 40, height: 14)
-        titleLabel.frame = NSRect(x: padding + 12, y: bounds.height - 72, width: bounds.width - 40, height: 30)
-        versionLabel.frame = NSRect(x: padding + 14, y: bounds.height - 90, width: bounds.width - 40, height: 14)
+        logoView.frame = NSRect(x: padding + 14, y: bounds.height - 62, width: logoSize, height: logoSize)
+        overlineLabel.frame = NSRect(x: logoView.frame.maxX + 10, y: bounds.height - 38, width: bounds.width - logoView.frame.maxX - 24, height: 14)
+        titleLabel.frame = NSRect(x: padding + 12, y: bounds.height - 76, width: bounds.width - 40, height: 30)
+        versionLabel.frame = NSRect(x: padding + 14, y: bounds.height - 94, width: bounds.width - 40, height: 14)
 
-        var y = bounds.height - 116
+        var y = bounds.height - 124
         for view in mainViews {
             view.frame = NSRect(x: padding, y: y - itemH, width: bounds.width - padding * 2, height: itemH)
             y -= itemH + 6
