@@ -70,6 +70,7 @@ final class BellithSettings {
         ]
         static let boolKeys: Set<String> = [
             "mouseHideWhileTyping", "confirmClose", "restoreSession", "cursorBlink",
+            "inlineImagesEnabled",
             "shellIntegrationEnabled", "shellIntegrationCursor", "shellIntegrationTitle",
             "shellIntegrationPath", "shellIntegrationSSHEnv", "shellIntegrationSSHTerminfo",
             "commandCompletionNotificationsEnabled", "sidebarPinned", "sidebarAutoHide",
@@ -204,6 +205,19 @@ final class BellithSettings {
     var cursorBlink: Bool {
         get { defaults.bool(forKey: "cursorBlink") }
         set { defaults.set(newValue, forKey: "cursorBlink"); notify() }
+    }
+
+    /// Enables Ghostty's inline image protocols (Kitty graphics + Sixel).
+    /// When disabled, Ghostty's image storage limit is forced to 0 so tools
+    /// like `icat`, `chafa`, `timg`, and Sixel emitters skip rendering.
+    var inlineImagesEnabled: Bool {
+        get {
+            if defaults.object(forKey: "inlineImagesEnabled") != nil {
+                return defaults.bool(forKey: "inlineImagesEnabled")
+            }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "inlineImagesEnabled"); notify() }
     }
 
     var shellIntegrationEnabled: Bool {
@@ -879,6 +893,7 @@ final class BellithSettings {
             "fontFamily": fontFamily,
             "fontSize": fontSize,
             "featureFlags": featureFlagsForSettingsFile,
+            "inlineImagesEnabled": inlineImagesEnabled,
             "keybindings": encodedKeybindings,
             "lightThemeName": lightThemeName,
             "mouseHideWhileTyping": mouseHideWhileTyping,

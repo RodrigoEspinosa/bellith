@@ -75,6 +75,11 @@ final class TerminalPane: NSView {
     private let commandNotificationThresholdUnit = SmallLabel("SECONDS")
     private let shellIntegrationNote = FooterNote("Prompt marks, command timing, and completion notifications require shell integration.")
 
+    private let graphicsCard = SettingsCard(title: "Graphics", subtitle: "Inline image protocols supported by Ghostty")
+    private let inlineImagesLabel = CardRowLabel("Inline Images")
+    private var inlineImagesToggle: PrefToggle!
+    private let inlineImagesNote = FooterNote("Enables Kitty graphics and Sixel so tools like icat, chafa, timg, and gnuplot draw directly in the terminal.")
+
     private let behaviorCard = SettingsCard(title: "Behavior", subtitle: "Session lifecycle, cursor visibility, and terminal modifier keys")
     private let optionKeyLabel = CardRowLabel("Option Key")
     private let optionKeyNote = FooterNote("Left Option sends terminal Alt shortcuts while Right Option continues to type special characters.")
@@ -276,6 +281,14 @@ final class TerminalPane: NSView {
         optionKeyPopup.action = #selector(handleOptionKeyBehaviorChanged)
         TerminalOptionKeyBehavior.allCases.forEach { optionKeyPopup.addItem(withTitle: $0.title) }
 
+        inlineImagesToggle = PrefToggle(isOn: settings.inlineImagesEnabled) { [weak self] value in
+            self?.settings.inlineImagesEnabled = value
+        }
+        content.addSubview(graphicsCard)
+        for view: NSView in [inlineImagesLabel, inlineImagesToggle, inlineImagesNote] {
+            graphicsCard.addSubview(view)
+        }
+
         hideMouseToggle = PrefToggle(isOn: settings.mouseHideWhileTyping) { [weak self] value in self?.settings.mouseHideWhileTyping = value }
         confirmToggle = PrefToggle(isOn: settings.confirmClose) { [weak self] value in self?.settings.confirmClose = value }
         restoreToggle = PrefToggle(isOn: settings.restoreSession) { [weak self] value in self?.settings.restoreSession = value }
@@ -315,6 +328,7 @@ final class TerminalPane: NSView {
         cursorCard.refresh()
         sessionCard.refresh()
         shellIntegrationCard.refresh()
+        graphicsCard.refresh()
         behaviorCard.refresh()
         fontField.updateText(settings.fontFamily)
         sizeValue.stringValue = "\(settings.fontSize)"
@@ -334,6 +348,7 @@ final class TerminalPane: NSView {
         shellIntegrationSSHTerminfoToggle.setOn(settings.shellIntegrationSSHTerminfo)
         commandNotificationsToggle.setOn(settings.commandCompletionNotificationsEnabled)
         commandNotificationThresholdField.setValue(settings.commandCompletionNotificationThreshold)
+        inlineImagesToggle.setOn(settings.inlineImagesEnabled)
         optionKeyPopup.selectItem(at: TerminalOptionKeyBehavior.allCases.firstIndex(of: settings.terminalOptionKeyBehavior) ?? 0)
         hideMouseToggle.setOn(settings.mouseHideWhileTyping)
         confirmToggle.setOn(settings.confirmClose)
@@ -480,6 +495,15 @@ final class TerminalPane: NSView {
         commandNotificationThresholdUnit.frame = NSRect(x: controlX + 106, y: ir7 + 12, width: 64, height: 12)
         shellIntegrationNote.frame = NSRect(x: PreferencesLayout.cardPad, y: PreferencesLayout.cardPad - 2, width: innerW, height: 14)
         y += shellIntegrationCardHeight + PreferencesLayout.sectionGap
+
+        let graphicsLabelW = PreferencesLayout.labelWidth(toTrailingToggleIn: cardW)
+        let graphicsCardHeight = graphicsCard.headerHeight + PreferencesLayout.rowH + 14 + PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        graphicsCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: graphicsCardHeight)
+        let gr0 = graphicsCardHeight - graphicsCard.headerHeight - PreferencesLayout.rowH
+        inlineImagesLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: gr0, width: graphicsLabelW, height: PreferencesLayout.rowH)
+        inlineImagesToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: gr0)
+        inlineImagesNote.frame = NSRect(x: PreferencesLayout.cardPad, y: gr0 - 16, width: innerW, height: 14)
+        y += graphicsCardHeight + PreferencesLayout.sectionGap
 
         let behaviorCardHeight = behaviorCard.headerHeight + 4 * PreferencesLayout.rowH + 14 + 3 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
         behaviorCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: behaviorCardHeight)
