@@ -124,7 +124,12 @@ final class CommandRegistry {
             if profiles.count == 1, let profile = profiles.first {
                 container.connectSSHProfile(id: profile.id)
             } else {
-                self.preferencesWindowController.showWindow(selecting: "ssh")
+                SettingsNavigation.open(
+                    selecting: "ssh",
+                    in: container,
+                    settings: self.settings,
+                    preferencesWindowController: self.preferencesWindowController
+                )
             }
             return true
         })
@@ -342,8 +347,13 @@ final class CommandRegistry {
             description: "Open SSH profile settings",
             iconName: "server.rack",
             aliases: ["ssh settings", "hosts", "ssh profiles"]
-        ) { _, _ in
-            PreferencesWindowController.shared.showWindow(selecting: "ssh")
+        ) { container, _ in
+            SettingsNavigation.open(
+                selecting: "ssh",
+                in: container,
+                settings: self.settings,
+                preferencesWindowController: self.preferencesWindowController
+            )
             return true
         })
 
@@ -354,8 +364,12 @@ final class CommandRegistry {
             iconName: "gear",
             shortcutID: "preferences",
             aliases: ["settings", "preferences"]
-        ) { _, _ in
-            PreferencesWindowController.shared.showWindow()
+        ) { container, _ in
+            SettingsNavigation.open(
+                in: container,
+                settings: self.settings,
+                preferencesWindowController: self.preferencesWindowController
+            )
             return true
         })
 

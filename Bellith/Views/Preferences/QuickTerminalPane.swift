@@ -7,10 +7,8 @@ final class QuickTerminalPane: NSView {
     private let scroll = NSScrollView()
     private let content = FlippedView()
 
-    private let heroCard = SettingsCard(title: "Quick Terminal", subtitle: "Global summon shortcut and visor geometry")
-    private let heroHotkeyLabel = NSTextField(labelWithString: "")
-    private let heroMetaLabel = NSTextField(labelWithString: "")
-    private let heroSizeLabel = NSTextField(labelWithString: "")
+    private let paneTitleLabel = NSTextField(labelWithString: "Quick Terminal")
+    private let paneSubtitleLabel = NSTextField(labelWithString: "Summon shortcut, screen edge, and visor proportions.")
 
     private let activationCard = SettingsCard(title: "Activation", subtitle: "How the quick terminal appears and disappears")
     private let hotkeyLabel = CardRowLabel("Global Hotkey")
@@ -37,25 +35,21 @@ final class QuickTerminalPane: NSView {
         addSubview(scroll)
 
         content.wantsLayer = true
-        content.layer?.backgroundColor = Theme.base.cgColor
+        content.layer?.backgroundColor = Theme.frame.cgColor
         scroll.documentView = content
 
-        heroHotkeyLabel.font = BellithFont.display(38)
-        heroHotkeyLabel.textColor = Theme.textDisplay
-        heroMetaLabel.font = BellithFont.mono(11, weight: .regular)
-        heroMetaLabel.textColor = Theme.textSecondary
-        heroSizeLabel.font = BellithFont.mono(12, weight: .regular)
-        heroSizeLabel.textColor = Theme.textPrimary
-        content.addSubview(heroCard)
-        for view in [heroHotkeyLabel, heroMetaLabel, heroSizeLabel] {
-            heroCard.addSubview(view)
-        }
+        paneTitleLabel.font = BellithFont.ui(20, weight: .medium)
+        paneTitleLabel.textColor = Theme.textDisplay
+        content.addSubview(paneTitleLabel)
+
+        paneSubtitleLabel.font = BellithFont.ui(12, weight: .regular)
+        paneSubtitleLabel.textColor = Theme.textSecondary
+        content.addSubview(paneSubtitleLabel)
 
         hotkeyValue.font = BellithFont.mono(12, weight: .regular)
         hotkeyValue.textColor = Theme.textPrimary
         hideToggle = PrefToggle(isOn: settings.visorHideOnFocusLoss) { [weak self] value in
             self?.settings.visorHideOnFocusLoss = value
-            self?.updateHero()
         }
         content.addSubview(activationCard)
         activationCard.addSubview(hotkeyLabel)
@@ -65,15 +59,12 @@ final class QuickTerminalPane: NSView {
 
         posSegment = PrefSegment(labels: ["Top", "Bottom"], selected: ["top": 0, "bottom": 1][settings.visorPosition] ?? 0) { [weak self] idx in
             self?.settings.visorPosition = ["top", "bottom"][idx]
-            self?.updateHero()
         }
         widthTrack = OpacityTrackView(value: settings.visorWidthPercent) { [weak self] value in
             self?.settings.visorWidthPercent = value
-            self?.updateHero()
         }
         heightTrack = OpacityTrackView(value: settings.visorHeightPercent) { [weak self] value in
             self?.settings.visorHeightPercent = value
-            self?.updateHero()
         }
         content.addSubview(appearanceCard)
         for view: NSView in [posLabel, posSegment, widthLabel, widthTrack, heightLabel, heightTrack] {
@@ -86,8 +77,9 @@ final class QuickTerminalPane: NSView {
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
     func refresh() {
-        content.layer?.backgroundColor = Theme.base.cgColor
-        heroCard.refresh()
+        content.layer?.backgroundColor = Theme.frame.cgColor
+        paneTitleLabel.textColor = Theme.textDisplay
+        paneSubtitleLabel.textColor = Theme.textSecondary
         activationCard.refresh()
         appearanceCard.refresh()
         hotkeyValue.stringValue = settings.visorHotkey.uppercased()
@@ -95,14 +87,7 @@ final class QuickTerminalPane: NSView {
         posSegment.setSelected(["top": 0, "bottom": 1][settings.visorPosition] ?? 0)
         widthTrack.setValue(settings.visorWidthPercent)
         heightTrack.setValue(settings.visorHeightPercent)
-        updateHero()
         needsLayout = true
-    }
-
-    private func updateHero() {
-        heroHotkeyLabel.stringValue = settings.visorHotkey.uppercased()
-        heroMetaLabel.stringValue = "[ \(settings.visorPosition.uppercased()) EDGE ]   [ \(settings.visorHideOnFocusLoss ? "AUTO HIDE" : "STAYS OPEN") ]"
-        heroSizeLabel.stringValue = "WIDTH \(Int(settings.visorWidthPercent * 100))%   HEIGHT \(Int(settings.visorHeightPercent * 100))%"
     }
 
     override func layout() {
@@ -114,15 +99,13 @@ final class QuickTerminalPane: NSView {
         let labelW: CGFloat = 136
         let controlX = PreferencesLayout.cardPad + labelW
         let controlW = cardW - controlX - PreferencesLayout.cardPad
+        let toggleLabelWidth = PreferencesLayout.labelWidth(toTrailingToggleIn: cardW)
 
         var y: CGFloat = PreferencesLayout.hPad
 
-        let heroHeight: CGFloat = 164
-        heroCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: heroHeight)
-        heroMetaLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 96, width: cardW - PreferencesLayout.cardPad * 2, height: 14)
-        heroHotkeyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 48, width: cardW - PreferencesLayout.cardPad * 2, height: 42)
-        heroSizeLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 24, width: cardW - PreferencesLayout.cardPad * 2, height: 16)
-        y += heroHeight + PreferencesLayout.sectionGap
+        paneTitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: 280, height: 24)
+        paneSubtitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y + 28, width: cardW, height: 16)
+        y += 60
 
         let activationCardHeight = activationCard.headerHeight + 2 * PreferencesLayout.rowH + PreferencesLayout.rowGap + PreferencesLayout.cardPad
         activationCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: activationCardHeight)
@@ -130,8 +113,8 @@ final class QuickTerminalPane: NSView {
         hotkeyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ar0, width: labelW - 12, height: PreferencesLayout.rowH)
         hotkeyValue.frame = NSRect(x: controlX, y: ar0 + 12, width: controlW, height: 16)
         let ar1 = ar0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        hideLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ar1, width: labelW + 28, height: PreferencesLayout.rowH)
-        hideToggle.frame = NSRect(x: controlX, y: ar1 + 6, width: 50, height: 28)
+        hideLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ar1, width: toggleLabelWidth, height: PreferencesLayout.rowH)
+        hideToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: ar1)
         y += activationCardHeight + PreferencesLayout.sectionGap
 
         let appearanceCardHeight = appearanceCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad

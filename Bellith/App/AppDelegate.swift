@@ -82,11 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.handleAction(target: target, action: action) ?? false
         }
 
-        // Restore saved theme for current system appearance
-        dependencies.themeManager.apply(dependencies.settings.resolvedTheme)
-
-        let isDark = dependencies.settings.systemIsDark
-        app.setColorScheme(isDark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
+        applyResolvedAppearanceAndTheme()
 
         // Observe system appearance changes to switch themes
         appearanceObserver = DistributedNotificationCenter.default().addObserver(
@@ -105,6 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             queue: .main
         ) { [weak self] _ in
             self?.setupMenus()
+            self?.applyResolvedAppearanceAndTheme()
         }
 
         // Listen for new window requests
@@ -492,7 +489,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if profiles.count == 1, let profile = profiles.first {
             activeEntry?.container.connectSSHProfile(id: profile.id)
         } else {
-            dependencies.preferencesWindowController.showWindow(selecting: "ssh")
+            SettingsNavigation.open(
+                selecting: "ssh",
+                in: activeEntry?.container,
+                settings: dependencies.settings,
+                preferencesWindowController: dependencies.preferencesWindowController,
+                createContainer: { [weak self] in self?.createWindow()?.container }
+            )
         }
     }
     @objc private func handleSplitRight() { activeEntry?.container.splitPane(direction: .vertical) }
@@ -518,7 +521,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func handleFontReset() { activeEntry?.container.resetFontSizePublic() }
     @objc private func handleFullscreen() { NSApp.keyWindow?.toggleFullScreen(nil) }
     @objc private func handleReloadConfig() { activeEntry?.container.reloadConfig() }
-    @objc private func handlePreferences() { dependencies.preferencesWindowController.showWindow() }
+    @objc private func handlePreferences() {
+        SettingsNavigation.open(
+            in: activeEntry?.container,
+            settings: dependencies.settings,
+            preferencesWindowController: dependencies.preferencesWindowController,
+            createContainer: { [weak self] in self?.createWindow()?.container }
+        )
+    }
     @objc private func handleAbout() {
         NSApp.orderFrontStandardAboutPanel(options: BellithBranding.aboutPanelOptions())
         NSApp.activate(ignoringOtherApps: true)
@@ -541,11 +551,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             dependencies.settings.darkThemeName = theme.name
         }
-        // Apply immediately if it matches the current system appearance
-        let resolved = dependencies.settings.resolvedTheme
-        dependencies.themeManager.apply(resolved)
-        let appearance = resolved.isLight ? NSAppearance(named: .aqua) : NSAppearance(named: .darkAqua)
-        for entry in windows { entry.window.appearance = appearance }
+        applyResolvedAppearanceAndTheme()
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -577,13 +583,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func handleSystemAppearanceChanged() {
-        // Small delay to let NSApp.effectiveAppearance update
+        guard dependencies.settings.appearanceMode == .system else { return }
+        // Small delay to let system appearance notifications settle.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            guard let self else { return }
-            let theme = self.dependencies.settings.resolvedTheme
-            self.dependencies.themeManager.apply(theme)
-            let appearance = theme.isLight ? NSAppearance(named: .aqua) : NSAppearance(named: .darkAqua)
-            for entry in self.windows { entry.window.appearance = appearance }
+            self?.applyResolvedAppearanceAndTheme()
+        }
+    }
+
+    private func applyResolvedAppearanceAndTheme() {
+        let resolvedTheme = dependencies.settings.resolvedTheme
+        dependencies.themeManager.apply(resolvedTheme)
+
+        switch dependencies.settings.appearanceMode {
+        case .system:
+            NSApp.appearance = nil
+        case .dark:
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        case .light:
+            NSApp.appearance = NSAppearance(named: .aqua)
+        }
+
+        terminalApp?.setColorScheme(dependencies.settings.resolvedIsDark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
+
+        let appearance = resolvedTheme.isLight ? NSAppearance(named: .aqua) : NSAppearance(named: .darkAqua)
+        for entry in windows {
+            entry.window.appearance = appearance
         }
     }
 

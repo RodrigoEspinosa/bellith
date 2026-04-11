@@ -33,6 +33,9 @@ final class KeybindingsPane: NSView {
     private let scroll = NSScrollView()
     private let content = FlippedView()
 
+    private let paneTitleLabel = NSTextField(labelWithString: "Keybindings")
+    private let paneSubtitleLabel = NSTextField(labelWithString: "Search commands, choose a preset, and customize shortcuts.")
+
     private let heroCard = SettingsCard(title: "Command Map", subtitle: "Presets, conflicts, alternates, and contextual guidance")
     private let heroCountLabel = NSTextField(labelWithString: "")
     private let heroConflictLabel = NSTextField(labelWithString: "")
@@ -63,8 +66,16 @@ final class KeybindingsPane: NSView {
         addSubview(scroll)
 
         content.wantsLayer = true
-        content.layer?.backgroundColor = Theme.base.cgColor
+        content.layer?.backgroundColor = Theme.frame.cgColor
         scroll.documentView = content
+
+        paneTitleLabel.font = BellithFont.ui(20, weight: .medium)
+        paneTitleLabel.textColor = Theme.textDisplay
+        content.addSubview(paneTitleLabel)
+
+        paneSubtitleLabel.font = BellithFont.ui(12, weight: .regular)
+        paneSubtitleLabel.textColor = Theme.textSecondary
+        content.addSubview(paneSubtitleLabel)
 
         heroCountLabel.font = BellithFont.display(32)
         heroCountLabel.textColor = Theme.textDisplay
@@ -115,7 +126,9 @@ final class KeybindingsPane: NSView {
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
     func refresh() {
-        content.layer?.backgroundColor = Theme.base.cgColor
+        content.layer?.backgroundColor = Theme.frame.cgColor
+        paneTitleLabel.textColor = Theme.textDisplay
+        paneSubtitleLabel.textColor = Theme.textSecondary
         heroCard.refresh()
         presetPopup.selectItem(at: ShortcutPresetID.allCases.firstIndex(of: settings.shortcutPreset) ?? 0)
         scopePopup.selectItem(at: ScopeFilter.allCases.firstIndex(of: scopeFilter) ?? 0)
@@ -259,6 +272,10 @@ final class KeybindingsPane: NSView {
         let cardW = width - PreferencesLayout.hPad * 2
         let innerW = cardW - PreferencesLayout.cardPad * 2
         var y: CGFloat = PreferencesLayout.hPad
+
+        paneTitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: 280, height: 24)
+        paneSubtitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y + 28, width: cardW, height: 16)
+        y += 60
 
         let heroHeight: CGFloat = 248
         heroCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: heroHeight)

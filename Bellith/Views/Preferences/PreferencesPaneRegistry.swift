@@ -58,6 +58,9 @@ final class PreferencesPaneRegistry {
         register(PreferencesPanePlugin(id: "quickterm", title: "Quick Terminal", iconName: "rectangle.bottomhalf.inset.filled") {
             QuickTerminalPane()
         })
+        register(PreferencesPanePlugin(id: "features", title: "Features", iconName: "slider.horizontal.3") {
+            FeaturesPane()
+        })
         register(PreferencesPanePlugin(id: "about", title: "About", iconName: "info.circle", placement: .footer) {
             AboutPane()
         })

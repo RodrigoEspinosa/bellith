@@ -7,6 +7,9 @@ final class TerminalPane: NSView {
     private let scroll = NSScrollView()
     private let content = FlippedView()
 
+    private let paneTitleLabel = NSTextField(labelWithString: "Terminal")
+    private let paneSubtitleLabel = NSTextField(labelWithString: "Typography, shell defaults, integration, and session behavior.")
+
     private let heroCard = SettingsCard(title: "Live Preview", subtitle: "Typography drives the terminal hierarchy")
     private let heroSizeLabel = NSTextField(labelWithString: "")
     private let heroFamilyLabel = NSTextField(labelWithString: "")
@@ -94,8 +97,16 @@ final class TerminalPane: NSView {
         addSubview(scroll)
 
         content.wantsLayer = true
-        content.layer?.backgroundColor = Theme.base.cgColor
+        content.layer?.backgroundColor = Theme.frame.cgColor
         scroll.documentView = content
+
+        paneTitleLabel.font = BellithFont.ui(20, weight: .medium)
+        paneTitleLabel.textColor = Theme.textDisplay
+        content.addSubview(paneTitleLabel)
+
+        paneSubtitleLabel.font = BellithFont.ui(12, weight: .regular)
+        paneSubtitleLabel.textColor = Theme.textSecondary
+        content.addSubview(paneSubtitleLabel)
 
         heroSizeLabel.font = BellithFont.display(42)
         heroSizeLabel.textColor = Theme.textDisplay
@@ -296,7 +307,9 @@ final class TerminalPane: NSView {
     }
 
     func refresh() {
-        content.layer?.backgroundColor = Theme.base.cgColor
+        content.layer?.backgroundColor = Theme.frame.cgColor
+        paneTitleLabel.textColor = Theme.textDisplay
+        paneSubtitleLabel.textColor = Theme.textSecondary
         heroCard.refresh()
         fontCard.refresh()
         cursorCard.refresh()
@@ -356,8 +369,14 @@ final class TerminalPane: NSView {
         let labelW: CGFloat = 146
         let controlX = PreferencesLayout.cardPad + labelW
         let controlW = cardW - controlX - PreferencesLayout.cardPad
+        let trailingToggleX = PreferencesLayout.trailingToggleX(cardWidth: cardW)
+        let trailingToggleLabelWidth = PreferencesLayout.labelWidth(toTrailingToggleIn: cardW)
 
         var y: CGFloat = PreferencesLayout.hPad
+
+        paneTitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: 280, height: 24)
+        paneSubtitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y + 28, width: cardW, height: 16)
+        y += 60
 
         let heroHeight: CGFloat = 172
         heroCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: heroHeight)
@@ -394,8 +413,8 @@ final class TerminalPane: NSView {
         cursorLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: cr0, width: labelW - 12, height: PreferencesLayout.rowH)
         cursorSegment.frame = NSRect(x: controlX, y: cr0 + 6, width: min(250, controlW), height: 28)
         let cr1 = cr0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        blinkLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: cr1, width: labelW - 12, height: PreferencesLayout.rowH)
-        blinkToggle.frame = NSRect(x: controlX, y: cr1 + 6, width: 50, height: 28)
+        blinkLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: cr1, width: trailingToggleLabelWidth, height: PreferencesLayout.rowH)
+        blinkToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: cr1)
         let cr2 = cr1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
         cursorColorLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: cr2, width: labelW - 12, height: PreferencesLayout.rowH)
         cursorColorNote.frame = NSRect(x: controlX, y: cr2 + 12, width: controlW, height: 14)
@@ -431,31 +450,30 @@ final class TerminalPane: NSView {
         continuityNote.frame = NSRect(x: controlX, y: sr5 - 14, width: controlW, height: 14)
         y += sessionCardHeight + PreferencesLayout.sectionGap
 
-        let shellToggleX = cardW - PreferencesLayout.cardPad - 50
-        let shellLabelW = shellToggleX - PreferencesLayout.cardPad - 8
+        let shellLabelW = PreferencesLayout.labelWidth(toTrailingToggleIn: cardW)
         let shellIntegrationCardHeight = shellIntegrationCard.headerHeight + 8 * PreferencesLayout.rowH + 7 * PreferencesLayout.rowGap + PreferencesLayout.cardPad + 14
         shellIntegrationCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: shellIntegrationCardHeight)
         let ir0 = shellIntegrationCardHeight - shellIntegrationCard.headerHeight - PreferencesLayout.rowH
         shellIntegrationEnabledLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir0, width: shellLabelW, height: PreferencesLayout.rowH)
-        shellIntegrationEnabledToggle.frame = NSRect(x: shellToggleX, y: ir0 + 6, width: 50, height: 28)
+        shellIntegrationEnabledToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: ir0)
         let ir1 = ir0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
         shellIntegrationCursorLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir1, width: shellLabelW, height: PreferencesLayout.rowH)
-        shellIntegrationCursorToggle.frame = NSRect(x: shellToggleX, y: ir1 + 6, width: 50, height: 28)
+        shellIntegrationCursorToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: ir1)
         let ir2 = ir1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
         shellIntegrationTitleLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir2, width: shellLabelW, height: PreferencesLayout.rowH)
-        shellIntegrationTitleToggle.frame = NSRect(x: shellToggleX, y: ir2 + 6, width: 50, height: 28)
+        shellIntegrationTitleToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: ir2)
         let ir3 = ir2 - PreferencesLayout.rowH - PreferencesLayout.rowGap
         shellIntegrationPathLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir3, width: shellLabelW, height: PreferencesLayout.rowH)
-        shellIntegrationPathToggle.frame = NSRect(x: shellToggleX, y: ir3 + 6, width: 50, height: 28)
+        shellIntegrationPathToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: ir3)
         let ir4 = ir3 - PreferencesLayout.rowH - PreferencesLayout.rowGap
         shellIntegrationSSHEnvLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir4, width: shellLabelW, height: PreferencesLayout.rowH)
-        shellIntegrationSSHEnvToggle.frame = NSRect(x: shellToggleX, y: ir4 + 6, width: 50, height: 28)
+        shellIntegrationSSHEnvToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: ir4)
         let ir5 = ir4 - PreferencesLayout.rowH - PreferencesLayout.rowGap
         shellIntegrationSSHTerminfoLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir5, width: shellLabelW, height: PreferencesLayout.rowH)
-        shellIntegrationSSHTerminfoToggle.frame = NSRect(x: shellToggleX, y: ir5 + 6, width: 50, height: 28)
+        shellIntegrationSSHTerminfoToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: ir5)
         let ir6 = ir5 - PreferencesLayout.rowH - PreferencesLayout.rowGap
         commandNotificationsLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir6, width: shellLabelW, height: PreferencesLayout.rowH)
-        commandNotificationsToggle.frame = NSRect(x: shellToggleX, y: ir6 + 6, width: 50, height: 28)
+        commandNotificationsToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: ir6)
         let ir7 = ir6 - PreferencesLayout.rowH - PreferencesLayout.rowGap
         commandNotificationThresholdLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir7, width: shellLabelW, height: PreferencesLayout.rowH)
         commandNotificationThresholdField.frame = NSRect(x: controlX, y: ir7 + 6, width: 96, height: 28)
@@ -465,8 +483,7 @@ final class TerminalPane: NSView {
 
         let behaviorCardHeight = behaviorCard.headerHeight + 4 * PreferencesLayout.rowH + 14 + 3 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
         behaviorCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: behaviorCardHeight)
-        let toggleX = cardW - PreferencesLayout.cardPad - 50
-        let behaviorLabelW = toggleX - PreferencesLayout.cardPad - 8
+        let behaviorLabelW = PreferencesLayout.labelWidth(toTrailingToggleIn: cardW)
         let br0 = behaviorCardHeight - behaviorCard.headerHeight - PreferencesLayout.rowH
         optionKeyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br0, width: labelW - 12, height: PreferencesLayout.rowH)
         optionKeyPopup.frame = NSRect(x: controlX, y: br0 + 6, width: min(220, controlW), height: 28)
@@ -474,13 +491,13 @@ final class TerminalPane: NSView {
         optionKeyNote.frame = NSRect(x: controlX, y: optionKeyNoteY, width: controlW, height: 14)
         let br1 = optionKeyNoteY - PreferencesLayout.rowH
         hideMouseLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br1, width: behaviorLabelW, height: PreferencesLayout.rowH)
-        hideMouseToggle.frame = NSRect(x: toggleX, y: br1 + 6, width: 50, height: 28)
+        hideMouseToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: br1)
         let br2 = br1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
         confirmLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br2, width: behaviorLabelW, height: PreferencesLayout.rowH)
-        confirmToggle.frame = NSRect(x: toggleX, y: br2 + 6, width: 50, height: 28)
+        confirmToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: br2)
         let br3 = br2 - PreferencesLayout.rowH - PreferencesLayout.rowGap
         restoreLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br3, width: behaviorLabelW, height: PreferencesLayout.rowH)
-        restoreToggle.frame = NSRect(x: toggleX, y: br3 + 6, width: 50, height: 28)
+        restoreToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: br3)
         y += behaviorCardHeight + PreferencesLayout.hPad
 
         content.frame = NSRect(x: 0, y: 0, width: width, height: max(y, bounds.height))

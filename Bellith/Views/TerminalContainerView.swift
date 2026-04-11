@@ -685,7 +685,11 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         if matches(event, action: "reopenTab") { reopenClosedTab(); return true }
         if matches(event, action: "clearBuffer") { clearBuffer(); return true }
         if matches(event, action: "preferences") {
-            dependencies.preferencesWindowController.showWindow()
+            SettingsNavigation.open(
+                in: self,
+                settings: dependencies.settings,
+                preferencesWindowController: dependencies.preferencesWindowController
+            )
             return true
         }
 
@@ -1102,7 +1106,12 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     func connectSSHProfile(id: UUID) {
         guard let profile = SSHProfileStore.shared.profile(id: id) else {
-            dependencies.preferencesWindowController.showWindow(selecting: "ssh")
+            SettingsNavigation.open(
+                selecting: "ssh",
+                in: self,
+                settings: dependencies.settings,
+                preferencesWindowController: dependencies.preferencesWindowController
+            )
             return
         }
 
@@ -2178,6 +2187,20 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         openWorkingDirectory(cwd, in: surface)
     }
 
+    func openFileInEditor(_ fileURL: URL, titleOverride: String? = nil) {
+        let command = Self.editorCommand(for: fileURL)
+        let workingDirectory = fileURL.deletingLastPathComponent().path
+
+        guard let surface = createTab(
+            initialWorkingDirectory: workingDirectory,
+            titleOverride: titleOverride ?? fileURL.lastPathComponent
+        ) else {
+            return
+        }
+
+        sessionCoordinator.send(command: command, to: surface)
+    }
+
     private func openWorkingDirectory(_ cwd: String, in surface: TerminalSurfaceView) {
         surface.currentCwd = cwd
         if let idx = tabs.firstIndex(where: { $0.surfaces.contains(where: { $0 === surface }) }) {
@@ -2200,6 +2223,23 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             refreshTabUI()
         }
         sessionCoordinator.restoreWorkingDirectory(cwd, on: surface)
+    }
+
+    private static func editorCommand(for fileURL: URL) -> String {
+        let escapedPath = shellQuoted(fileURL.path)
+        return """
+        if [ -n "${EDITOR:-}" ]; then
+          eval "$EDITOR \(escapedPath)"
+        elif [ -n "${VISUAL:-}" ]; then
+          eval "$VISUAL \(escapedPath)"
+        else
+          open -t \(escapedPath)
+        fi
+        """
+    }
+
+    private static func shellQuoted(_ value: String) -> String {
+        "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
     }
 }
 

@@ -1,56 +1,94 @@
 import AppKit
 
+private enum ThemeLibraryMode {
+    case dark
+    case light
+
+    init(segmentIndex: Int) {
+        self = segmentIndex == 0 ? .dark : .light
+    }
+
+    var segmentIndex: Int {
+        switch self {
+        case .dark: 0
+        case .light: 1
+        }
+    }
+
+    var showsLightThemes: Bool {
+        self == .light
+    }
+
+    var hint: String {
+        switch self {
+        case .dark: "USED WHEN BELLITH IS IN DARK MODE"
+        case .light: "USED WHEN BELLITH IS IN LIGHT MODE"
+        }
+    }
+}
+
 // MARK: - Theme Grid
 
 final class ThemeGridView: NSView {
+    override var isFlipped: Bool { true }
+
     private let settings: BellithSettings
     private let themeManager: ThemeManager
     private let onApply: () -> Void
     private var cells: [ThemeCell] = []
-    private let darkLabel = SectionLabel("DARK")
-    private let lightLabel = SectionLabel("LIGHT")
+
+    private lazy var modeSegment = PrefSegment(
+        labels: ["Dark", "Light"],
+        selected: currentMode.segmentIndex
+    ) { [weak self] index in
+        self?.setMode(ThemeLibraryMode(segmentIndex: index))
+    }
+    private let modeHintLabel = SectionLabel("")
+
+    private var currentMode: ThemeLibraryMode
 
     private let columns = 3
-    private let spacing: CGFloat = 10
-    private let cellHeight: CGFloat = 78
-    private let sectionLabelHeight: CGFloat = 24
+    private let spacing: CGFloat = 12
+    private let cellHeight: CGFloat = 110
+    private let segmentHeight: CGFloat = 32
+    private let hintHeight: CGFloat = 16
 
     init(settings: BellithSettings, themeManager: ThemeManager = .shared, onApply: @escaping () -> Void) {
         self.settings = settings
         self.themeManager = themeManager
         self.onApply = onApply
+        currentMode = settings.resolvedIsDark ? .dark : .light
         super.init(frame: .zero)
-        addSubview(darkLabel)
-        addSubview(lightLabel)
+        addSubview(modeSegment)
+        addSubview(modeHintLabel)
         rebuild()
+        updateModeUI()
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
-    private var darkThemes: [ThemeColors] { ThemeColors.allThemes.filter { !$0.isLight } }
-    private var lightThemes: [ThemeColors] { ThemeColors.allThemes.filter { $0.isLight } }
+    private var visibleThemes: [ThemeColors] {
+        ThemeColors.allThemes.filter { $0.isLight == currentMode.showsLightThemes }
+    }
 
     func refresh() {
         if cells.count != ThemeColors.allThemes.count {
             rebuild()
         }
+        updateModeUI()
         for cell in cells {
-            if cell.theme.isLight {
-                cell.isSelected = cell.theme.name == settings.lightThemeName
-            } else {
-                cell.isSelected = cell.theme.name == settings.darkThemeName
-            }
-            cell.needsDisplay = true
+            let isVisible = cell.theme.isLight == currentMode.showsLightThemes
+            cell.isHidden = !isVisible
+            cell.isSelected = cell.theme.name == selectedThemeName(for: cell.theme)
         }
+        needsLayout = true
     }
 
     func requiredHeight(for width: CGFloat) -> CGFloat {
-        guard width > 0 else { return cellHeight }
-        let darkRows = ceil(CGFloat(max(darkThemes.count, 1)) / CGFloat(columns))
-        let lightRows = ceil(CGFloat(max(lightThemes.count, 1)) / CGFloat(columns))
-        let darkGridH = darkRows * cellHeight + max(0, darkRows - 1) * spacing
-        let lightGridH = lightRows * cellHeight + max(0, lightRows - 1) * spacing
-        return sectionLabelHeight + darkGridH + sectionLabelHeight + spacing + lightGridH
+        guard width > 0 else { return cellHeight + segmentHeight + hintHeight }
+        let rows = ceil(CGFloat(max(visibleThemes.count, 1)) / CGFloat(columns))
+        let gridHeight = rows * cellHeight + max(0, rows - 1) * spacing
+        return segmentHeight + 8 + hintHeight + 10 + gridHeight
     }
 
     private func rebuild() {
@@ -58,76 +96,69 @@ final class ThemeGridView: NSView {
         cells.removeAll()
 
         for theme in ThemeColors.allThemes {
-            let selected: Bool
-            if theme.isLight {
-                selected = theme.name == settings.lightThemeName
-            } else {
-                selected = theme.name == settings.darkThemeName
-            }
-            let cell = ThemeCell(theme: theme, isSelected: selected)
-            cell.onSelect = { [weak self] t in
-                guard let self else { return }
-                if t.isLight {
-                    self.settings.lightThemeName = t.name
-                } else {
-                    self.settings.darkThemeName = t.name
-                }
-                // Apply immediately if it matches the current system appearance
-                if t.isLight == !self.settings.systemIsDark || t.isLight == self.settings.systemIsDark {
-                    let resolved = self.settings.resolvedTheme
-                    self.themeManager.apply(resolved)
-                }
-                self.refresh()
-                self.onApply()
+            let cell = ThemeCell(theme: theme)
+            cell.isSelected = theme.name == selectedThemeName(for: theme)
+            cell.onSelect = { [weak self] selectedTheme in
+                self?.applyThemeSelection(selectedTheme)
             }
             addSubview(cell)
             cells.append(cell)
         }
-        needsLayout = true
+        refresh()
+    }
+
+    private func applyThemeSelection(_ theme: ThemeColors) {
+        if theme.isLight {
+            settings.lightThemeName = theme.name
+        } else {
+            settings.darkThemeName = theme.name
+        }
+
+        if theme.isLight == !settings.resolvedIsDark {
+            themeManager.apply(settings.resolvedTheme)
+        }
+
+        refresh()
+        onApply()
+    }
+
+    private func selectedThemeName(for theme: ThemeColors) -> String {
+        theme.isLight ? settings.lightThemeName : settings.darkThemeName
+    }
+
+    private func setMode(_ mode: ThemeLibraryMode) {
+        guard currentMode != mode else { return }
+        currentMode = mode
+        refresh()
+    }
+
+    private func updateModeUI() {
+        modeSegment.setSelected(currentMode.segmentIndex)
+        modeHintLabel.stringValue = currentMode.hint
+        modeHintLabel.textColor = Theme.textSecondary
     }
 
     override func layout() {
         super.layout()
-        let cellW = (bounds.width - spacing * CGFloat(columns - 1)) / CGFloat(columns)
-        let darkList = darkThemes
-        let lightList = lightThemes
 
-        var y: CGFloat = 0
+        modeSegment.frame = NSRect(x: 0, y: 0, width: 168, height: segmentHeight)
+        modeHintLabel.frame = NSRect(x: 0, y: modeSegment.frame.maxY + 8, width: bounds.width, height: hintHeight)
 
-        // Dark section label
-        darkLabel.frame = NSRect(x: 0, y: y, width: bounds.width, height: sectionLabelHeight)
-        darkLabel.textColor = Theme.textSecondary
-        y += sectionLabelHeight
+        let visibleCells = cells.filter { $0.theme.isLight == currentMode.showsLightThemes }
+        let cellWidth = (bounds.width - spacing * CGFloat(columns - 1)) / CGFloat(columns)
+        let gridY = modeHintLabel.frame.maxY + 10
 
-        // Dark theme cells
-        let darkCells = cells.filter { !$0.theme.isLight }
-        for (i, cell) in darkCells.enumerated() {
-            let col = i % columns
-            let row = i / columns
-            cell.frame = NSRect(
-                x: CGFloat(col) * (cellW + spacing),
-                y: y + CGFloat(row) * (cellHeight + spacing),
-                width: cellW,
-                height: cellHeight
-            )
+        for cell in cells {
+            cell.isHidden = cell.theme.isLight != currentMode.showsLightThemes
         }
-        let darkRows = ceil(CGFloat(max(darkList.count, 1)) / CGFloat(columns))
-        y += darkRows * cellHeight + max(0, darkRows - 1) * spacing + spacing
 
-        // Light section label
-        lightLabel.frame = NSRect(x: 0, y: y, width: bounds.width, height: sectionLabelHeight)
-        lightLabel.textColor = Theme.textSecondary
-        y += sectionLabelHeight
-
-        // Light theme cells
-        let lightCells = cells.filter { $0.theme.isLight }
-        for (i, cell) in lightCells.enumerated() {
-            let col = i % columns
-            let row = i / columns
+        for (index, cell) in visibleCells.enumerated() {
+            let column = index % columns
+            let row = index / columns
             cell.frame = NSRect(
-                x: CGFloat(col) * (cellW + spacing),
-                y: y + CGFloat(row) * (cellHeight + spacing),
-                width: cellW,
+                x: CGFloat(column) * (cellWidth + spacing),
+                y: gridY + CGFloat(row) * (cellHeight + spacing),
+                width: cellWidth,
                 height: cellHeight
             )
         }
@@ -138,7 +169,7 @@ private final class SectionLabel: NSTextField {
     init(_ title: String) {
         super.init(frame: .zero)
         stringValue = title
-        font = BellithFont.mono(10, weight: .medium)
+        font = BellithFont.mono(9, weight: .regular)
         textColor = Theme.textSecondary
         isEditable = false
         isBordered = false
@@ -151,63 +182,80 @@ private final class SectionLabel: NSTextField {
 
 final class ThemeCell: NSView {
     let theme: ThemeColors
-    var isSelected: Bool
+    var isSelected: Bool = false {
+        didSet {
+            updateAccessibilityValue()
+            needsDisplay = true
+        }
+    }
     var onSelect: ((ThemeColors) -> Void)?
 
     private var trackingArea: NSTrackingArea?
     private var isHovered = false
     private let nameLabel: NSTextField
     private let metaLabel = NSTextField(labelWithString: "THEME")
+    private let statusText = "DEFAULT"
 
     override var acceptsFirstResponder: Bool { true }
 
-    init(theme: ThemeColors, isSelected: Bool) {
+    private var isFocused: Bool {
+        window?.firstResponder as AnyObject? === self
+    }
+
+    init(theme: ThemeColors) {
         self.theme = theme
-        self.isSelected = isSelected
         self.nameLabel = NSTextField(labelWithString: theme.name.uppercased())
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = 12
+        layer?.cornerRadius = 14
         toolTip = theme.name
+
+        setAccessibilityRole(.button)
+        setAccessibilityLabel("\(theme.name) theme")
 
         metaLabel.font = BellithFont.mono(10, weight: .regular)
         metaLabel.textColor = theme.textSecondary
         addSubview(metaLabel)
 
-        nameLabel.font = BellithFont.mono(11, weight: .regular)
+        nameLabel.font = BellithFont.mono(10.5, weight: .regular)
         nameLabel.textColor = theme.textPrimary
         nameLabel.lineBreakMode = .byTruncatingTail
         addSubview(nameLabel)
+
+        updateAccessibilityValue()
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
     override func layout() {
         super.layout()
-        metaLabel.frame = NSRect(x: 10, y: bounds.height - 20, width: bounds.width - 20, height: 12)
-        nameLabel.frame = NSRect(x: 10, y: 10, width: bounds.width - 20, height: 14)
+        metaLabel.frame = NSRect(x: 12, y: bounds.height - 22, width: 80, height: 12)
+        nameLabel.frame = NSRect(x: 12, y: 8, width: bounds.width - 24, height: 14)
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let b = bounds
+        let boundsPath = NSBezierPath(roundedRect: bounds, xRadius: 14, yRadius: 14)
         theme.base.setFill()
-        NSBezierPath(roundedRect: b, xRadius: 12, yRadius: 12).fill()
+        boundsPath.fill()
 
-        let inset: CGFloat = 10
-        let headerRect = NSRect(x: inset, y: b.height - 34, width: b.width - inset * 2, height: 10)
+        let inset: CGFloat = 12
+        let topBar = NSRect(x: inset, y: bounds.height - 40, width: bounds.width - inset * 2, height: 12)
         theme.overlay.setFill()
-        NSBezierPath(roundedRect: headerRect, xRadius: 5, yRadius: 5).fill()
+        NSBezierPath(roundedRect: topBar, xRadius: 6, yRadius: 6).fill()
 
-        let line1 = NSRect(x: inset, y: 36, width: b.width - inset * 2, height: 6)
+        theme.textSecondary.withAlphaComponent(0.88).setFill()
+        NSBezierPath(roundedRect: NSRect(x: inset, y: 68, width: bounds.width * 0.46, height: 7), xRadius: 3.5, yRadius: 3.5).fill()
+        NSBezierPath(roundedRect: NSRect(x: inset, y: 54, width: bounds.width * 0.66, height: 7), xRadius: 3.5, yRadius: 3.5).fill()
+
         theme.accent.setFill()
-        NSBezierPath(roundedRect: line1, xRadius: 3, yRadius: 3).fill()
+        NSBezierPath(roundedRect: NSRect(x: inset, y: 38, width: bounds.width - inset * 2, height: 8), xRadius: 4, yRadius: 4).fill()
 
         let gap: CGFloat = 3
         let segments = 9
-        let segmentW = (b.width - inset * 2 - CGFloat(segments - 1) * gap) / CGFloat(segments)
-        for idx in 0..<segments {
-            let rect = NSRect(x: inset + CGFloat(idx) * (segmentW + gap), y: 24, width: segmentW, height: 6)
-            let fill = idx < 6 ? theme.textPrimary : theme.border
+        let segmentWidth = (bounds.width - inset * 2 - CGFloat(segments - 1) * gap) / CGFloat(segments)
+        for index in 0..<segments {
+            let rect = NSRect(x: inset + CGFloat(index) * (segmentWidth + gap), y: 24, width: segmentWidth, height: 6)
+            let fill = index < 6 ? theme.textPrimary : theme.border
             fill.setFill()
             NSBezierPath(roundedRect: rect, xRadius: 1.5, yRadius: 1.5).fill()
         }
@@ -215,36 +263,71 @@ final class ThemeCell: NSView {
         let borderColor: NSColor
         let borderWidth: CGFloat
         if isSelected {
-            borderColor = Theme.accent
-            borderWidth = 2
+            borderColor = theme.isLight ? NSColor(white: 0.12, alpha: 0.42) : NSColor(white: 1.0, alpha: 0.88)
+            borderWidth = 1.5
+        } else if isFocused {
+            borderColor = Theme.focusRing
+            borderWidth = 1.5
         } else if isHovered {
-            borderColor = theme.textPrimary.withAlphaComponent(0.28)
+            borderColor = theme.textPrimary.withAlphaComponent(0.24)
             borderWidth = 1
         } else {
-            borderColor = theme.border.withAlphaComponent(0.9)
-            borderWidth = 0.5
+            borderColor = theme.border.withAlphaComponent(min(1, theme.border.alphaComponent * 1.4))
+            borderWidth = 0.75
         }
         borderColor.setStroke()
-        let bp = NSBezierPath(roundedRect: b.insetBy(dx: borderWidth / 2, dy: borderWidth / 2), xRadius: 12, yRadius: 12)
-        bp.lineWidth = borderWidth
-        bp.stroke()
+        let borderPath = NSBezierPath(
+            roundedRect: bounds.insetBy(dx: borderWidth / 2, dy: borderWidth / 2),
+            xRadius: 14,
+            yRadius: 14
+        )
+        borderPath.lineWidth = borderWidth
+        borderPath.stroke()
 
         if isSelected {
-            let indicatorRect = NSRect(x: b.width - 24, y: 10, width: 14, height: 14)
-            Theme.accent.setFill()
-            NSBezierPath(ovalIn: indicatorRect).fill()
+            let chipRect = NSRect(x: bounds.width - 78, y: bounds.height - 24, width: 66, height: 16)
+            borderColor.withAlphaComponent(theme.isLight ? 0.12 : 0.18).setFill()
+            NSBezierPath(roundedRect: chipRect, xRadius: 8, yRadius: 8).fill()
+
+            borderColor.withAlphaComponent(theme.isLight ? 0.18 : 0.28).setStroke()
+            let chipBorder = NSBezierPath(roundedRect: chipRect.insetBy(dx: 0.5, dy: 0.5), xRadius: 8, yRadius: 8)
+            chipBorder.lineWidth = 1
+            chipBorder.stroke()
+
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: BellithFont.mono(8.5, weight: .medium),
+                .foregroundColor: theme.isLight ? theme.textPrimary : NSColor.white,
+            ]
+            let text = statusText as NSString
+            let textSize = text.size(withAttributes: attrs)
+            let textOrigin = NSPoint(
+                x: chipRect.midX - textSize.width / 2,
+                y: chipRect.midY - textSize.height / 2 - 0.5
+            )
+            text.draw(at: textOrigin, withAttributes: attrs)
         }
     }
 
     override func updateTrackingAreas() {
-        if let a = trackingArea { removeTrackingArea(a) }
+        if let trackingArea { removeTrackingArea(trackingArea) }
         trackingArea = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
         addTrackingArea(trackingArea!)
     }
 
-    override func mouseEntered(with event: NSEvent) { isHovered = true; needsDisplay = true }
-    override func mouseExited(with event: NSEvent) { isHovered = false; needsDisplay = true }
-    override func mouseDown(with event: NSEvent) { onSelect?(theme) }
+    override func mouseEntered(with event: NSEvent) {
+        isHovered = true
+        needsDisplay = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovered = false
+        needsDisplay = true
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        window?.makeFirstResponder(self)
+        onSelect?(theme)
+    }
 
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
@@ -253,5 +336,19 @@ final class ThemeCell: NSView {
         default:
             super.keyDown(with: event)
         }
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        needsDisplay = true
+        return true
+    }
+
+    override func resignFirstResponder() -> Bool {
+        needsDisplay = true
+        return true
+    }
+
+    private func updateAccessibilityValue() {
+        setAccessibilityValue(isSelected ? "Default theme" : "Not default")
     }
 }

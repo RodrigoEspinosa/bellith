@@ -8,6 +8,23 @@ final class FlippedView: NSView {
 
 // MARK: - Window Controller
 
+private final class PreferencesWindow: NSWindow {
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown {
+            let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if event.keyCode == 53 {
+                performClose(nil)
+                return
+            }
+            if modifiers == [.command], event.charactersIgnoringModifiers?.lowercased() == "w" {
+                performClose(nil)
+                return
+            }
+        }
+        super.sendEvent(event)
+    }
+}
+
 final class PreferencesWindowController: NSWindowController {
     static let shared = PreferencesWindowController()
 
@@ -19,7 +36,7 @@ final class PreferencesWindowController: NSWindowController {
     init(settings: BellithSettings = .shared, themeManager: ThemeManager = .shared) {
         self.settings = settings
         self.themeManager = themeManager
-        let window = NSWindow(
+        let window = PreferencesWindow(
             contentRect: NSRect(x: 0, y: 0, width: 760, height: 680),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
@@ -29,7 +46,7 @@ final class PreferencesWindowController: NSWindowController {
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
-        window.backgroundColor = Theme.base
+        window.backgroundColor = Theme.frame
         window.center()
         window.minSize = NSSize(width: 680, height: 560)
         window.setFrameAutosaveName("BellithPreferencesWindow")
@@ -52,7 +69,7 @@ final class PreferencesWindowController: NSWindowController {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.window?.backgroundColor = Theme.base
+            self?.window?.backgroundColor = Theme.frame
             (self?.window?.contentView as? PreferencesRootView)?.refresh()
         }
     }
@@ -82,7 +99,7 @@ final class PreferencesWindowController: NSWindowController {
 
     private func applyWindowAppearance() {
         window?.appearance = Theme.overlayAppearance
-        window?.backgroundColor = Theme.base
+        window?.backgroundColor = Theme.frame
     }
 }
 
@@ -96,12 +113,12 @@ final class PreferencesRootView: NSView {
     private var activePaneId: String = ""
     private let contentClip = NSView()
 
-    private let sidebarWidth: CGFloat = 196
+    private let sidebarWidth: CGFloat = 220
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.backgroundColor = Theme.base.cgColor
+        layer?.backgroundColor = Theme.frame.cgColor
 
         addSubview(sidebar)
         sidebar.onSelect = { [weak self] id in self?.showPane(id) }
@@ -111,7 +128,7 @@ final class PreferencesRootView: NSView {
         addSubview(divider)
 
         contentClip.wantsLayer = true
-        contentClip.layer?.backgroundColor = Theme.base.cgColor
+        contentClip.layer?.backgroundColor = Theme.frame.cgColor
         addSubview(contentClip)
 
         for plugin in PreferencesPaneRegistry.shared.allPlugins {
@@ -129,9 +146,9 @@ final class PreferencesRootView: NSView {
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
     func refresh() {
-        layer?.backgroundColor = Theme.base.cgColor
-        window?.backgroundColor = Theme.base
-        contentClip.layer?.backgroundColor = Theme.base.cgColor
+        layer?.backgroundColor = Theme.frame.cgColor
+        window?.backgroundColor = Theme.frame
+        contentClip.layer?.backgroundColor = Theme.frame.cgColor
         divider.layer?.backgroundColor = Theme.border.cgColor
         sidebar.refresh()
         for pane in panes.values {
@@ -189,7 +206,7 @@ final class PrefSidebar: NSView {
     private var bottomViews: [PrefSidebarItem] = []
     private let logoView = NSImageView()
     private let overlineLabel = NSTextField(labelWithString: "BELLITH")
-    private let titleLabel = NSTextField(labelWithString: "SETTINGS")
+    private let titleLabel = NSTextField(labelWithString: "Preferences")
     private let versionLabel = NSTextField(labelWithString: "")
     private let separatorLine = NSView()
 
@@ -205,12 +222,12 @@ final class PrefSidebar: NSView {
         overlineLabel.textColor = Theme.textSecondary
         addSubview(overlineLabel)
 
-        titleLabel.font = BellithFont.display(24)
+        titleLabel.font = BellithFont.ui(15, weight: .medium)
         titleLabel.textColor = Theme.textDisplay
         addSubview(titleLabel)
 
         let ver = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0"
-        versionLabel.stringValue = "[V\(ver)]"
+        versionLabel.stringValue = "v\(ver)"
         versionLabel.font = BellithFont.mono(10, weight: .regular)
         versionLabel.textColor = Theme.textMuted
         addSubview(versionLabel)
@@ -354,7 +371,7 @@ final class PrefSidebarItem: NSView {
             Theme.chromeElevated.setFill()
             NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
 
-            Theme.accent.setFill()
+            Theme.textDisplay.withAlphaComponent(0.9).setFill()
             NSBezierPath(roundedRect: NSRect(x: 8, y: 8, width: 2, height: rect.height - 16), xRadius: 1, yRadius: 1).fill()
         } else if isHovered {
             Theme.hoverOverlay.setFill()

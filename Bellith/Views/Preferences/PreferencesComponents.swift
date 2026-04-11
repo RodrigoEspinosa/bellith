@@ -9,6 +9,26 @@ enum PreferencesLayout {
     static let rowGap: CGFloat = 4
     static let cardPad: CGFloat = 18
     static let cardRadius: CGFloat = 14
+    static let controlGap: CGFloat = 14
+    static let toggleW: CGFloat = 44
+    static let toggleH: CGFloat = 24
+
+    static func trailingToggleX(cardWidth: CGFloat) -> CGFloat {
+        cardWidth - cardPad - toggleW
+    }
+
+    static func trailingToggleFrame(cardWidth: CGFloat, rowY: CGFloat) -> NSRect {
+        NSRect(
+            x: trailingToggleX(cardWidth: cardWidth),
+            y: rowY + (rowH - toggleH) / 2,
+            width: toggleW,
+            height: toggleH
+        )
+    }
+
+    static func labelWidth(toTrailingToggleIn cardWidth: CGFloat, from x: CGFloat = cardPad, gap: CGFloat = controlGap) -> CGFloat {
+        trailingToggleX(cardWidth: cardWidth) - x - gap
+    }
 }
 
 // MARK: - Card Container (grouped section)
@@ -118,7 +138,7 @@ final class ShortcutBadge: NSView {
 
         guard let shortcut else {
             let rect = bounds.insetBy(dx: 0, dy: 3)
-            let fill = isHovered ? Theme.overlay : Theme.surface.withAlphaComponent(0.45)
+            let fill = isHovered ? Theme.chromeElevated : Theme.frame.withAlphaComponent(0.9)
             fill.setFill()
             NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6).fill()
 
@@ -163,7 +183,7 @@ final class ShortcutBadge: NSView {
             let w = widths[i]
             let capRect = NSRect(x: x, y: y, width: w, height: capH)
 
-            let capBg = isHovered ? Theme.overlay : Theme.surface.withAlphaComponent(0.6)
+            let capBg = isHovered ? Theme.chromeElevated : Theme.frame.withAlphaComponent(0.95)
             capBg.setFill()
             NSBezierPath(roundedRect: capRect, xRadius: capR, yRadius: capR).fill()
 
@@ -297,13 +317,24 @@ final class PrefSegment: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 
+    private var selectedFillColor: NSColor {
+        if Theme.colors.isLight {
+            return NSColor(white: 0.94, alpha: 1.0)
+        }
+        return Theme.chromeElevated
+    }
+
+    private var selectedTextColor: NSColor {
+        Theme.textPrimary
+    }
+
     init(labels: [String], selected: Int, onChange: @escaping (Int) -> Void) {
         self.selected = selected
         self.onChange = onChange
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = 8
-        layer?.backgroundColor = Theme.base.cgColor
+        layer?.backgroundColor = Theme.frame.cgColor
         layer?.borderColor = Theme.chromeHairline.cgColor
         layer?.borderWidth = 0.5
 
@@ -343,6 +374,10 @@ final class PrefSegment: NSView {
         updateAppearance()
     }
 
+    func refreshAppearance() {
+        updateAppearance()
+    }
+
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
         case 123:
@@ -359,13 +394,20 @@ final class PrefSegment: NSView {
     }
 
     private func updateAppearance() {
+        layer?.backgroundColor = Theme.frame.cgColor
+        layer?.borderColor = Theme.chromeHairline.cgColor
+
         for (i, btn) in buttons.enumerated() {
             if i == selected {
-                btn.contentTintColor = Theme.textPrimary
-                btn.layer?.backgroundColor = Theme.chromeElevated.cgColor
+                btn.contentTintColor = selectedTextColor
+                btn.layer?.backgroundColor = selectedFillColor.cgColor
+                btn.layer?.borderWidth = Theme.colors.isLight ? 0.5 : 0
+                btn.layer?.borderColor = Theme.border.cgColor
             } else {
                 btn.contentTintColor = Theme.textSecondary
                 btn.layer?.backgroundColor = .clear
+                btn.layer?.borderWidth = 0
+                btn.layer?.borderColor = NSColor.clear.cgColor
             }
         }
     }
@@ -406,7 +448,7 @@ final class PrefToggle: NSView {
         layer?.addSublayer(knobShadowLayer)
 
         // Knob
-        knobLayer.backgroundColor = Theme.base.cgColor
+        knobLayer.backgroundColor = Theme.frame.cgColor
         layer?.addSublayer(knobLayer)
 
         updateLayers(animated: false)
@@ -422,7 +464,15 @@ final class PrefToggle: NSView {
     }
 
     private func updateLayers(animated: Bool) {
-        let color = isOn ? Theme.textPrimary : Theme.surface
+        trackLayer.borderColor = Theme.border.cgColor
+        knobLayer.backgroundColor = Theme.frame.cgColor
+
+        let color: NSColor
+        if isOn {
+            color = Theme.colors.isLight ? Theme.textPrimary : Theme.textDisplay
+        } else {
+            color = Theme.colors.isLight ? Theme.surface : Theme.chromeElevated
+        }
 
         if animated {
             let colorAnim = CABasicAnimation(keyPath: "backgroundColor")
@@ -487,6 +537,10 @@ final class PrefToggle: NSView {
     func setOn(_ newValue: Bool, animated: Bool = false) {
         isOn = newValue
         updateLayers(animated: animated)
+    }
+
+    func refreshAppearance() {
+        updateLayers(animated: false)
     }
 
     private func toggle() {
@@ -590,7 +644,7 @@ final class PrefTextField: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = 8
-        layer?.backgroundColor = Theme.base.cgColor
+        layer?.backgroundColor = Theme.frame.cgColor
         layer?.borderColor = Theme.border.cgColor
         layer?.borderWidth = 0.5
 
@@ -616,6 +670,9 @@ final class PrefTextField: NSView {
     @objc private func edited() { onChange(field.stringValue) }
 
     func updateText(_ text: String) {
+        layer?.backgroundColor = Theme.frame.cgColor
+        layer?.borderColor = Theme.border.cgColor
+        field.textColor = Theme.textPrimary
         field.stringValue = text
     }
 }
@@ -634,7 +691,7 @@ final class MiniNumberField: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = 6
-        layer?.backgroundColor = Theme.base.cgColor
+        layer?.backgroundColor = Theme.frame.cgColor
         layer?.borderColor = Theme.border.cgColor
         layer?.borderWidth = 0.5
 
@@ -665,6 +722,9 @@ final class MiniNumberField: NSView {
     }
 
     func setValue(_ value: Int) {
+        layer?.backgroundColor = Theme.frame.cgColor
+        layer?.borderColor = Theme.border.cgColor
+        field.textColor = Theme.textPrimary
         field.stringValue = "\(max(range.lowerBound, min(range.upperBound, value)))"
     }
 }
@@ -691,7 +751,7 @@ final class StepButton: NSView {
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
     override func draw(_ dirtyRect: NSRect) {
-        (isHovered ? Theme.overlay : Theme.base).setFill()
+        (isHovered ? Theme.chromeElevated : Theme.frame).setFill()
         NSBezierPath(roundedRect: bounds, xRadius: 7, yRadius: 7).fill()
         Theme.border.setStroke()
         NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7).stroke()
@@ -818,7 +878,7 @@ final class FontPickerButton: NSView {
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
     override func draw(_ dirtyRect: NSRect) {
-        (isHovered ? Theme.overlay : Theme.base).setFill()
+        (isHovered ? Theme.chromeElevated : Theme.frame).setFill()
         NSBezierPath(roundedRect: bounds, xRadius: 7, yRadius: 7).fill()
         Theme.border.setStroke()
         NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7).stroke()
@@ -916,7 +976,7 @@ final class ResetDefaultsButton: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let bg = isHovered ? Theme.overlay : Theme.surface.withAlphaComponent(0.3)
+        let bg = isHovered ? Theme.chromeElevated : Theme.chrome.withAlphaComponent(0.88)
         bg.setFill()
         NSBezierPath(roundedRect: bounds, xRadius: 8, yRadius: 8).fill()
         Theme.border.setStroke()

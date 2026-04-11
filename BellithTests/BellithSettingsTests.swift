@@ -120,6 +120,10 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(settings.windowPaddingY, 0)
     }
 
+    func testDefaultBuiltInSettingsWindowFeatureFlag() {
+        XCTAssertFalse(settings.builtInSettingsWindowEnabled)
+    }
+
     func testWindowPaddingAllowsZero() {
         settings.windowPaddingX = 0
         settings.windowPaddingY = 0
@@ -288,6 +292,14 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(settings.terminalOptionKeyBehavior, .both)
     }
 
+    func testBuiltInSettingsWindowFeatureFlagRoundtrip() {
+        settings.builtInSettingsWindowEnabled = true
+        XCTAssertTrue(settings.builtInSettingsWindowEnabled)
+
+        settings.builtInSettingsWindowEnabled = false
+        XCTAssertFalse(settings.builtInSettingsWindowEnabled)
+    }
+
     // MARK: - Keybindings
 
     func testDefaultKeybindingsNotEmpty() {
@@ -373,6 +385,9 @@ final class BellithSettingsTests: XCTestCase {
     func testInitializationLoadsSettingsFromJSONFile() throws {
         let json = """
         {
+          "featureFlags" : {
+            "builtInSettingsWindow" : true
+          },
           "fontFamily" : "Monaco",
           "fontSize" : 19,
           "showStatusBar" : false,
@@ -395,6 +410,7 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertFalse(loaded.showStatusBar)
         XCTAssertEqual(loaded.sidebarTools, ["performance"])
         XCTAssertEqual(loaded.terminalOptionKeyBehavior, .both)
+        XCTAssertTrue(loaded.builtInSettingsWindowEnabled)
     }
 
     func testUpdatingSettingsPersistsSettingsJSONFile() throws {
@@ -403,6 +419,7 @@ final class BellithSettingsTests: XCTestCase {
         settings.localSessionBootstrap = .tmux
         settings.terminalOptionKeyBehavior = .right
         settings.showStatusBar = false
+        settings.builtInSettingsWindowEnabled = true
 
         let data = try Data(contentsOf: settingsFileURL)
         let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -412,6 +429,8 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(object["localSessionBootstrap"] as? String, "tmux")
         XCTAssertEqual(object["terminalOptionKeyBehavior"] as? String, "right")
         XCTAssertEqual((object["showStatusBar"] as? NSNumber)?.boolValue, false)
+        let featureFlags = try XCTUnwrap(object["featureFlags"] as? [String: Any])
+        XCTAssertEqual((featureFlags["builtInSettingsWindow"] as? NSNumber)?.boolValue, true)
     }
 
     func testPersistedSettingsJSONRoundsDecimalValuesToTwoPlaces() throws {
@@ -438,5 +457,7 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(object["localSessionBootstrap"] as? String, "none")
         XCTAssertEqual(object["terminalOptionKeyBehavior"] as? String, "left")
         XCTAssertEqual((object["showStatusBar"] as? NSNumber)?.boolValue, true)
+        let featureFlags = try XCTUnwrap(object["featureFlags"] as? [String: Any])
+        XCTAssertEqual((featureFlags["builtInSettingsWindow"] as? NSNumber)?.boolValue, false)
     }
 }

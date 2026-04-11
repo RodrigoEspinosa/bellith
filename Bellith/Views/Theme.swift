@@ -484,6 +484,7 @@ enum Theme {
     static var colors: ThemeColors { ThemeManager.shared.current }
 
     // Base palette
+    static var frame: NSColor { colors.frame }
     static var base: NSColor { colors.base }
     static var surface: NSColor { colors.surface }
     static var overlay: NSColor { colors.overlay }

@@ -5,10 +5,8 @@ final class SSHPane: NSView {
     private let scroll = NSScrollView()
     private let content = FlippedView()
 
-    private let heroCard = SettingsCard(title: "SSH Profiles", subtitle: "Saved hosts, bootstrap commands, and environment guards")
-    private let heroTitleLabel = NSTextField(labelWithString: "")
-    private let heroMetaLabel = NSTextField(labelWithString: "")
-    private let heroDetailLabel = NSTextField(labelWithString: "")
+    private let paneTitleLabel = NSTextField(labelWithString: "SSH")
+    private let paneSubtitleLabel = NSTextField(labelWithString: "Saved hosts, connection bootstrap, and reusable remote sessions.")
 
     private let profilesCard = SettingsCard(title: "Saved Hosts", subtitle: "Profile commands appear in the command palette automatically")
     private var addButton: StepButton!
@@ -60,19 +58,16 @@ final class SSHPane: NSView {
         addSubview(scroll)
 
         content.wantsLayer = true
-        content.layer?.backgroundColor = Theme.base.cgColor
+        content.layer?.backgroundColor = Theme.frame.cgColor
         scroll.documentView = content
 
-        heroTitleLabel.font = BellithFont.display(34)
-        heroTitleLabel.textColor = Theme.textDisplay
-        heroMetaLabel.font = BellithFont.mono(11, weight: .regular)
-        heroMetaLabel.textColor = Theme.textSecondary
-        heroDetailLabel.font = BellithFont.mono(12, weight: .regular)
-        heroDetailLabel.textColor = Theme.textPrimary
-        content.addSubview(heroCard)
-        for view in [heroTitleLabel, heroMetaLabel, heroDetailLabel] {
-            heroCard.addSubview(view)
-        }
+        paneTitleLabel.font = BellithFont.ui(20, weight: .medium)
+        paneTitleLabel.textColor = Theme.textDisplay
+        content.addSubview(paneTitleLabel)
+
+        paneSubtitleLabel.font = BellithFont.ui(12, weight: .regular)
+        paneSubtitleLabel.textColor = Theme.textSecondary
+        content.addSubview(paneSubtitleLabel)
 
         addButton = StepButton(symbol: "plus") { [weak self] in self?.addProfile() }
         removeButton = StepButton(symbol: "minus") { [weak self] in self?.removeSelectedProfile() }
@@ -152,13 +147,13 @@ final class SSHPane: NSView {
     }
 
     func refresh() {
-        content.layer?.backgroundColor = Theme.base.cgColor
-        heroCard.refresh()
+        content.layer?.backgroundColor = Theme.frame.cgColor
+        paneTitleLabel.textColor = Theme.textDisplay
+        paneSubtitleLabel.textColor = Theme.textSecondary
         profilesCard.refresh()
         connectionCard.refresh()
         sessionCard.refresh()
         reloadProfiles()
-        updateHero()
         updateFieldValues()
         rebuildProfileRows()
         let hasSelection = selectedProfile != nil
@@ -180,20 +175,6 @@ final class SSHPane: NSView {
             return
         }
         selectedProfileID = profiles.first?.id
-    }
-
-    private func updateHero() {
-        if let profile = selectedProfile {
-            heroTitleLabel.stringValue = profile.displayName.uppercased()
-            let env = profile.environmentTag.isEmpty ? "UNSCOPED" : profile.environmentTag.uppercased()
-            let mode = profile.isSensitive ? "GUARDED" : "STANDARD"
-            heroMetaLabel.stringValue = "[ \(env) ]   [ \(mode) ]"
-            heroDetailLabel.stringValue = SSHLaunchBuilder.command(for: profile)
-        } else {
-            heroTitleLabel.stringValue = "NO HOSTS"
-            heroMetaLabel.stringValue = "[ SSH COMMANDS ]   [ READY WHEN YOU ARE ]"
-            heroDetailLabel.stringValue = "Add a profile to create reusable host commands."
-        }
     }
 
     private func updateFieldValues() {
@@ -273,12 +254,9 @@ final class SSHPane: NSView {
 
         var y: CGFloat = PreferencesLayout.hPad
 
-        let heroHeight: CGFloat = 168
-        heroCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: heroHeight)
-        heroMetaLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 106, width: cardW - PreferencesLayout.cardPad * 2, height: 14)
-        heroTitleLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 60, width: cardW - PreferencesLayout.cardPad * 2, height: 40)
-        heroDetailLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 22, width: cardW - PreferencesLayout.cardPad * 2, height: 28)
-        y += heroHeight + PreferencesLayout.sectionGap
+        paneTitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: 280, height: 24)
+        paneSubtitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y + 28, width: cardW, height: 16)
+        y += 60
 
         let rowCount = max(profileRows.count, 1)
         let profileRowsHeight = CGFloat(rowCount) * 38 + CGFloat(max(0, rowCount - 1)) * 6
@@ -339,9 +317,18 @@ final class SSHPane: NSView {
                 (sensitiveLabel, sensitiveToggle as NSView),
                 (notesLabel, notesField as NSView),
             ] {
-                label.frame = NSRect(x: PreferencesLayout.cardPad, y: sessionRowY, width: labelW - 12, height: PreferencesLayout.rowH)
-                let controlWidth = control === sensitiveToggle ? 50 : controlW
-                control.frame = NSRect(x: controlX, y: sessionRowY + 6, width: controlWidth, height: 28)
+                if control === sensitiveToggle {
+                    label.frame = NSRect(
+                        x: PreferencesLayout.cardPad,
+                        y: sessionRowY,
+                        width: PreferencesLayout.labelWidth(toTrailingToggleIn: cardW),
+                        height: PreferencesLayout.rowH
+                    )
+                    control.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: sessionRowY)
+                } else {
+                    label.frame = NSRect(x: PreferencesLayout.cardPad, y: sessionRowY, width: labelW - 12, height: PreferencesLayout.rowH)
+                    control.frame = NSRect(x: controlX, y: sessionRowY + 6, width: controlW, height: 28)
+                }
                 sessionRowY -= PreferencesLayout.rowH + PreferencesLayout.rowGap
             }
             y += sessionHeight + PreferencesLayout.hPad

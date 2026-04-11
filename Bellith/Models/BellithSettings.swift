@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 
 enum TerminalOptionKeyBehavior: String, CaseIterable {
     case disabled
@@ -25,6 +26,22 @@ enum TerminalOptionKeyBehavior: String, CaseIterable {
     }
 }
 
+// MARK: - Appearance Mode
+
+enum AppAppearanceMode: String, CaseIterable {
+    case system
+    case dark
+    case light
+
+    var title: String {
+        switch self {
+        case .system: "System"
+        case .dark: "Dark"
+        case .light: "Light"
+        }
+    }
+}
+
 // MARK: - User Settings
 
 final class BellithSettings {
@@ -42,7 +59,7 @@ final class BellithSettings {
             "fontFamily", "cursorStyle", "darkThemeName", "lightThemeName", "tabMode",
             "shell", "terminalTerm", "visorHotkey", "visorPosition", "workingDirectory",
             "bellMode", "wordSeparators", "shortcutPreset", "localSessionBootstrap",
-            "terminalOptionKeyBehavior",
+            "terminalOptionKeyBehavior", "appearanceMode",
         ]
         static let intKeys: Set<String> = [
             "fontSize", "scrollbackLines", "commandCompletionNotificationThreshold",
@@ -65,18 +82,21 @@ final class BellithSettings {
         static let stringArrayKeys: Set<String> = [
             "sidebarTools",
         ]
+        static let featureFlags = "featureFlags"
         static let keybindings = "keybindings"
         static let all: Set<String> = stringKeys
             .union(intKeys)
             .union(doubleKeys)
             .union(boolKeys)
             .union(stringArrayKeys)
-            .union([keybindings])
+            .union([featureFlags, keybindings])
     }
 
     let defaults: UserDefaults
     private let smartPanelRegistry: SmartPanelRegistry
     private let settingsFileURL: URL?
+    private var settingsFileObserver: DispatchSourceFileSystemObject?
+    private var lastPersistedSettingsFileData: Data?
 
     init(
         defaults: UserDefaults = .standard,
@@ -89,6 +109,11 @@ final class BellithSettings {
         loadSettingsFileIfNeeded()
         migrateLegacyWindowPaddingIfNeeded()
         persistSettingsFileIfNeeded()
+        startObservingSettingsFileIfNeeded()
+    }
+
+    deinit {
+        settingsFileObserver?.cancel()
     }
 
     // Appearance
@@ -304,9 +329,32 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "sidebarShowTools"); notify() }
     }
 
-    /// Whether the system is currently in dark mode.
+    var appearanceMode: AppAppearanceMode {
+        get {
+            guard let rawValue = defaults.string(forKey: "appearanceMode"),
+                  let mode = AppAppearanceMode(rawValue: rawValue) else {
+                return .system
+            }
+            return mode
+        }
+        set { defaults.set(newValue.rawValue, forKey: "appearanceMode"); notify() }
+    }
+
+    /// Whether the system itself is currently in dark mode.
     var systemIsDark: Bool {
-        NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let globalDefaults = UserDefaults.standard.persistentDomain(forName: UserDefaults.globalDomain)
+        return (globalDefaults?["AppleInterfaceStyle"] as? String) == "Dark"
+    }
+
+    var resolvedIsDark: Bool {
+        switch appearanceMode {
+        case .system:
+            systemIsDark
+        case .dark:
+            true
+        case .light:
+            false
+        }
     }
 
     // Quick Terminal
@@ -510,6 +558,26 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "legacyPaneSupport"); notify() }
     }
 
+    var builtInSettingsWindowEnabled: Bool {
+        get { isFeatureEnabled(.builtInSettingsWindow) }
+        set { setFeature(.builtInSettingsWindow, enabled: newValue) }
+    }
+
+    var settingsFileLocation: URL? {
+        settingsFileURL
+    }
+
+    func isFeatureEnabled(_ feature: BellithFeatureFlag) -> Bool {
+        storedFeatureFlags[feature.rawValue] ?? feature.defaultValue
+    }
+
+    func setFeature(_ feature: BellithFeatureFlag, enabled: Bool) {
+        var flags = storedFeatureFlags
+        flags[feature.rawValue] = enabled
+        defaults.set(flags, forKey: PersistedKeys.featureFlags)
+        notify()
+    }
+
     var shortcutPreset: ShortcutPresetID {
         get {
             guard let raw = defaults.string(forKey: "shortcutPreset"),
@@ -665,7 +733,7 @@ final class BellithSettings {
     }
 
     var resolvedTheme: ThemeColors {
-        let name = systemIsDark ? darkThemeName : lightThemeName
+        let name = resolvedIsDark ? darkThemeName : lightThemeName
         return ThemeColors.allThemes.first { $0.name == name } ?? .tokyonight
     }
 
@@ -696,10 +764,37 @@ final class BellithSettings {
             .appendingPathComponent("settings.json", isDirectory: false)
     }
 
+    private var storedFeatureFlags: [String: Bool] {
+        guard let object = defaults.dictionary(forKey: PersistedKeys.featureFlags) else { return [:] }
+        return Self.featureFlags(from: object)
+    }
+
+    private static func featureFlags(from object: [String: Any]) -> [String: Bool] {
+        object.reduce(into: [String: Bool]()) { result, entry in
+            guard let number = entry.value as? NSNumber else { return }
+            result[entry.key] = number.boolValue
+        }
+    }
+
+    private var featureFlagsForSettingsFile: [String: Bool] {
+        var flags = storedFeatureFlags
+        for feature in BellithFeatureFlag.allCases {
+            flags[feature.rawValue] = isFeatureEnabled(feature)
+        }
+        return flags
+    }
+
     private func loadSettingsFileIfNeeded() {
         guard let settingsFileURL,
-              let data = try? Data(contentsOf: settingsFileURL),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+              let data = try? Data(contentsOf: settingsFileURL) else {
+            return
+        }
+
+        applySettingsFileData(data)
+    }
+
+    private func applySettingsFileData(_ data: Data) {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return
         }
 
@@ -707,6 +802,7 @@ final class BellithSettings {
         for (key, value) in object {
             applyPersistedValue(value, forKey: key)
         }
+        lastPersistedSettingsFileData = data
     }
 
     private func applyPersistedValue(_ value: Any, forKey key: String) {
@@ -734,6 +830,10 @@ final class BellithSettings {
             guard let number = value as? NSNumber else { return }
             defaults.set(number.boolValue, forKey: key)
 
+        case PersistedKeys.featureFlags:
+            guard let dictionaryValue = value as? [String: Any] else { return }
+            defaults.set(Self.featureFlags(from: dictionaryValue), forKey: key)
+
         case _ where PersistedKeys.stringArrayKeys.contains(key):
             guard let arrayValue = value as? [String] else { return }
             defaults.set(arrayValue, forKey: key)
@@ -751,6 +851,7 @@ final class BellithSettings {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let data = try settingsFileData()
             try data.write(to: settingsFileURL, options: .atomic)
+            lastPersistedSettingsFileData = data
         } catch {
             return
         }
@@ -766,6 +867,7 @@ final class BellithSettings {
         }
 
         let object: [String: Any] = [
+            "appearanceMode": appearanceMode.rawValue,
             "backgroundOpacity": roundedForSettingsFile(backgroundOpacity),
             "bellMode": bellMode,
             "commandCompletionNotificationThreshold": commandCompletionNotificationThreshold,
@@ -776,6 +878,7 @@ final class BellithSettings {
             "darkThemeName": darkThemeName,
             "fontFamily": fontFamily,
             "fontSize": fontSize,
+            "featureFlags": featureFlagsForSettingsFile,
             "keybindings": encodedKeybindings,
             "lightThemeName": lightThemeName,
             "mouseHideWhileTyping": mouseHideWhileTyping,
@@ -824,5 +927,42 @@ final class BellithSettings {
 
     private func roundedForSettingsFile(_ value: Double) -> Double {
         (value * 100).rounded() / 100
+    }
+
+    private func startObservingSettingsFileIfNeeded() {
+        guard let settingsFileURL else { return }
+        let directoryURL = settingsFileURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+        settingsFileObserver?.cancel()
+        settingsFileObserver = nil
+
+        let descriptor = open(directoryURL.path, O_EVTONLY)
+        guard descriptor >= 0 else { return }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor,
+            eventMask: [.write, .rename, .delete],
+            queue: .main
+        )
+        source.setEventHandler { [weak self] in
+            self?.reloadSettingsFileFromDiskIfNeeded()
+        }
+        source.setCancelHandler { [descriptor] in
+            close(descriptor)
+        }
+        settingsFileObserver = source
+        source.resume()
+    }
+
+    private func reloadSettingsFileFromDiskIfNeeded() {
+        guard let settingsFileURL,
+              let data = try? Data(contentsOf: settingsFileURL),
+              data != lastPersistedSettingsFileData else {
+            return
+        }
+
+        applySettingsFileData(data)
+        NotificationCenter.default.post(name: Self.didChangeNotification, object: self)
     }
 }
