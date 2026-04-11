@@ -445,6 +445,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Help menu
         let helpMenu = NSMenu(title: "Help")
         helpMenu.addItem(configuredMenuItem(title: "Keyboard Shortcuts", action: #selector(handleShowKeyboardShortcuts), shortcutID: "showKeyboardShortcuts"))
+        helpMenu.addItem(configuredMenuItem(title: "Install CLI Helper…", action: #selector(handleInstallCLI)))
         helpMenu.addItem(configuredMenuItem(title: "Bellith Help", action: #selector(handleHelp)))
         let helpMenuItem = NSMenuItem()
         helpMenuItem.submenu = helpMenu
@@ -592,6 +593,127 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Open help/documentation — for now open the custom themes folder as a basic help action
         guard let url = BellithBranding.repoURL else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    // MARK: - CLI Helper
+
+    @objc private func handleInstallCLI() {
+        guard let source = Bundle.main.resourceURL?.appendingPathComponent("bellith") else {
+            presentCLIAlert(style: .warning, title: "CLI Helper Not Found",
+                            text: "The bellith executable was not embedded in this build.")
+            return
+        }
+        guard FileManager.default.fileExists(atPath: source.path) else {
+            presentCLIAlert(style: .warning, title: "CLI Helper Not Found",
+                            text: "Expected CLI at \(source.path).")
+            return
+        }
+
+        let targetDir = "/usr/local/bin"
+        let targetPath = targetDir + "/bellith"
+
+        let confirm = NSAlert()
+        confirm.messageText = "Install bellith CLI?"
+        confirm.informativeText = "A symlink will be created at \(targetPath) pointing to the CLI inside Bellith.app. You may be prompted for your administrator password if \(targetDir) is not writable."
+        confirm.alertStyle = .informational
+        confirm.addButton(withTitle: "Install")
+        confirm.addButton(withTitle: "Cancel")
+        guard confirm.runModal() == .alertFirstButtonReturn else { return }
+
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        let dirExists = fm.fileExists(atPath: targetDir, isDirectory: &isDir) && isDir.boolValue
+
+        if dirExists && fm.isWritableFile(atPath: targetDir) {
+            do {
+                if fm.fileExists(atPath: targetPath) {
+                    try fm.removeItem(atPath: targetPath)
+                }
+                try fm.createSymbolicLink(atPath: targetPath, withDestinationPath: source.path)
+                presentCLIAlert(style: .informational, title: "CLI Installed",
+                                text: "You can now run `bellith` from any shell. Try `bellith --help`.")
+                return
+            } catch {
+                presentCLIAlert(style: .warning, title: "Install Failed",
+                                text: "Could not symlink into \(targetDir): \(error.localizedDescription)\n\nYou can run this command manually:\n\n  sudo ln -sf \(shellEscape(source.path)) \(targetPath)")
+                return
+            }
+        }
+
+        // Fall back to instructing the user to run a shell command manually.
+        presentCLIAlert(
+            style: .informational,
+            title: "Manual Install",
+            text: "\(targetDir) is not writable by Bellith. Run this in a terminal to finish installing:\n\n  sudo mkdir -p \(targetDir) && sudo ln -sf \(shellEscape(source.path)) \(targetPath)"
+        )
+    }
+
+    private func presentCLIAlert(style: NSAlert.Style, title: String, text: String) {
+        let alert = NSAlert()
+        alert.alertStyle = style
+        alert.messageText = title
+        alert.informativeText = text
+        alert.runModal()
+    }
+
+    private func shellEscape(_ path: String) -> String {
+        "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    // MARK: - URL Scheme
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            handleBellithURL(url)
+        }
+    }
+
+    private func handleBellithURL(_ url: URL) {
+        guard url.scheme == "bellith" else { return }
+        let host = url.host ?? ""
+        let params: [String: String] = {
+            let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            var dict: [String: String] = [:]
+            for item in comps?.queryItems ?? [] {
+                if let value = item.value { dict[item.name] = value }
+            }
+            return dict
+        }()
+
+        // Ensure a window exists before we try to route commands to one.
+        if windows.isEmpty { createWindow() }
+        guard let container = activeEntry?.container else { return }
+        activeEntry?.window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        switch host {
+        case "open":
+            let path = params["path"].flatMap { $0.isEmpty ? nil : $0 }
+            container.createTab(initialWorkingDirectory: path)
+
+        case "split":
+            let direction: SplitPaneView.Orientation = (params["direction"] == "down") ? .horizontal : .vertical
+            container.splitPane(direction: direction)
+            if let cmd = params["cmd"], !cmd.isEmpty {
+                container.runInActiveSurface(cmd)
+            }
+
+        case "ssh":
+            guard let name = params["profile"], !name.isEmpty else { return }
+            let lowered = name.lowercased()
+            let match = SSHProfileStore.shared.profiles.first { profile in
+                profile.displayName.lowercased() == lowered || profile.name.lowercased() == lowered
+            }
+            if let match {
+                container.connectSSHProfile(id: match.id)
+            } else {
+                presentCLIAlert(style: .warning, title: "SSH Profile Not Found",
+                                text: "No saved SSH profile matches '\(name)'.")
+            }
+
+        default:
+            break
+        }
     }
 
     // Smart panel plugin actions

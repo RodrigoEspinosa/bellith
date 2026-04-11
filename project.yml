@@ -38,13 +38,37 @@ targets:
     dependencies:
       - framework: Frameworks/GhosttyKit.xcframework
         embed: false
+      - target: bellith-cli
+        embed: false
+        link: false
     postBuildScripts:
+      - script: |
+          CLI_SRC="$BUILT_PRODUCTS_DIR/bellith"
+          CLI_DST="$TARGET_BUILD_DIR/$FULL_PRODUCT_NAME/Contents/Resources/bellith"
+          if [ -f "$CLI_SRC" ]; then
+            mkdir -p "$(dirname "$CLI_DST")"
+            cp -f "$CLI_SRC" "$CLI_DST"
+            chmod +x "$CLI_DST"
+          fi
+        name: Embed bellith CLI
+        basedOnDependencyAnalysis: false
       - script: |
           if command -v swiftlint >/dev/null 2>&1; then
             swiftlint lint --config "$SRCROOT/.swiftlint.yml" 2>/dev/null || true
           fi
         name: SwiftLint
         basedOnDependencyAnalysis: false
+
+  bellith-cli:
+    type: tool
+    platform: macOS
+    sources:
+      - path: BellithCLI
+    settings:
+      base:
+        PRODUCT_NAME: bellith
+        SKIP_INSTALL: YES
+        CODE_SIGN_STYLE: Automatic
 
   BellithTests:
     type: bundle.unit-test

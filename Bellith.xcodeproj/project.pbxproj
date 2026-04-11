@@ -46,6 +46,7 @@
 		5DD63722AB2EE526EB096050 /* GhosttyKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1E2025F109793353C35658F9 /* GhosttyKit.xcframework */; };
 		6798D6E2D3D556D644A18E41 /* SSHProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879EFDEE63113B30DD38B6EA /* SSHProfileStore.swift */; };
 		6D65D2902B34E20D77196A44 /* TerminalSurfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41878447E775AEA363F6EF96 /* TerminalSurfaceView.swift */; };
+		74262591A8DDBF6D4AF2E324 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D31E78EB4EBC7FC49C2F22FC /* main.swift */; };
 		765D4B7FDA9B6F3ACD937BEF /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB0C524BC98C2F0D18E7B327 /* NetworkMonitor.swift */; };
 		7B41F3CE5DB2BA28D89D339C /* SmartPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469D41729D62F6520EB09E3B /* SmartPanelView.swift */; };
 		7F18C8E24F67D3ECEEF7332C /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EAAEAFE7F888E5EFF104DCE /* FeatureFlags.swift */; };
@@ -106,6 +107,13 @@
 			remoteGlobalIDString = 778E92626B2B9935B9C85D15;
 			remoteInfo = Bellith;
 		};
+		E710C0BBEE3619AD07668E47 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D3BEACB9C7B8122AE78E354E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F549B461C1643C9A4F8BE24A;
+			remoteInfo = "bellith-cli";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -137,6 +145,7 @@
 		4FD22E965C6F1A921DC3AFFA /* BellithSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithSettingsTests.swift; sourceTree = "<group>"; };
 		52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
 		595A49A926D6775A52202AAD /* ITermColorsImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ITermColorsImporter.swift; sourceTree = "<group>"; };
+		6246E34985DFC9EC1E6DB555 /* bellith-cli */ = {isa = PBXFileReference; includeInIndex = 0; path = "bellith-cli"; sourceTree = BUILT_PRODUCTS_DIR; };
 		64B019E37CE2B850357E2B7E /* TerminalSurfaceViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSurfaceViewTests.swift; sourceTree = "<group>"; };
 		6651B379E02056CE70DC9C84 /* BellithBranding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithBranding.swift; sourceTree = "<group>"; };
 		693A40251EB6453D78EFD8E9 /* TerminalTabModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalTabModel.swift; sourceTree = "<group>"; };
@@ -185,6 +194,7 @@
 		CB50294EC30FB94671823CFA /* SplitPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitPaneView.swift; sourceTree = "<group>"; };
 		CD0B5E50A6BE76A1D3EDFE6D /* EnvironmentPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentPanel.swift; sourceTree = "<group>"; };
 		D1A6320778E024E8ABCDF2A6 /* SSHLaunchBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHLaunchBuilder.swift; sourceTree = "<group>"; };
+		D31E78EB4EBC7FC49C2F22FC /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		D391C65B83BEE0FDBEAE9ACC /* KeyBindings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyBindings.swift; sourceTree = "<group>"; };
 		D589B7C0CC3E08F11671DDFA /* SettingsNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsNavigation.swift; sourceTree = "<group>"; };
 		D65ED0D10E5739FCA342E50A /* PreferencesPaneRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesPaneRegistry.swift; sourceTree = "<group>"; };
@@ -232,6 +242,7 @@
 		0F21FF6DBBF3414B1DECFEF4 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				6246E34985DFC9EC1E6DB555 /* bellith-cli */,
 				8DCCD398564B84A07E66F1B1 /* Bellith.app */,
 				9C5308F1710991278921B4D4 /* BellithTests.xctest */,
 			);
@@ -337,6 +348,14 @@
 			path = Monitors;
 			sourceTree = "<group>";
 		};
+		C0AC68F910ED3323BE6FBE94 /* BellithCLI */ = {
+			isa = PBXGroup;
+			children = (
+				D31E78EB4EBC7FC49C2F22FC /* main.swift */,
+			);
+			path = BellithCLI;
+			sourceTree = "<group>";
+		};
 		C4D1B7F903B0FA0F371BC424 /* Preferences */ = {
 			isa = PBXGroup;
 			children = (
@@ -395,6 +414,7 @@
 			isa = PBXGroup;
 			children = (
 				0A52C7DB9C0C4AA4E340A01B /* Bellith */,
+				C0AC68F910ED3323BE6FBE94 /* BellithCLI */,
 				2A82101F333FE7DBCA5D3C45 /* BellithTests */,
 				58546C94506ED9008079B4C7 /* Frameworks */,
 				0F21FF6DBBF3414B1DECFEF4 /* Products */,
@@ -443,11 +463,13 @@
 				4A48D59B697B4F213297631E /* Sources */,
 				AD25C25F1F20F07E225479E5 /* Resources */,
 				EA08AA80D81307CF5B4BAF8F /* Frameworks */,
+				2750E7815A8C61345A367EF5 /* Embed bellith CLI */,
 				204543A95711977EF5010CA0 /* SwiftLint */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C742ABA3D049825F9BE4B962 /* PBXTargetDependency */,
 			);
 			name = Bellith;
 			packageProductDependencies = (
@@ -455,6 +477,23 @@
 			productName = Bellith;
 			productReference = 8DCCD398564B84A07E66F1B1 /* Bellith.app */;
 			productType = "com.apple.product-type.application";
+		};
+		F549B461C1643C9A4F8BE24A /* bellith-cli */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D6479E7BE52B1A30BEB1E866 /* Build configuration list for PBXNativeTarget "bellith-cli" */;
+			buildPhases = (
+				E90FA1908320220D7A7FE20A /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "bellith-cli";
+			packageProductDependencies = (
+			);
+			productName = "bellith-cli";
+			productReference = 6246E34985DFC9EC1E6DB555 /* bellith-cli */;
+			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
 
@@ -466,6 +505,9 @@
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					778E92626B2B9935B9C85D15 = {
+						ProvisioningStyle = Automatic;
+					};
+					F549B461C1643C9A4F8BE24A = {
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -486,6 +528,7 @@
 			targets = (
 				778E92626B2B9935B9C85D15 /* Bellith */,
 				29790158E8DEC817E97B2BF5 /* BellithTests */,
+				F549B461C1643C9A4F8BE24A /* bellith-cli */,
 			);
 		};
 /* End PBXProject section */
@@ -520,6 +563,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "if command -v swiftlint >/dev/null 2>&1; then\n  swiftlint lint --config \"$SRCROOT/.swiftlint.yml\" 2>/dev/null || true\nfi\n";
+		};
+		2750E7815A8C61345A367EF5 /* Embed bellith CLI */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Embed bellith CLI";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "CLI_SRC=\"$BUILT_PRODUCTS_DIR/bellith\"\nCLI_DST=\"$TARGET_BUILD_DIR/$FULL_PRODUCT_NAME/Contents/Resources/bellith\"\nif [ -f \"$CLI_SRC\" ]; then\n  mkdir -p \"$(dirname \"$CLI_DST\")\"\n  cp -f \"$CLI_SRC\" \"$CLI_DST\"\n  chmod +x \"$CLI_DST\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -625,6 +687,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E90FA1908320220D7A7FE20A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				74262591A8DDBF6D4AF2E324 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -633,9 +703,29 @@
 			target = 778E92626B2B9935B9C85D15 /* Bellith */;
 			targetProxy = E0D5463039822BBFDCBC4DC6 /* PBXContainerItemProxy */;
 		};
+		C742ABA3D049825F9BE4B962 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F549B461C1643C9A4F8BE24A /* bellith-cli */;
+			targetProxy = E710C0BBEE3619AD07668E47 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		44D3A8F45BC0FA60574B480A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_NAME = bellith;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
 		6EE652C867DE42BB603BEB98 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -666,6 +756,21 @@
 				SWIFT_OBJC_BRIDGING_HEADER = "";
 			};
 			name = Debug;
+		};
+		7047BB4BB99F5395C1845743 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_NAME = bellith;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
 		};
 		88EAE5C55DF95E2DCCF62E90 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -875,6 +980,15 @@
 			buildConfigurations = (
 				B84F7A994A98AACCF52D7F3D /* Debug */,
 				D0273572193C326BD4051BC7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D6479E7BE52B1A30BEB1E866 /* Build configuration list for PBXNativeTarget "bellith-cli" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				44D3A8F45BC0FA60574B480A /* Debug */,
+				7047BB4BB99F5395C1845743 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
