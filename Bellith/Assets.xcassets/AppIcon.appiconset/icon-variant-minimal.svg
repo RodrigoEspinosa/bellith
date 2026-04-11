@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="144" y1="136" x2="880" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#141924"/>
+      <stop offset="100%" stop-color="#090C13"/>
+    </linearGradient>
+    <linearGradient id="stroke" x1="184" y1="152" x2="850" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.05"/>
+    </linearGradient>
+    <linearGradient id="glyph" x1="326" y1="408" x2="662" y2="632" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#EEF3FF"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="560" y1="432" x2="650" y2="626" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#D0AEFF"/>
+      <stop offset="100%" stop-color="#7CC6FF"/>
+    </linearGradient>
+    <filter id="shadow" x="84" y="96" width="856" height="872" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset dy="22"/>
+      <feGaussianBlur stdDeviation="24"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.01 0 0 0 0 0.03 0 0 0 0 0.08 0 0 0 0.28 0"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <rect x="108" y="108" width="808" height="808" rx="184" fill="url(#bg)"/>
+  </g>
+  <rect x="108" y="108" width="808" height="808" rx="184" fill="url(#bg)"/>
+  <rect x="108.5" y="108.5" width="807" height="807" rx="183.5" stroke="url(#stroke)"/>
+
+  <g stroke="url(#glyph)" stroke-width="52" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="332,428 454,528 332,628"/>
+  </g>
+  <rect x="514" y="502" width="58" height="58" rx="14" fill="url(#glyph)"/>
+  <rect x="602" y="430" width="78" height="196" rx="20" fill="url(#accent)"/>
+
+  <rect x="294" y="736" width="436" height="12" rx="6" fill="#FFFFFF" fill-opacity="0.05"/>
+</svg>
