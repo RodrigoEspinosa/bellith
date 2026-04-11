@@ -120,6 +120,18 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(settings.windowPaddingY, 0)
     }
 
+    func testDefaultInlineImagesEnabled() {
+        XCTAssertTrue(settings.inlineImagesEnabled)
+    }
+
+    func testInlineImagesEnabledRoundtrip() {
+        settings.inlineImagesEnabled = false
+        XCTAssertFalse(settings.inlineImagesEnabled)
+
+        settings.inlineImagesEnabled = true
+        XCTAssertTrue(settings.inlineImagesEnabled)
+    }
+
     func testDefaultBuiltInSettingsWindowFeatureFlag() {
         XCTAssertFalse(settings.builtInSettingsWindowEnabled)
     }

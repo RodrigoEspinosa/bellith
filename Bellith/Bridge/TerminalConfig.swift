@@ -151,6 +151,9 @@ final class TerminalConfig {
         if !s.shell.isEmpty {
             lines.append("command = \(s.shell)")
         }
+        if !s.inlineImagesEnabled {
+            lines.append("image-storage-limit = 0")
+        }
         lines.append(contentsOf: macOSTerminalCompatibility.keybinds)
 
         do {

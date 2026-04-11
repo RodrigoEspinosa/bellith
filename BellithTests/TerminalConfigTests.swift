@@ -136,6 +136,24 @@ final class TerminalConfigTests: XCTestCase {
         XCTAssertTrue(contents.contains("window-padding-x = 9"))
     }
 
+    func testDefaultConfigOmitsImageStorageLimit() throws {
+        let path = try TerminalConfig.writeConfigFile(settings: settings)
+        let contents = try String(contentsOfFile: path, encoding: .utf8)
+
+        XCTAssertFalse(contents.contains("image-storage-limit"),
+                       "Default config should leave Ghostty's Kitty graphics / Sixel defaults untouched")
+    }
+
+    func testDisabledInlineImagesSetsImageStorageLimitToZero() throws {
+        settings.inlineImagesEnabled = false
+
+        let path = try TerminalConfig.writeConfigFile(settings: settings)
+        let contents = try String(contentsOfFile: path, encoding: .utf8)
+
+        XCTAssertTrue(contents.contains("image-storage-limit = 0"),
+                      "Disabling inline images should disable Ghostty's image storage")
+    }
+
     func testDisabledShellIntegrationWritesNone() throws {
         settings.shellIntegrationEnabled = false
 
