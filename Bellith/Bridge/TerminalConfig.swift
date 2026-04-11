@@ -154,6 +154,13 @@ final class TerminalConfig {
         if !s.inlineImagesEnabled {
             lines.append("image-storage-limit = 0")
         }
+        if !s.fontLigaturesEnabled {
+            // Disable the common ligature OpenType features. Ghostty applies
+            // these features to all text; negative tags turn them off.
+            for tag in ["calt", "liga", "clig", "dlig"] {
+                lines.append("font-feature = -\(tag)")
+            }
+        }
         lines.append(contentsOf: macOSTerminalCompatibility.keybinds)
 
         do {
