@@ -72,7 +72,10 @@ final class TerminalPane: NSView {
     private let commandNotificationThresholdUnit = SmallLabel("SECONDS")
     private let shellIntegrationNote = FooterNote("Prompt marks, command timing, and completion notifications require shell integration.")
 
-    private let behaviorCard = SettingsCard(title: "Behavior", subtitle: "Session lifecycle and cursor visibility")
+    private let behaviorCard = SettingsCard(title: "Behavior", subtitle: "Session lifecycle, cursor visibility, and terminal modifier keys")
+    private let optionKeyLabel = CardRowLabel("Option Key")
+    private let optionKeyNote = FooterNote("Left Option sends terminal Alt shortcuts while Right Option continues to type special characters.")
+    private let optionKeyPopup = NSPopUpButton()
     private let hideMouseLabel = CardRowLabel("Hide Cursor While Typing")
     private var hideMouseToggle: PrefToggle!
     private let confirmLabel = CardRowLabel("Confirm Before Closing")
@@ -256,11 +259,27 @@ final class TerminalPane: NSView {
             shellIntegrationCard.addSubview(view)
         }
 
+        optionKeyPopup.font = BellithFont.mono(12, weight: .regular)
+        optionKeyPopup.focusRingType = .none
+        optionKeyPopup.target = self
+        optionKeyPopup.action = #selector(handleOptionKeyBehaviorChanged)
+        TerminalOptionKeyBehavior.allCases.forEach { optionKeyPopup.addItem(withTitle: $0.title) }
+
         hideMouseToggle = PrefToggle(isOn: settings.mouseHideWhileTyping) { [weak self] value in self?.settings.mouseHideWhileTyping = value }
         confirmToggle = PrefToggle(isOn: settings.confirmClose) { [weak self] value in self?.settings.confirmClose = value }
         restoreToggle = PrefToggle(isOn: settings.restoreSession) { [weak self] value in self?.settings.restoreSession = value }
         content.addSubview(behaviorCard)
-        for view: NSView in [hideMouseLabel, hideMouseToggle, confirmLabel, confirmToggle, restoreLabel, restoreToggle] {
+        for view: NSView in [
+            optionKeyLabel,
+            optionKeyNote,
+            optionKeyPopup,
+            hideMouseLabel,
+            hideMouseToggle,
+            confirmLabel,
+            confirmToggle,
+            restoreLabel,
+            restoreToggle,
+        ] {
             behaviorCard.addSubview(view)
         }
 
@@ -268,6 +287,13 @@ final class TerminalPane: NSView {
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    @objc private func handleOptionKeyBehaviorChanged() {
+        let allBehaviors = TerminalOptionKeyBehavior.allCases
+        let selectedIndex = optionKeyPopup.indexOfSelectedItem
+        guard allBehaviors.indices.contains(selectedIndex) else { return }
+        settings.terminalOptionKeyBehavior = allBehaviors[selectedIndex]
+    }
 
     func refresh() {
         content.layer?.backgroundColor = Theme.base.cgColor
@@ -295,6 +321,7 @@ final class TerminalPane: NSView {
         shellIntegrationSSHTerminfoToggle.setOn(settings.shellIntegrationSSHTerminfo)
         commandNotificationsToggle.setOn(settings.commandCompletionNotificationsEnabled)
         commandNotificationThresholdField.setValue(settings.commandCompletionNotificationThreshold)
+        optionKeyPopup.selectItem(at: TerminalOptionKeyBehavior.allCases.firstIndex(of: settings.terminalOptionKeyBehavior) ?? 0)
         hideMouseToggle.setOn(settings.mouseHideWhileTyping)
         confirmToggle.setOn(settings.confirmClose)
         restoreToggle.setOn(settings.restoreSession)
@@ -436,19 +463,24 @@ final class TerminalPane: NSView {
         shellIntegrationNote.frame = NSRect(x: PreferencesLayout.cardPad, y: PreferencesLayout.cardPad - 2, width: innerW, height: 14)
         y += shellIntegrationCardHeight + PreferencesLayout.sectionGap
 
-        let behaviorCardHeight = behaviorCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        let behaviorCardHeight = behaviorCard.headerHeight + 4 * PreferencesLayout.rowH + 14 + 3 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
         behaviorCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: behaviorCardHeight)
         let toggleX = cardW - PreferencesLayout.cardPad - 50
         let behaviorLabelW = toggleX - PreferencesLayout.cardPad - 8
         let br0 = behaviorCardHeight - behaviorCard.headerHeight - PreferencesLayout.rowH
-        hideMouseLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br0, width: behaviorLabelW, height: PreferencesLayout.rowH)
-        hideMouseToggle.frame = NSRect(x: toggleX, y: br0 + 6, width: 50, height: 28)
-        let br1 = br0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        confirmLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br1, width: behaviorLabelW, height: PreferencesLayout.rowH)
-        confirmToggle.frame = NSRect(x: toggleX, y: br1 + 6, width: 50, height: 28)
+        optionKeyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br0, width: labelW - 12, height: PreferencesLayout.rowH)
+        optionKeyPopup.frame = NSRect(x: controlX, y: br0 + 6, width: min(220, controlW), height: 28)
+        let optionKeyNoteY = br0 - 14
+        optionKeyNote.frame = NSRect(x: controlX, y: optionKeyNoteY, width: controlW, height: 14)
+        let br1 = optionKeyNoteY - PreferencesLayout.rowH
+        hideMouseLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br1, width: behaviorLabelW, height: PreferencesLayout.rowH)
+        hideMouseToggle.frame = NSRect(x: toggleX, y: br1 + 6, width: 50, height: 28)
         let br2 = br1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        restoreLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br2, width: behaviorLabelW, height: PreferencesLayout.rowH)
-        restoreToggle.frame = NSRect(x: toggleX, y: br2 + 6, width: 50, height: 28)
+        confirmLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br2, width: behaviorLabelW, height: PreferencesLayout.rowH)
+        confirmToggle.frame = NSRect(x: toggleX, y: br2 + 6, width: 50, height: 28)
+        let br3 = br2 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        restoreLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br3, width: behaviorLabelW, height: PreferencesLayout.rowH)
+        restoreToggle.frame = NSRect(x: toggleX, y: br3 + 6, width: 50, height: 28)
         y += behaviorCardHeight + PreferencesLayout.hPad
 
         content.frame = NSRect(x: 0, y: 0, width: width, height: max(y, bounds.height))

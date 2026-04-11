@@ -86,6 +86,10 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(settings.localSessionBootstrap, .none)
     }
 
+    func testDefaultTerminalOptionKeyBehavior() {
+        XCTAssertEqual(settings.terminalOptionKeyBehavior, .left)
+    }
+
     func testDefaultShellIntegrationSettings() {
         XCTAssertTrue(settings.shellIntegrationEnabled)
         XCTAssertTrue(settings.shellIntegrationCursor)
@@ -276,6 +280,14 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(settings.effectiveTerminalTerm, "xterm-256color")
     }
 
+    func testTerminalOptionKeyBehaviorRoundtrip() {
+        settings.terminalOptionKeyBehavior = .right
+        XCTAssertEqual(settings.terminalOptionKeyBehavior, .right)
+
+        settings.terminalOptionKeyBehavior = .both
+        XCTAssertEqual(settings.terminalOptionKeyBehavior, .both)
+    }
+
     // MARK: - Keybindings
 
     func testDefaultKeybindingsNotEmpty() {
@@ -366,7 +378,8 @@ final class BellithSettingsTests: XCTestCase {
           "showStatusBar" : false,
           "sidebarTools" : [
             "performance"
-          ]
+          ],
+          "terminalOptionKeyBehavior" : "both"
         }
         """
         try FileManager.default.createDirectory(
@@ -381,12 +394,14 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(loaded.fontSize, 19)
         XCTAssertFalse(loaded.showStatusBar)
         XCTAssertEqual(loaded.sidebarTools, ["performance"])
+        XCTAssertEqual(loaded.terminalOptionKeyBehavior, .both)
     }
 
     func testUpdatingSettingsPersistsSettingsJSONFile() throws {
         settings.fontFamily = "JetBrains Mono"
         settings.fontSize = 18
         settings.localSessionBootstrap = .tmux
+        settings.terminalOptionKeyBehavior = .right
         settings.showStatusBar = false
 
         let data = try Data(contentsOf: settingsFileURL)
@@ -395,6 +410,7 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(object["fontFamily"] as? String, "JetBrains Mono")
         XCTAssertEqual((object["fontSize"] as? NSNumber)?.intValue, 18)
         XCTAssertEqual(object["localSessionBootstrap"] as? String, "tmux")
+        XCTAssertEqual(object["terminalOptionKeyBehavior"] as? String, "right")
         XCTAssertEqual((object["showStatusBar"] as? NSNumber)?.boolValue, false)
     }
 
@@ -420,6 +436,7 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(object["fontFamily"] as? String, "Hack Nerd Font Mono")
         XCTAssertEqual((object["fontSize"] as? NSNumber)?.intValue, 15)
         XCTAssertEqual(object["localSessionBootstrap"] as? String, "none")
+        XCTAssertEqual(object["terminalOptionKeyBehavior"] as? String, "left")
         XCTAssertEqual((object["showStatusBar"] as? NSNumber)?.boolValue, true)
     }
 }

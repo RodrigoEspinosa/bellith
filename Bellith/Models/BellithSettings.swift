@@ -1,5 +1,30 @@
 import AppKit
 
+enum TerminalOptionKeyBehavior: String, CaseIterable {
+    case disabled
+    case left
+    case right
+    case both
+
+    var title: String {
+        switch self {
+        case .disabled: "Disabled"
+        case .left: "Left Option"
+        case .right: "Right Option"
+        case .both: "Both Options"
+        }
+    }
+
+    var ghosttyConfigValue: String {
+        switch self {
+        case .disabled: "false"
+        case .left: "left"
+        case .right: "right"
+        case .both: "true"
+        }
+    }
+}
+
 // MARK: - User Settings
 
 final class BellithSettings {
@@ -17,6 +42,7 @@ final class BellithSettings {
             "fontFamily", "cursorStyle", "darkThemeName", "lightThemeName", "tabMode",
             "shell", "terminalTerm", "visorHotkey", "visorPosition", "workingDirectory",
             "bellMode", "wordSeparators", "shortcutPreset", "localSessionBootstrap",
+            "terminalOptionKeyBehavior",
         ]
         static let intKeys: Set<String> = [
             "fontSize", "scrollbackLines", "commandCompletionNotificationThreshold",
@@ -345,6 +371,17 @@ final class BellithSettings {
     var wordSeparators: String {
         get { defaults.string(forKey: "wordSeparators") ?? " \t!@#$%^&*()=+[]{}\\|;:'\",.<>?/`~" }
         set { defaults.set(newValue, forKey: "wordSeparators"); notify() }
+    }
+
+    var terminalOptionKeyBehavior: TerminalOptionKeyBehavior {
+        get {
+            guard let rawValue = defaults.string(forKey: "terminalOptionKeyBehavior"),
+                  let behavior = TerminalOptionKeyBehavior(rawValue: rawValue) else {
+                return .left
+            }
+            return behavior
+        }
+        set { defaults.set(newValue.rawValue, forKey: "terminalOptionKeyBehavior"); notify() }
     }
 
     // Traffic lights
@@ -768,6 +805,7 @@ final class BellithSettings {
             "sidebarShowTools": sidebarShowTools,
             "sidebarTools": sidebarTools,
             "tabMode": tabMode,
+            "terminalOptionKeyBehavior": terminalOptionKeyBehavior.rawValue,
             "terminalTerm": terminalTerm,
             "trafficLightAutoHide": trafficLightAutoHide,
             "visorHeightPercent": roundedForSettingsFile(visorHeightPercent),

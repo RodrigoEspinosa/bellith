@@ -1,4 +1,5 @@
 import XCTest
+import GhosttyKit
 @testable import Bellith
 
 final class TerminalConfigTests: XCTestCase {
@@ -39,8 +40,17 @@ final class TerminalConfigTests: XCTestCase {
         XCTAssertTrue(contents.contains("scrollback-limit"), "Config should contain scrollback-limit")
         XCTAssertTrue(contents.contains("shell-integration = detect"), "Config should enable shell integration by default")
         XCTAssertTrue(contents.contains("shell-integration-features"), "Config should declare shell integration features")
+        XCTAssertTrue(contents.contains("macos-option-as-alt = left"), "Config should default left Option to terminal Alt behavior")
         XCTAssertTrue(contents.contains("link-url = true"), "Config should enable clickable links")
         XCTAssertTrue(contents.contains("keybind = clear"), "Config should clear keybinds")
+        XCTAssertTrue(contents.contains("keybind = alt+left=esc:b"), "Config should map Option-Left to backward-word")
+        XCTAssertTrue(contents.contains("keybind = alt+right=esc:f"), "Config should map Option-Right to forward-word")
+        XCTAssertTrue(contents.contains("keybind = alt+backspace=text:\\x17"), "Config should map Option-Delete to backward-kill-word")
+        XCTAssertTrue(contents.contains("keybind = alt+delete=esc:d"), "Config should map Option-ForwardDelete to kill-word")
+        XCTAssertTrue(contents.contains("keybind = cmd+left=text:\\x01"), "Config should map Command-Left to line start")
+        XCTAssertTrue(contents.contains("keybind = cmd+right=text:\\x05"), "Config should map Command-Right to line end")
+        XCTAssertTrue(contents.contains("keybind = cmd+backspace=text:\\x15"), "Config should map Command-Delete to kill to line start")
+        XCTAssertTrue(contents.contains("keybind = cmd+delete=text:\\x0b"), "Config should map Command-ForwardDelete to kill to line end")
         XCTAssertTrue(contents.contains("window-padding-x = 4"), "Config should write the expected horizontal padding")
         XCTAssertTrue(contents.contains("window-padding-y = 8,0"), "Config should write the expected top-heavy vertical padding")
         XCTAssertFalse(contents.contains("window-padding-y = 38,2"), "Config should not include the old typo")
@@ -52,6 +62,7 @@ final class TerminalConfigTests: XCTestCase {
         settings.terminalTerm = "xterm-256color"
         settings.shellIntegrationCursor = false
         settings.shellIntegrationSSHTerminfo = true
+        settings.terminalOptionKeyBehavior = .both
 
         let path = try TerminalConfig.writeConfigFile(settings: settings)
         let contents = try String(contentsOfFile: path, encoding: .utf8)
@@ -65,6 +76,10 @@ final class TerminalConfigTests: XCTestCase {
         XCTAssertTrue(
             contents.contains("shell-integration-features = no-cursor,title,path,ssh-env,ssh-terminfo"),
             "Config should reflect shell integration feature toggles"
+        )
+        XCTAssertTrue(
+            contents.contains("macos-option-as-alt = true"),
+            "Config should reflect the Option key terminal behavior"
         )
     }
 
@@ -148,6 +163,16 @@ final class TerminalConfigTests: XCTestCase {
             }
             XCTAssertEqual(url, invalidDirectory)
         }
+    }
+
+    func testGeneratedConfigParsesWithoutDiagnostics() {
+        let config = TerminalConfig()
+        guard let rawConfig = config.config else {
+            return XCTFail("Expected a Ghostty config object")
+        }
+
+        let diagnosticsCount = ghostty_config_diagnostics_count(rawConfig)
+        XCTAssertEqual(diagnosticsCount, 0, "Expected generated config to parse cleanly")
     }
 
     func testInitializationCapturesConfigWriteFailures() throws {

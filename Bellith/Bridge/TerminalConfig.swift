@@ -53,6 +53,22 @@ final class TerminalConfig {
         static let applicationSupportDirectoryName = "com.rec.bellith"
     }
 
+    private enum macOSTerminalCompatibility {
+        static let keybinds = [
+            // Common shell/readline/zle word navigation and deletion shortcuts.
+            "keybind = alt+left=esc:b",
+            "keybind = alt+right=esc:f",
+            "keybind = alt+backspace=text:\\x17",
+            "keybind = alt+delete=esc:d",
+
+            // Common macOS line editing expectations.
+            "keybind = cmd+left=text:\\x01",
+            "keybind = cmd+right=text:\\x05",
+            "keybind = cmd+backspace=text:\\x15",
+            "keybind = cmd+delete=text:\\x0b",
+        ]
+    }
+
     struct ConfigPaths: Equatable {
         let directory: URL
         let generatedConfigFile: URL
@@ -124,6 +140,7 @@ final class TerminalConfig {
             "scrollback-limit = \(s.scrollbackLines)",
             "shell-integration = \(s.shellIntegrationMode)",
             "shell-integration-features = \(s.shellIntegrationFeatures)",
+            "macos-option-as-alt = \(s.terminalOptionKeyBehavior.ghosttyConfigValue)",
             "window-decoration = false",
             "window-save-state = never",
             "mouse-hide-while-typing = \(s.mouseHideWhileTyping)",
@@ -134,6 +151,7 @@ final class TerminalConfig {
         if !s.shell.isEmpty {
             lines.append("command = \(s.shell)")
         }
+        lines.append(contentsOf: macOSTerminalCompatibility.keybinds)
 
         do {
             try lines.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
