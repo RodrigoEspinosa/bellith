@@ -118,6 +118,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         tabBar.onCloseTab = { [weak self] i in self?.closeTab(i) }
         tabBar.onNewTab = { [weak self] in self?.createTab() }
         tabBar.onReorderTab = { [weak self] from, to in self?.reorderTab(from: from, to: to) }
+        tabBar.onTogglePin = { [weak self] i in self?.togglePinTab(i) }
 
         // Status bar (optional, shown beneath the terminal content)
         statusBar.onVisibilityChanged = { [weak self] visible in
@@ -813,8 +814,37 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         createSmartTab(pluginID: pluginID)
     }
 
+    /// Toggle the pinned state of a tab. Pinning moves the tab to the left of
+    /// the first non-pinned tab; unpinning leaves it in place within the pin
+    /// region, which becomes the first non-pinned slot.
+    func togglePinTab(_ index: Int) {
+        guard index >= 0, index < tabs.count else { return }
+        tabs[index].isPinned.toggle()
+        rebalancePinnedOrder()
+        refreshTabUI()
+    }
+
+    /// Ensure pinned tabs are contiguous and leftmost without otherwise
+    /// disturbing the relative order of tabs within the pinned and unpinned
+    /// segments.
+    private func rebalancePinnedOrder() {
+        guard !tabs.isEmpty else { return }
+        let selectedId = tabs.indices.contains(selectedTabIndex) ? tabs[selectedTabIndex].id : nil
+        let pinned = tabs.filter { $0.isPinned }
+        let unpinned = tabs.filter { !$0.isPinned }
+        tabs = pinned + unpinned
+        if let selectedId, let newIndex = tabs.firstIndex(where: { $0.id == selectedId }) {
+            selectedTabIndex = newIndex
+        }
+    }
+
     func closeTab(_ index: Int) {
         guard index < tabs.count, !isClosingTab else { return }
+        // Pinned tabs are protected from accidental close. Unpin first.
+        if tabs[index].isPinned {
+            NSSound.beep()
+            return
+        }
         isClosingTab = true
 
         let entry = tabs[index]
@@ -882,8 +912,22 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
               sourceIndex >= 0, sourceIndex < tabs.count,
               destinationIndex >= 0, destinationIndex < tabs.count else { return }
 
+        // Clamp destination so pinned tabs stay leftmost and unpinned tabs
+        // stay to the right of the pinned block.
+        let pinnedCount = tabs.filter { $0.isPinned }.count
+        let movingPinned = tabs[sourceIndex].isPinned
+        var clampedDestination = destinationIndex
+        if movingPinned {
+            clampedDestination = min(clampedDestination, max(0, pinnedCount - 1))
+        } else {
+            clampedDestination = max(clampedDestination, pinnedCount)
+        }
+        guard clampedDestination != sourceIndex else { return }
+
         let tab = tabs.remove(at: sourceIndex)
-        tabs.insert(tab, at: destinationIndex)
+        tabs.insert(tab, at: clampedDestination)
+
+        let destinationIndex = clampedDestination
 
         if selectedTabIndex == sourceIndex {
             selectedTabIndex = destinationIndex
@@ -1149,7 +1193,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         let tabData = tabs.map { (id: $0.id, title: $0.title, kind: $0.kind) }
         sidebar.update(tabs: tabData, selectedIndex: selectedTabIndex)
 
-        let barTabs = tabs.map { TabBarView.Tab(id: $0.id, title: $0.title, kind: $0.kind) }
+        let barTabs = tabs.map { TabBarView.Tab(id: $0.id, title: $0.title, kind: $0.kind, isPinned: $0.isPinned) }
         tabBar.update(tabs: barTabs, selectedIndex: selectedTabIndex)
     }
 
@@ -1355,9 +1399,20 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         guard index < tabs.count else { return }
         let menu = NSMenu()
 
+        let pinItem = NSMenuItem(
+            title: tabs[index].isPinned ? "Unpin Tab" : "Pin Tab",
+            action: #selector(contextMenuTogglePin(_:)),
+            keyEquivalent: ""
+        )
+        pinItem.representedObject = index
+        pinItem.target = self
+        menu.addItem(pinItem)
+        menu.addItem(.separator())
+
         let closeItem = NSMenuItem(title: "Close Tab", action: #selector(contextMenuCloseTab(_:)), keyEquivalent: "")
         closeItem.representedObject = index
         closeItem.target = self
+        closeItem.isEnabled = !tabs[index].isPinned
         menu.addItem(closeItem)
 
         if tabs.count > 1 {
@@ -1398,7 +1453,8 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         let keepId = tabs[keepIndex].id
         var i = tabs.count - 1
         while i >= 0 {
-            if tabs[i].id != keepId { closeTab(i) }
+            // Skip pinned tabs — they're protected from bulk-close.
+            if tabs[i].id != keepId && !tabs[i].isPinned { closeTab(i) }
             i -= 1
         }
     }
@@ -1407,9 +1463,14 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         guard let index = sender.representedObject as? Int else { return }
         var i = tabs.count - 1
         while i > index {
-            closeTab(i)
+            if !tabs[i].isPinned { closeTab(i) }
             i -= 1
         }
+    }
+
+    @objc private func contextMenuTogglePin(_ sender: NSMenuItem) {
+        guard let index = sender.representedObject as? Int else { return }
+        togglePinTab(index)
     }
 
     @objc private func contextMenuDuplicateTab(_ sender: NSMenuItem) {

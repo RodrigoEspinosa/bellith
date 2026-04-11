@@ -28,10 +28,11 @@ final class TerminalSessionCoordinator {
                     title: tab.title,
                     terminalSnapshot: snapshot,
                     terminalContext: context,
-                    sshProfileID: context?.sshProfileID
+                    sshProfileID: context?.sshProfileID,
+                    isPinned: tab.isPinned
                 )
             case .smart(let panel):
-                return SessionState.TabState(title: tab.title, smartPanelID: panel.pluginID)
+                return SessionState.TabState(title: tab.title, smartPanelID: panel.pluginID, isPinned: tab.isPinned)
             }
         }
 
@@ -99,6 +100,7 @@ final class TerminalSessionCoordinator {
                     cwd: nil,
                     localSessionBootstrap: terminalSnapshot.localSessionBootstrap,
                     localSessionName: terminalSnapshot.localSessionName,
+                    isPinned: tabState.isPinned,
                     content: .terminal(splitRoot: splitRoot, surfaces: [surface], focusedSurface: surface)
                 )
                 entry.cwd = surface.currentCwd
@@ -135,6 +137,7 @@ final class TerminalSessionCoordinator {
                     id: id,
                     title: tabState.title,
                     cwd: nil,
+                    isPinned: tabState.isPinned,
                     content: .smart(panel: panel)
                 )
                 restoredTabs.append(entry)
