@@ -93,6 +93,7 @@
 		F0688F637632B59A01825393 /* TerminalContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72367912169712669D03FD67 /* TerminalContainerView.swift */; };
 		F26474311EB82215B71E0CE0 /* SearchBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC69484808B270DA784451B1 /* SearchBarView.swift */; };
 		F565B2256404B0E12F1759C5 /* AIToolSessionDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7761C9EFFC090C4726758B71 /* AIToolSessionDetector.swift */; };
+		F69A5712D6FEB3A92B9B645F /* ITermColorsImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 595A49A926D6775A52202AAD /* ITermColorsImporter.swift */; };
 		FA077AEA422D8D9128490402 /* FileActivityPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F223B58A0753766F0489D0B /* FileActivityPanel.swift */; };
 		FE9D5CEE859363C51ADCC2CF /* KeyBindings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D391C65B83BEE0FDBEAE9ACC /* KeyBindings.swift */; };
 /* End PBXBuildFile section */
@@ -135,6 +136,7 @@
 		4AAC0EE06A46735764D38F77 /* ToolActivityPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolActivityPanel.swift; sourceTree = "<group>"; };
 		4FD22E965C6F1A921DC3AFFA /* BellithSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithSettingsTests.swift; sourceTree = "<group>"; };
 		52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
+		595A49A926D6775A52202AAD /* ITermColorsImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ITermColorsImporter.swift; sourceTree = "<group>"; };
 		64B019E37CE2B850357E2B7E /* TerminalSurfaceViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSurfaceViewTests.swift; sourceTree = "<group>"; };
 		6651B379E02056CE70DC9C84 /* BellithBranding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithBranding.swift; sourceTree = "<group>"; };
 		693A40251EB6453D78EFD8E9 /* TerminalTabModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalTabModel.swift; sourceTree = "<group>"; };
@@ -376,6 +378,7 @@
 			children = (
 				7761C9EFFC090C4726758B71 /* AIToolSessionDetector.swift */,
 				419904C2F6EF539F340C4054 /* GitHubService.swift */,
+				595A49A926D6775A52202AAD /* ITermColorsImporter.swift */,
 				70C30B5C38334EF708DC86AC /* LocalSessionLaunchBuilder.swift */,
 				0EEBEEBB917B3F0D20CE7967 /* SessionBootstrapCommandBuilder.swift */,
 				D1A6320778E024E8ABCDF2A6 /* SSHLaunchBuilder.swift */,
@@ -568,6 +571,7 @@
 				FA077AEA422D8D9128490402 /* FileActivityPanel.swift in Sources */,
 				E90F976F4D03F92405690751 /* GitHubService.swift in Sources */,
 				4DDD96881F2A1409729CD580 /* HyperlinkRouter.swift in Sources */,
+				F69A5712D6FEB3A92B9B645F /* ITermColorsImporter.swift in Sources */,
 				A58FC4DBB6D1A65B63DEEC49 /* InputHelpers.swift in Sources */,
 				FE9D5CEE859363C51ADCC2CF /* KeyBindings.swift in Sources */,
 				A39350253246932A3A4CB068 /* KeybindingsPane.swift in Sources */,
