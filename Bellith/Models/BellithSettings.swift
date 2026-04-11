@@ -79,6 +79,7 @@ final class BellithSettings {
             "showStatusBar", "showStatusBarContext", "showStatusBarPath",
             "showStatusBarGitWorktree", "showStatusBarGitBranch", "showStatusBarProcess",
             "showStatusBarGitHub", "showStatusBarSize",
+            "fontLigaturesEnabled",
         ]
         static let stringArrayKeys: Set<String> = [
             "sidebarTools",
@@ -126,6 +127,19 @@ final class BellithSettings {
     var fontSize: Int {
         get { let v = defaults.integer(forKey: "fontSize"); return v > 0 ? v : 15 }
         set { defaults.set(newValue, forKey: "fontSize"); notify() }
+    }
+
+    /// Programming ligatures (`calt`/`liga`/`clig`/`dlig` OpenType features).
+    /// Default is `true` — most programming fonts ship ligatures on and users
+    /// who chose Fira Code/JetBrains Mono/etc. expect them. When `false`,
+    /// the generated Ghostty config emits negative `font-feature` directives
+    /// to disable the common ligature feature tags.
+    var fontLigaturesEnabled: Bool {
+        get {
+            if defaults.object(forKey: "fontLigaturesEnabled") == nil { return true }
+            return defaults.bool(forKey: "fontLigaturesEnabled")
+        }
+        set { defaults.set(newValue, forKey: "fontLigaturesEnabled"); notify() }
     }
 
     var backgroundOpacity: Double {
@@ -897,6 +911,7 @@ final class BellithSettings {
             "cursorStyle": cursorStyle,
             "darkThemeName": darkThemeName,
             "fontFamily": fontFamily,
+            "fontLigaturesEnabled": fontLigaturesEnabled,
             "fontSize": fontSize,
             "featureFlags": featureFlagsForSettingsFile,
             "inlineImagesEnabled": inlineImagesEnabled,

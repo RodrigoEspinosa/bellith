@@ -27,6 +27,8 @@ final class TerminalPane: NSView {
     private var sizeMinus: StepButton!
     private let sizeValue = ValueBadge()
     private var sizePlus: StepButton!
+    private let ligaturesLabel = CardRowLabel("Ligatures")
+    private var ligaturesToggle: PrefToggle!
 
     private let cursorCard = SettingsCard(title: "Cursor", subtitle: "Shape and motion of the active insertion point")
     private let cursorLabel = CardRowLabel("Cursor Style")
@@ -158,8 +160,11 @@ final class TerminalPane: NSView {
             self.sizeValue.stringValue = "\(self.settings.fontSize)"
             self.updateHero()
         }
+        ligaturesToggle = PrefToggle(isOn: settings.fontLigaturesEnabled) { [weak self] value in
+            self?.settings.fontLigaturesEnabled = value
+        }
         content.addSubview(fontCard)
-        for view: NSView in [fontSummaryLabel, fontSizeHeroLabel, fontPreviewNote, fontLabel, fontField, fontPickerBtn, sizeLabel, sizeMinus, sizeValue, sizePlus] {
+        for view: NSView in [fontSummaryLabel, fontSizeHeroLabel, fontPreviewNote, fontLabel, fontField, fontPickerBtn, sizeLabel, sizeMinus, sizeValue, sizePlus, ligaturesLabel, ligaturesToggle] {
             fontCard.addSubview(view)
         }
 
@@ -334,6 +339,7 @@ final class TerminalPane: NSView {
         sizeValue.stringValue = "\(settings.fontSize)"
         cursorSegment.setSelected(["block": 0, "bar": 1, "underline": 2][settings.cursorStyle] ?? 0)
         blinkToggle.setOn(settings.cursorBlink)
+        ligaturesToggle.setOn(settings.fontLigaturesEnabled)
         shellField.updateText(settings.shell)
         termField.updateText(settings.terminalTerm)
         cwdField.updateText(settings.workingDirectory)
@@ -402,7 +408,7 @@ final class TerminalPane: NSView {
         y += heroHeight + PreferencesLayout.sectionGap
 
         let fontHeroBlockH: CGFloat = 52
-        let fontCardHeight = fontCard.headerHeight + fontHeroBlockH + 2 * PreferencesLayout.rowH + PreferencesLayout.rowGap + PreferencesLayout.cardPad + 10
+        let fontCardHeight = fontCard.headerHeight + fontHeroBlockH + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad + 10
         fontCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: fontCardHeight)
         let fontHeroTop = fontCardHeight - fontCard.headerHeight - 14
         fontSummaryLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fontHeroTop - 18, width: innerW - 110, height: 16)
@@ -420,6 +426,9 @@ final class TerminalPane: NSView {
         sizeMinus.frame = NSRect(x: controlX, y: fr1 + 6, width: stepSize, height: stepSize)
         sizeValue.frame = NSRect(x: controlX + 42, y: fr1 + 10, width: 54, height: 20)
         sizePlus.frame = NSRect(x: controlX + 110, y: fr1 + 6, width: stepSize, height: stepSize)
+        let fr2 = fr1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        ligaturesLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fr2, width: trailingToggleLabelWidth, height: PreferencesLayout.rowH)
+        ligaturesToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: fr2)
         y += fontCardHeight + PreferencesLayout.sectionGap
 
         let cursorCardHeight = cursorCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
