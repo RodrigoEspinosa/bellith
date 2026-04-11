@@ -1,6 +1,7 @@
 import AppKit
 import GhosttyKit
 import os
+import UniformTypeIdentifiers
 import UserNotifications
 
 @main
@@ -403,6 +404,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let themeItem = NSMenuItem(title: "Theme", action: nil, keyEquivalent: "")
         themeItem.submenu = themeMenu
         viewMenu.addItem(themeItem)
+        viewMenu.addItem(configuredMenuItem(title: "Import iTerm2 Theme…", action: #selector(handleImportITermColors)))
 
         let viewMenuItem = NSMenuItem()
         viewMenuItem.submenu = viewMenu
@@ -533,6 +535,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.orderFrontStandardAboutPanel(options: BellithBranding.aboutPanelOptions())
         NSApp.activate(ignoringOtherApps: true)
     }
+    @objc private func handleImportITermColors() {
+        let panel = NSOpenPanel()
+        panel.title = "Import iTerm2 Theme"
+        panel.prompt = "Import"
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        if let type = UTType(filenameExtension: "itermcolors") {
+            panel.allowedContentTypes = [type]
+        }
+        guard panel.runModal() == .OK else { return }
+
+        var imported: [String] = []
+        var failures: [(URL, Error)] = []
+        for url in panel.urls {
+            do {
+                let def = try ITermColorsImporter.importFile(url: url)
+                imported.append(def.name)
+            } catch {
+                failures.append((url, error))
+            }
+        }
+
+        let alert = NSAlert()
+        if !imported.isEmpty && failures.isEmpty {
+            alert.messageText = "Imported \(imported.count) theme\(imported.count == 1 ? "" : "s")"
+            alert.informativeText = imported.joined(separator: ", ") + "\n\nOpen the Theme menu to apply."
+            alert.alertStyle = .informational
+        } else if imported.isEmpty {
+            alert.messageText = "Import failed"
+            alert.informativeText = failures.map { "\($0.0.lastPathComponent): \($0.1.localizedDescription)" }.joined(separator: "\n")
+            alert.alertStyle = .warning
+        } else {
+            alert.messageText = "Imported \(imported.count), \(failures.count) failed"
+            alert.informativeText = "Imported: \(imported.joined(separator: ", "))\n\nFailed:\n" +
+                failures.map { "\($0.0.lastPathComponent): \($0.1.localizedDescription)" }.joined(separator: "\n")
+            alert.alertStyle = .warning
+        }
+        alert.runModal()
+
+        // Rebuild theme menu so newly-imported themes appear immediately.
+        rebuildThemeMenu()
+    }
+
     @objc private func handleHelp() {
         // Open help/documentation — for now open the custom themes folder as a basic help action
         guard let url = BellithBranding.repoURL else { return }
