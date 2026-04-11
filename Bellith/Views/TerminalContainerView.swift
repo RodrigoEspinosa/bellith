@@ -46,7 +46,14 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private var zoomedSurface: TerminalSurfaceView?
     private var lastSelectedTerminalTabID: UUID?
     private var isBroadcasting = false
-    private var recentlyClosedTabs: [(title: String, cwd: String?, context: TerminalContext?)] = []
+    private var recentlyClosedTabs: [(
+        title: String,
+        cwd: String?,
+        context: TerminalContext?,
+        localSessionBootstrap: SSHSessionBootstrap?,
+        localSessionName: String?,
+        scrollbackText: String?
+    )] = []
     private static let maxRecentlyClosed = 10
     private var zoomBadge: NSView?
     private var lastKnownStatusBarVisible = false
@@ -625,19 +632,29 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     func createTab(
         initialWorkingDirectory: String? = nil,
         titleOverride: String? = nil,
-        context: TerminalContext = .local
+        context: TerminalContext = .local,
+        localSessionBootstrap overrideBootstrap: SSHSessionBootstrap? = nil,
+        localSessionName overrideSessionName: String? = nil
     ) -> TerminalSurfaceView? {
         guard let terminalApp else { return nil }
 
         let id = UUID()
         let surface = makeSurface(tabId: id, app: terminalApp, context: context)
+        let localSessionBootstrap = context.source == .local
+            ? (overrideBootstrap ?? dependencies.settings.localSessionBootstrap)
+            : .none
+        let localSessionName = localSessionBootstrap == .none
+            ? nil
+            : (overrideSessionName ?? LocalSessionLaunchBuilder.makeSessionName())
 
-        let splitRoot = SplitPaneView(content: surface)
+        let splitRoot = SplitPaneView(content: makePaneContent(for: surface))
         let initialCwd = (initialWorkingDirectory?.isEmpty == false)
             ? initialWorkingDirectory ?? FileManager.default.currentDirectoryPath
             : FileManager.default.currentDirectoryPath
         tabs.append(TabEntry(
             id: id, title: titleOverride ?? (initialCwd as NSString).lastPathComponent, cwd: initialCwd,
+            localSessionBootstrap: localSessionBootstrap == .none ? nil : localSessionBootstrap,
+            localSessionName: localSessionName,
             content: .terminal(splitRoot: splitRoot, surfaces: [surface], focusedSurface: surface)
         ))
         addSubview(splitRoot, positioned: .below, relativeTo: sidebar)
@@ -645,7 +662,24 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         selectTab(tabs.count - 1)
         refreshTabUI()
 
-        if initialWorkingDirectory?.isEmpty == false {
+        if let bootstrapCommand = LocalSessionLaunchBuilder.command(
+            bootstrap: localSessionBootstrap,
+            sessionName: localSessionName,
+            workingDirectory: initialWorkingDirectory
+        ) {
+            sessionCoordinator.send(command: bootstrapCommand, to: surface)
+            titleBar.updateContext(surface.displayContext)
+            statusBar.updateContext(surface.displayContext)
+            statusBar.updateCwd(initialCwd)
+            titleBar.updatePath(initialCwd)
+            titleBar.updateGitBranch(nil)
+            titleBar.updateGitWorktree(nil)
+            titleBar.updateProcess(nil)
+            statusBar.updateGitBranch(nil)
+            statusBar.updateGitWorktree(nil)
+            statusBar.updateProcess(nil)
+            refreshStatusBarAsync(cwd: initialCwd)
+        } else if initialWorkingDirectory?.isEmpty == false {
             openWorkingDirectory(initialCwd, in: surface)
         } else {
             titleBar.updateContext(surface.displayContext)
@@ -713,7 +747,14 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
         // Track for reopen
         if entry.isTerminal {
-            recentlyClosedTabs.append((title: entry.title, cwd: entry.cwd, context: entry.persistedContext))
+            recentlyClosedTabs.append((
+                title: entry.title,
+                cwd: entry.cwd,
+                context: entry.persistedContext,
+                localSessionBootstrap: entry.localSessionBootstrap,
+                localSessionName: entry.localSessionName,
+                scrollbackText: entry.focusedSurface?.readScreenText() ?? entry.surfaces.first?.readScreenText()
+            ))
             if recentlyClosedTabs.count > Self.maxRecentlyClosed {
                 recentlyClosedTabs.removeFirst()
             }
@@ -1045,9 +1086,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
         let newLeaf: SplitPaneView
         if let focused = activeSurface, let leaf = root.leaf(containing: focused) {
-            newLeaf = leaf.split(orientation: direction, newContent: surface)
+            newLeaf = leaf.split(orientation: direction, newContent: makePaneContent(for: surface))
         } else {
-            newLeaf = root.split(orientation: direction, newContent: surface)
+            newLeaf = root.split(orientation: direction, newContent: makePaneContent(for: surface))
         }
 
         tabs[selectedTabIndex].addSurface(surface)
@@ -1113,7 +1154,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         guard selectedTabIndex < tabs.count, let current = activeSurface else { return }
         guard let root = tabs[selectedTabIndex].splitRoot else { return }
         if let nextView = root.adjacentLeaf(from: current, direction: direction),
-           let nextSurface = nextView as? TerminalSurfaceView {
+           let nextSurface = terminalSurface(in: nextView) {
             tabs[selectedTabIndex].focusedSurface = nextSurface
             window?.makeFirstResponder(nextSurface)
             updateFocusIndicator()
@@ -1297,8 +1338,12 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         let context = tabs[index].persistedContext
         if let sshProfileID = context?.sshProfileID, SSHProfileStore.shared.profile(id: sshProfileID) != nil {
             connectSSHProfile(id: sshProfileID)
-        } else if let surface = createTab(titleOverride: tabs[index].title, context: context ?? .local), let cwd, !cwd.isEmpty {
-            sessionCoordinator.restoreWorkingDirectory(cwd, on: surface)
+        } else {
+            _ = createTab(
+                initialWorkingDirectory: cwd,
+                titleOverride: tabs[index].title,
+                context: context ?? .local
+            )
         }
     }
 
@@ -1315,8 +1360,19 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         guard let last = recentlyClosedTabs.popLast() else { return }
         if let sshProfileID = last.context?.sshProfileID, SSHProfileStore.shared.profile(id: sshProfileID) != nil {
             connectSSHProfile(id: sshProfileID)
-        } else if let surface = createTab(titleOverride: last.title, context: last.context ?? .local), let cwd = last.cwd, !cwd.isEmpty {
-            sessionCoordinator.restoreWorkingDirectory(cwd, on: surface)
+        } else {
+            let surface = createTab(
+                initialWorkingDirectory: last.cwd,
+                titleOverride: last.title,
+                context: last.context ?? .local,
+                localSessionBootstrap: last.localSessionBootstrap,
+                localSessionName: last.localSessionName
+            )
+            if let scrollbackText = last.scrollbackText,
+               last.localSessionBootstrap == nil,
+               last.context?.source != .sshProfile {
+                surface?.showRestoredHistory(text: scrollbackText)
+            }
         }
     }
 
@@ -1986,6 +2042,10 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         addSubview(view, positioned: .below, relativeTo: sidebar)
     }
 
+    func makePaneContent(for surface: TerminalSurfaceView) -> NSView {
+        TerminalSessionView(surface: surface)
+    }
+
     private func makeSurface(tabId: UUID, app: TerminalApp, context: TerminalContext) -> TerminalSurfaceView {
         let surface = TerminalSurfaceView(app: app)
         surface.terminalContext = context
@@ -2025,6 +2085,21 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             }
         }
         return surface
+    }
+
+    private func terminalSurface(in view: NSView) -> TerminalSurfaceView? {
+        if let surface = view as? TerminalSurfaceView {
+            return surface
+        }
+        if let sessionView = view as? TerminalSessionView {
+            return sessionView.surface
+        }
+        for subview in view.subviews {
+            if let surface = terminalSurface(in: subview) {
+                return surface
+            }
+        }
+        return nil
     }
 
     func openWorkingDirectory(_ cwd: String) {

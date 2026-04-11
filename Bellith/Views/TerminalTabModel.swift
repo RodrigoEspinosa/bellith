@@ -20,6 +20,8 @@ struct TerminalTabEntry {
     let id: UUID
     var title: String
     var cwd: String?
+    var localSessionBootstrap: SSHSessionBootstrap?
+    var localSessionName: String?
     var content: TerminalTabContent
 
     var kind: TerminalTabKind {

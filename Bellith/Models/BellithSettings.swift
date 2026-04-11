@@ -16,7 +16,7 @@ final class BellithSettings {
         static let stringKeys: Set<String> = [
             "fontFamily", "cursorStyle", "darkThemeName", "lightThemeName", "tabMode",
             "shell", "terminalTerm", "visorHotkey", "visorPosition", "workingDirectory",
-            "bellMode", "wordSeparators", "shortcutPreset",
+            "bellMode", "wordSeparators", "shortcutPreset", "localSessionBootstrap",
         ]
         static let intKeys: Set<String> = [
             "fontSize", "scrollbackLines", "commandCompletionNotificationThreshold",
@@ -329,6 +329,17 @@ final class BellithSettings {
     var bellMode: String {
         get { defaults.string(forKey: "bellMode") ?? "system" } // system, visual, bounce, none
         set { defaults.set(newValue, forKey: "bellMode"); notify() }
+    }
+
+    var localSessionBootstrap: SSHSessionBootstrap {
+        get {
+            guard let rawValue = defaults.string(forKey: "localSessionBootstrap"),
+                  let bootstrap = SSHSessionBootstrap(rawValue: rawValue) else {
+                return .none
+            }
+            return bootstrap
+        }
+        set { defaults.set(newValue.rawValue, forKey: "localSessionBootstrap"); notify() }
     }
 
     var wordSeparators: String {
@@ -736,6 +747,7 @@ final class BellithSettings {
             "scrollbackLines": scrollbackLines,
             "shell": shell,
             "legacyPaneSupport": legacyPaneSupport,
+            "localSessionBootstrap": localSessionBootstrap.rawValue,
             "shellIntegrationCursor": shellIntegrationCursor,
             "shellIntegrationEnabled": shellIntegrationEnabled,
             "shellIntegrationPath": shellIntegrationPath,

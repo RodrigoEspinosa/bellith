@@ -6,6 +6,27 @@ struct SessionState: Codable {
     struct TerminalSnapshot: Codable, Equatable {
         let cwd: String?
         let hadScrollback: Bool
+        let localSessionBootstrap: SSHSessionBootstrap?
+        let localSessionName: String?
+        let scrollbackText: String?
+
+        init(
+            cwd: String?,
+            hadScrollback: Bool,
+            localSessionBootstrap: SSHSessionBootstrap? = nil,
+            localSessionName: String? = nil,
+            scrollbackText: String? = nil
+        ) {
+            let trimmedSessionName = localSessionName?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedBootstrap = localSessionBootstrap == SSHSessionBootstrap.none ? nil : localSessionBootstrap
+            let normalizedScrollback = scrollbackText?.isEmpty == false ? scrollbackText : nil
+
+            self.cwd = cwd
+            self.hadScrollback = hadScrollback
+            self.localSessionBootstrap = normalizedBootstrap
+            self.localSessionName = normalizedBootstrap == nil ? nil : trimmedSessionName
+            self.scrollbackText = normalizedScrollback
+        }
     }
 
     struct TabState: Codable {
@@ -151,14 +172,16 @@ indirect enum SplitNodeState: Codable {
         case .leaf(let cwd, let scrollbackText):
             return SessionState.TerminalSnapshot(
                 cwd: cwd,
-                hadScrollback: !(scrollbackText?.isEmpty ?? true)
+                hadScrollback: !(scrollbackText?.isEmpty ?? true),
+                scrollbackText: scrollbackText
             )
         case .branch(_, _, let first, let second):
             let firstSnapshot = first.flattenedSnapshot()
             let secondSnapshot = second.flattenedSnapshot()
             return SessionState.TerminalSnapshot(
                 cwd: firstSnapshot.cwd ?? secondSnapshot.cwd,
-                hadScrollback: firstSnapshot.hadScrollback || secondSnapshot.hadScrollback
+                hadScrollback: firstSnapshot.hadScrollback || secondSnapshot.hadScrollback,
+                scrollbackText: firstSnapshot.scrollbackText ?? secondSnapshot.scrollbackText
             )
         }
     }

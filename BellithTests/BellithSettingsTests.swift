@@ -82,6 +82,10 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertFalse(settings.cursorBlink)
     }
 
+    func testDefaultLocalSessionBootstrap() {
+        XCTAssertEqual(settings.localSessionBootstrap, .none)
+    }
+
     func testDefaultShellIntegrationSettings() {
         XCTAssertTrue(settings.shellIntegrationEnabled)
         XCTAssertTrue(settings.shellIntegrationCursor)
@@ -236,6 +240,14 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(settings.commandCompletionNotificationThreshold, 42)
     }
 
+    func testLocalSessionBootstrapRoundtrip() {
+        settings.localSessionBootstrap = .tmux
+        XCTAssertEqual(settings.localSessionBootstrap, .tmux)
+
+        settings.localSessionBootstrap = .zellij
+        XCTAssertEqual(settings.localSessionBootstrap, .zellij)
+    }
+
     func testSidebarAutoHideRoundtrip() {
         settings.sidebarAutoHide = true
         XCTAssertTrue(settings.sidebarAutoHide)
@@ -374,6 +386,7 @@ final class BellithSettingsTests: XCTestCase {
     func testUpdatingSettingsPersistsSettingsJSONFile() throws {
         settings.fontFamily = "JetBrains Mono"
         settings.fontSize = 18
+        settings.localSessionBootstrap = .tmux
         settings.showStatusBar = false
 
         let data = try Data(contentsOf: settingsFileURL)
@@ -381,6 +394,7 @@ final class BellithSettingsTests: XCTestCase {
 
         XCTAssertEqual(object["fontFamily"] as? String, "JetBrains Mono")
         XCTAssertEqual((object["fontSize"] as? NSNumber)?.intValue, 18)
+        XCTAssertEqual(object["localSessionBootstrap"] as? String, "tmux")
         XCTAssertEqual((object["showStatusBar"] as? NSNumber)?.boolValue, false)
     }
 
@@ -405,6 +419,7 @@ final class BellithSettingsTests: XCTestCase {
 
         XCTAssertEqual(object["fontFamily"] as? String, "Hack Nerd Font Mono")
         XCTAssertEqual((object["fontSize"] as? NSNumber)?.intValue, 15)
+        XCTAssertEqual(object["localSessionBootstrap"] as? String, "none")
         XCTAssertEqual((object["showStatusBar"] as? NSNumber)?.boolValue, true)
     }
 }

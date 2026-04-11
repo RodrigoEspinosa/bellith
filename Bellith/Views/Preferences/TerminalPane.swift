@@ -48,6 +48,9 @@ final class TerminalPane: NSView {
     private let scrollUnit = SmallLabel("LINES")
     private let bellLabel = CardRowLabel("Bell")
     private var bellSegment: PrefSegment!
+    private let continuityLabel = CardRowLabel("Session Continuity")
+    private var continuitySegment: PrefSegment!
+    private let continuityNote = FooterNote("New local tabs open inside tmux or zellij so Bellith can restore real shell history.")
 
     private let shellIntegrationCard = SettingsCard(title: "Shell Integration", subtitle: "Prompt marks, command tracking, and remote shell compatibility")
     private let shellIntegrationEnabledLabel = CardRowLabel("Enable Shell Integration")
@@ -173,6 +176,12 @@ final class TerminalPane: NSView {
             self?.settings.bellMode = ["system", "visual", "bounce", "none"][idx]
             self?.updateHero()
         }
+        continuitySegment = PrefSegment(
+            labels: ["Off", "tmux", "zellij"],
+            selected: ["none": 0, "tmux": 1, "zellij": 2][settings.localSessionBootstrap.rawValue] ?? 0
+        ) { [weak self] idx in
+            self?.settings.localSessionBootstrap = [.none, .tmux, .zellij][idx]
+        }
         content.addSubview(sessionCard)
         for view: NSView in [
             shellLabel,
@@ -188,7 +197,10 @@ final class TerminalPane: NSView {
             scrollField,
             scrollUnit,
             bellLabel,
-            bellSegment
+            bellSegment,
+            continuityLabel,
+            continuitySegment,
+            continuityNote
         ] {
             sessionCard.addSubview(view)
         }
@@ -274,6 +286,7 @@ final class TerminalPane: NSView {
         cwdField.updateText(settings.workingDirectory)
         scrollField.setValue(settings.scrollbackLines)
         bellSegment.setSelected(["system": 0, "visual": 1, "bounce": 2, "none": 3][settings.bellMode] ?? 0)
+        continuitySegment.setSelected(["none": 0, "tmux": 1, "zellij": 2][settings.localSessionBootstrap.rawValue] ?? 0)
         shellIntegrationEnabledToggle.setOn(settings.shellIntegrationEnabled)
         shellIntegrationCursorToggle.setOn(settings.shellIntegrationCursor)
         shellIntegrationTitleToggle.setOn(settings.shellIntegrationTitle)
@@ -361,7 +374,7 @@ final class TerminalPane: NSView {
         cursorColorNote.frame = NSRect(x: controlX, y: cr2 + 12, width: controlW, height: 14)
         y += cursorCardHeight + PreferencesLayout.sectionGap
 
-        let sessionCardHeight = sessionCard.headerHeight + 5 * PreferencesLayout.rowH + 3 * 14 + 4 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        let sessionCardHeight = sessionCard.headerHeight + 6 * PreferencesLayout.rowH + 4 * 14 + 5 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
         sessionCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: sessionCardHeight)
         let sr0 = sessionCardHeight - sessionCard.headerHeight - PreferencesLayout.rowH
         shellLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr0, width: labelW - 12, height: PreferencesLayout.rowH)
@@ -385,6 +398,10 @@ final class TerminalPane: NSView {
         let sr4 = sr3 - PreferencesLayout.rowH - PreferencesLayout.rowGap
         bellLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr4, width: labelW - 12, height: PreferencesLayout.rowH)
         bellSegment.frame = NSRect(x: controlX, y: sr4 + 6, width: min(320, controlW), height: 28)
+        let sr5 = sr4 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        continuityLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr5, width: labelW - 12, height: PreferencesLayout.rowH)
+        continuitySegment.frame = NSRect(x: controlX, y: sr5 + 6, width: min(320, controlW), height: 28)
+        continuityNote.frame = NSRect(x: controlX, y: sr5 - 14, width: controlW, height: 14)
         y += sessionCardHeight + PreferencesLayout.sectionGap
 
         let shellToggleX = cardW - PreferencesLayout.cardPad - 50

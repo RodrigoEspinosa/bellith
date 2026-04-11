@@ -148,7 +148,10 @@ final class SplitPaneView: NSView {
 
     /// Find the leaf containing a specific content view.
     func leaf(containing view: NSView) -> SplitPaneView? {
-        if isLeaf && contentView === view { return self }
+        if isLeaf, let contentView,
+           contentView === view || view.isDescendant(of: contentView) {
+            return self
+        }
         return first?.leaf(containing: view) ?? second?.leaf(containing: view)
     }
 

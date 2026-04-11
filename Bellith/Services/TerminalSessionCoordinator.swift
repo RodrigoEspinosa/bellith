@@ -5,6 +5,7 @@ import os
 
 protocol TerminalSessionCoordinatorHost: AnyObject {
     func makeSurface(tabId: UUID, context: TerminalContext) -> TerminalSurfaceView
+    func makePaneContent(for surface: TerminalSurfaceView) -> NSView
     func makeSmartPanel(pluginID: String) -> SmartPanelView?
     func addRestoredTabRootView(_ view: NSView)
     func refreshSmartPanelContexts()
@@ -90,22 +91,14 @@ final class TerminalSessionCoordinator {
                     continue
                 }
                 surface.currentCwd = terminalSnapshot.cwd
-
-                if sshProfile == nil, let cwd = terminalSnapshot.cwd, !cwd.isEmpty {
-                    sendCdWhenReady(surface: surface, cwd: cwd)
-                }
-                let indicator = Self.restorationIndicator(
-                    hasScrollback: terminalSnapshot.hadScrollback,
-                    cwd: terminalSnapshot.cwd,
-                    isSSH: sshProfile != nil
-                )
-                surface.showSessionRestoreIndicator(title: indicator.title, detail: indicator.detail)
-                let splitRoot = SplitPaneView(content: surface)
+                let splitRoot = SplitPaneView(content: host.makePaneContent(for: surface))
 
                 var entry = TerminalTabEntry(
                     id: id,
                     title: tabState.title,
                     cwd: nil,
+                    localSessionBootstrap: terminalSnapshot.localSessionBootstrap,
+                    localSessionName: terminalSnapshot.localSessionName,
                     content: .terminal(splitRoot: splitRoot, surfaces: [surface], focusedSurface: surface)
                 )
                 entry.cwd = surface.currentCwd
@@ -116,6 +109,22 @@ final class TerminalSessionCoordinator {
                 if let sshProfile {
                     surface.terminalContext = sshProfile.launchContext
                     send(command: SSHLaunchBuilder.command(for: sshProfile), to: surface)
+                } else if let localBootstrap = terminalSnapshot.localSessionBootstrap,
+                          let command = LocalSessionLaunchBuilder.command(
+                              bootstrap: localBootstrap,
+                              sessionName: terminalSnapshot.localSessionName,
+                              workingDirectory: terminalSnapshot.cwd
+                          ) {
+                    send(command: command, to: surface)
+                } else if let cwd = terminalSnapshot.cwd, !cwd.isEmpty {
+                    sendCdWhenReady(surface: surface, cwd: cwd)
+                }
+
+                if shouldShowRestoredHistory(
+                    snapshot: terminalSnapshot,
+                    sshProfile: sshProfile
+                ), let scrollbackText = terminalSnapshot.scrollbackText {
+                    surface.showRestoredHistory(text: scrollbackText)
                 }
 
             case .smart:
@@ -143,31 +152,6 @@ final class TerminalSessionCoordinator {
 
     func send(command: String, to surface: TerminalSurfaceView) {
         sendCommandWhenReady(surface: surface, command: command)
-    }
-
-    static func restorationIndicator(
-        hasScrollback: Bool,
-        cwd: String?,
-        isSSH: Bool
-    ) -> (title: String, detail: String?) {
-        if hasScrollback {
-            return (
-                "Session Restored",
-                isSSH
-                    ? "Remote session is reconnecting. Previous output was not replayed."
-                    : "Working directory restored. Previous output was not replayed."
-            )
-        }
-
-        if isSSH {
-            return ("Session Restored", "Remote session is reconnecting.")
-        }
-
-        if let cwd, !cwd.isEmpty {
-            return ("Session Restored", "Working directory restored.")
-        }
-
-        return ("Session Restored", nil)
     }
 
     private func sendCdWhenReady(surface: TerminalSurfaceView, cwd: String, attempt: Int = 0) {
@@ -221,7 +205,25 @@ final class TerminalSessionCoordinator {
         let scrollback = surface.readScreenText()
         return SessionState.TerminalSnapshot(
             cwd: surface.currentCwd,
-            hadScrollback: !(scrollback?.isEmpty ?? true)
+            hadScrollback: !(scrollback?.isEmpty ?? true),
+            localSessionBootstrap: tab.localSessionBootstrap,
+            localSessionName: tab.localSessionName,
+            scrollbackText: shouldPersistScrollback(for: tab) ? scrollback : nil
         )
+    }
+
+    private func shouldPersistScrollback(for tab: TerminalTabEntry) -> Bool {
+        guard tab.localSessionBootstrap == nil else { return false }
+        guard let context = tab.persistedContext else { return true }
+        return context.source == .local
+    }
+
+    private func shouldShowRestoredHistory(
+        snapshot: SessionState.TerminalSnapshot,
+        sshProfile: SSHProfile?
+    ) -> Bool {
+        guard snapshot.scrollbackText?.isEmpty == false else { return false }
+        guard snapshot.localSessionBootstrap == nil else { return false }
+        return sshProfile?.sessionBootstrap != .tmux && sshProfile?.sessionBootstrap != .zellij
     }
 }

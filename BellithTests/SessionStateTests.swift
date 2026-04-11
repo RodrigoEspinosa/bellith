@@ -3,7 +3,13 @@ import XCTest
 
 final class SessionStateTests: XCTestCase {
     func testTerminalSnapshotRoundtrip() throws {
-        let snapshot = SessionState.TerminalSnapshot(cwd: "/Users/test/projects", hadScrollback: true)
+        let snapshot = SessionState.TerminalSnapshot(
+            cwd: "/Users/test/projects",
+            hadScrollback: true,
+            localSessionBootstrap: .tmux,
+            localSessionName: "bellith-restore",
+            scrollbackText: "$ echo hello\nhello"
+        )
         let data = try JSONEncoder().encode(snapshot)
         let decoded = try JSONDecoder().decode(SessionState.TerminalSnapshot.self, from: data)
 
@@ -113,7 +119,13 @@ final class SessionStateTests: XCTestCase {
                 SessionState.TabState(title: "Inspector", smartPanelID: "performance"),
                 SessionState.TabState(
                     title: "Tab 2",
-                    terminalSnapshot: .init(cwd: "/tmp", hadScrollback: true)
+                    terminalSnapshot: .init(
+                        cwd: "/tmp",
+                        hadScrollback: true,
+                        localSessionBootstrap: .zellij,
+                        localSessionName: "bellith-tab-2",
+                        scrollbackText: "restored transcript"
+                    )
                 ),
             ],
             selectedTabIndex: 1,
@@ -133,7 +145,16 @@ final class SessionStateTests: XCTestCase {
         XCTAssertEqual(decoded.tabs[1].kind, .smart)
         XCTAssertEqual(decoded.tabs[1].smartPanelID, "performance")
         XCTAssertEqual(decoded.tabs[2].title, "Tab 2")
-        XCTAssertEqual(decoded.tabs[2].terminalSnapshot, .init(cwd: "/tmp", hadScrollback: true))
+        XCTAssertEqual(
+            decoded.tabs[2].terminalSnapshot,
+            .init(
+                cwd: "/tmp",
+                hadScrollback: true,
+                localSessionBootstrap: .zellij,
+                localSessionName: "bellith-tab-2",
+                scrollbackText: "restored transcript"
+            )
+        )
     }
 
     func testWindowSessionStateRoundtrip() throws {
@@ -183,6 +204,9 @@ final class SessionStateTests: XCTestCase {
 
         let decoded = try JSONDecoder().decode(SessionState.self, from: Data(json.utf8))
 
-        XCTAssertEqual(decoded.tabs.first?.terminalSnapshot, .init(cwd: "/tmp", hadScrollback: true))
+        XCTAssertEqual(
+            decoded.tabs.first?.terminalSnapshot,
+            .init(cwd: "/tmp", hadScrollback: true, scrollbackText: "hello")
+        )
     }
 }
