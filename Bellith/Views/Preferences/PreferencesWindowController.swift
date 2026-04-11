@@ -262,23 +262,31 @@ final class PrefSidebar: NSView {
         super.layout()
         let padding: CGFloat = 14
         let itemH: CGFloat = 36
-        let logoSize: CGFloat = 28
+        let itemGap: CGFloat = 6
+        let logoSize: CGFloat = 24
+        let topSafeArea = max(safeAreaInsets.top, 28)
+        let headerHeight: CGFloat = 56
+        let headerTopInset = topSafeArea + 16
+        let headerBottom = bounds.height - headerTopInset - headerHeight
+        let headerIconX = padding + 14
+        let headerTextX = padding + 38
+        let headerTextWidth = bounds.width - headerTextX - padding
 
-        logoView.frame = NSRect(x: padding + 14, y: bounds.height - 62, width: logoSize, height: logoSize)
-        overlineLabel.frame = NSRect(x: logoView.frame.maxX + 10, y: bounds.height - 38, width: bounds.width - logoView.frame.maxX - 24, height: 14)
-        titleLabel.frame = NSRect(x: padding + 12, y: bounds.height - 76, width: bounds.width - 40, height: 30)
-        versionLabel.frame = NSRect(x: padding + 14, y: bounds.height - 94, width: bounds.width - 40, height: 14)
+        logoView.frame = NSRect(x: headerIconX, y: headerBottom + 16, width: logoSize, height: logoSize)
+        overlineLabel.frame = NSRect(x: headerTextX, y: headerBottom + 40, width: headerTextWidth, height: 14)
+        titleLabel.frame = NSRect(x: headerTextX, y: headerBottom + 18, width: headerTextWidth, height: 20)
+        versionLabel.frame = NSRect(x: headerTextX, y: headerBottom, width: headerTextWidth, height: 12)
 
-        var y = bounds.height - 124
+        var y = headerBottom - 22
         for view in mainViews {
             view.frame = NSRect(x: padding, y: y - itemH, width: bounds.width - padding * 2, height: itemH)
-            y -= itemH + 6
+            y -= itemH + itemGap
         }
 
         var bottomY: CGFloat = padding
         for view in bottomViews.reversed() {
             view.frame = NSRect(x: padding, y: bottomY, width: bounds.width - padding * 2, height: itemH)
-            bottomY += itemH + 6
+            bottomY += itemH + itemGap
         }
 
         separatorLine.frame = NSRect(x: padding + 14, y: bottomY + 8, width: bounds.width - padding * 2 - 28, height: 1)
