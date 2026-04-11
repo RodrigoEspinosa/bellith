@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="outer-bg" x1="156" y1="108" x2="874" y2="912" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1D2230"/>
+      <stop offset="55%" stop-color="#10131B"/>
+      <stop offset="100%" stop-color="#07090F"/>
+    </linearGradient>
+    <radialGradient id="outer-top-glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(316 220) rotate(33) scale(430 370)">
+      <stop offset="0%" stop-color="#D0AEFF" stop-opacity="0.42"/>
+      <stop offset="38%" stop-color="#7CC6FF" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#7CC6FF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="outer-bottom-glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(764 828) rotate(180) scale(360 280)">
+      <stop offset="0%" stop-color="#4FD6BE" stop-opacity="0.18"/>
+      <stop offset="55%" stop-color="#66B8FF" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#66B8FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="outer-stroke" x1="200" y1="136" x2="868" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="45%" stop-color="#FFFFFF" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.10"/>
+    </linearGradient>
+    <linearGradient id="panel-fill" x1="512" y1="178" x2="512" y2="860" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#131824" stop-opacity="0.98"/>
+      <stop offset="100%" stop-color="#090C13" stop-opacity="0.98"/>
+    </linearGradient>
+    <linearGradient id="panel-stroke" x1="220" y1="188" x2="826" y2="856" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.04"/>
+    </linearGradient>
+    <linearGradient id="panel-gloss" x1="512" y1="178" x2="512" y2="370" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.11"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="glyph-fill" x1="350" y1="432" x2="674" y2="560" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#EEF4FF"/>
+    </linearGradient>
+    <filter id="soft-shadow" x="72" y="90" width="880" height="900" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset dy="26"/>
+      <feGaussianBlur stdDeviation="28"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.01 0 0 0 0 0.03 0 0 0 0 0.08 0 0 0 0.32 0"/>
+    </filter>
+    <filter id="panel-shadow" x="104" y="134" width="816" height="810" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset dy="18"/>
+      <feGaussianBlur stdDeviation="18"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.02 0 0 0 0 0.04 0 0 0 0 0.10 0 0 0 0.36 0"/>
+    </filter>
+    <filter id="glyph-glow" x="252" y="360" width="520" height="280" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="30"/>
+    </filter>
+    <clipPath id="outer-clip">
+      <rect x="108" y="108" width="808" height="808" rx="184"/>
+    </clipPath>
+  </defs>
+
+  <g filter="url(#soft-shadow)">
+    <rect x="108" y="108" width="808" height="808" rx="184" fill="url(#outer-bg)"/>
+  </g>
+
+  <g clip-path="url(#outer-clip)">
+    <rect x="108" y="108" width="808" height="808" rx="184" fill="url(#outer-bg)"/>
+    <rect x="108" y="108" width="808" height="808" rx="184" fill="url(#outer-top-glow)"/>
+    <rect x="108" y="108" width="808" height="808" rx="184" fill="url(#outer-bottom-glow)"/>
+    <path d="M180 164C285 132 440 120 590 162C690 190 778 248 834 340C764 282 676 248 548 236C394 220 266 244 166 304C156 258 161 208 180 164Z" fill="#FFFFFF" fill-opacity="0.06"/>
+    <path d="M832 824C724 874 592 896 444 878C320 864 220 820 152 748C232 786 322 804 436 800C590 796 706 764 826 694C846 736 850 778 832 824Z" fill="#66B8FF" fill-opacity="0.035"/>
+  </g>
+
+  <rect x="108.5" y="108.5" width="807" height="807" rx="183.5" stroke="url(#outer-stroke)"/>
+
+  <g filter="url(#panel-shadow)">
+    <rect x="160" y="164" width="704" height="696" rx="148" fill="#03050A" fill-opacity="0.58"/>
+  </g>
+
+  <g>
+    <rect x="160" y="164" width="704" height="696" rx="148" fill="url(#panel-fill)"/>
+    <rect x="160.75" y="164.75" width="702.5" height="694.5" rx="147.25" stroke="url(#panel-stroke)" stroke-width="1.5"/>
+    <path d="M208 198H816C789 256 722 290 628 290H396C302 290 235 256 208 198Z" fill="url(#panel-gloss)"/>
+    <path d="M202 232C252 212 314 202 392 202H632C710 202 772 212 822 232" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="10" stroke-linecap="round"/>
+    <ellipse cx="512" cy="496" rx="178" ry="92" fill="#C9B0FF" fill-opacity="0.18" filter="url(#glyph-glow)"/>
+    <g stroke="url(#glyph-fill)" stroke-width="40" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="332,436 434,494 332,552"/>
+      <polyline points="692,436 590,494 692,552"/>
+    </g>
+    <circle cx="438" cy="494" r="17" fill="url(#glyph-fill)"/>
+    <rect x="477" y="477" width="70" height="34" rx="17" fill="url(#glyph-fill)"/>
+    <circle cx="586" cy="494" r="17" fill="url(#glyph-fill)"/>
+  </g>
+</svg>

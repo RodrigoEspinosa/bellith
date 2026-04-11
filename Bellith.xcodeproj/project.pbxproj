@@ -51,6 +51,7 @@
 		807142202720783F0B3D8EA6 /* ThemeGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8917D92D4F8962901183EEA /* ThemeGridView.swift */; };
 		8229F53686989E6007E9C7E9 /* ThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1055D889FA5B87C7B010166B /* ThemeTests.swift */; };
 		84920B35B7A5167C2AAE9985 /* BellithSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD22E965C6F1A921DC3AFFA /* BellithSettingsTests.swift */; };
+		8504ED57A71B5C4492164E11 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C6D8A2F2C2B69B1DF8B695CA /* Assets.xcassets */; };
 		88DF13E98F4C5539EFBCF58F /* NetworkPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B73776D795BE3450D431B7B /* NetworkPanel.swift */; };
 		8F9C4F38ABE6542683C89C38 /* SplitPaneViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E385EC194464E8BF67BE47B /* SplitPaneViewTests.swift */; };
 		941E77325C0B8A487B2CD650 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AF3EFCA4440E50031AF178C /* Logger.swift */; };
@@ -170,6 +171,7 @@
 		BB30AA7FAF949D6830C55830 /* ShortcutCheatSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutCheatSheetView.swift; sourceTree = "<group>"; };
 		BC1465B59AFD1A458C9669E1 /* BellithDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithDependencies.swift; sourceTree = "<group>"; };
 		C2EA413DA31A6997580EEAF8 /* SSHSessionDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHSessionDetectorTests.swift; sourceTree = "<group>"; };
+		C6D8A2F2C2B69B1DF8B695CA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C6E1C3DB1ADB2A4903FA2FF2 /* TerminalRuntimeInfoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalRuntimeInfoService.swift; sourceTree = "<group>"; };
 		CB50294EC30FB94671823CFA /* SplitPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitPaneView.swift; sourceTree = "<group>"; };
 		CD0B5E50A6BE76A1D3EDFE6D /* EnvironmentPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentPanel.swift; sourceTree = "<group>"; };
@@ -205,6 +207,7 @@
 		0A52C7DB9C0C4AA4E340A01B /* Bellith */ = {
 			isa = PBXGroup;
 			children = (
+				C6D8A2F2C2B69B1DF8B695CA /* Assets.xcassets */,
 				77DA8562D603F051F9AFAEE5 /* App */,
 				2DFA76A5A35BFC692A95E5A4 /* Bridge */,
 				C8083A37D985A7B13AA5B057 /* Models */,
@@ -423,6 +426,7 @@
 			buildConfigurationList = 755E27ED870B57D657A02182 /* Build configuration list for PBXNativeTarget "Bellith" */;
 			buildPhases = (
 				4A48D59B697B4F213297631E /* Sources */,
+				AD25C25F1F20F07E225479E5 /* Resources */,
 				EA08AA80D81307CF5B4BAF8F /* Frameworks */,
 				204543A95711977EF5010CA0 /* SwiftLint */,
 			);
@@ -470,6 +474,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AD25C25F1F20F07E225479E5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8504ED57A71B5C4492164E11 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
 		204543A95711977EF5010CA0 /* SwiftLint */ = {
