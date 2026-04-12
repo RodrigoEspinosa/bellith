@@ -184,13 +184,28 @@ final class TerminalConfigTests: XCTestCase {
     }
 
     func testGeneratedConfigParsesWithoutDiagnostics() {
-        let config = TerminalConfig()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TerminalConfigTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let config = TerminalConfig(settings: settings, configurationDirectory: directory)
         guard let rawConfig = config.config else {
             return XCTFail("Expected a Ghostty config object")
         }
 
         let diagnosticsCount = ghostty_config_diagnostics_count(rawConfig)
-        XCTAssertEqual(diagnosticsCount, 0, "Expected generated config to parse cleanly")
+        var messages: [String] = []
+        for i in 0..<diagnosticsCount {
+            let diag = ghostty_config_get_diagnostic(rawConfig, i)
+            if let ptr = diag.message {
+                messages.append(String(cString: ptr))
+            }
+        }
+        XCTAssertEqual(
+            diagnosticsCount,
+            0,
+            "Expected generated config to parse cleanly. Diagnostics: \(messages)"
+        )
     }
 
     func testInitializationCapturesConfigWriteFailures() throws {
