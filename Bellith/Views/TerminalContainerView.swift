@@ -2183,6 +2183,70 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
     }
 
+    // MARK: - Workspaces
+
+    func promptSaveWorkspace() {
+        let alert = NSAlert()
+        alert.messageText = "Save Workspace"
+        alert.informativeText = "Enter a name for this workspace layout:"
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        input.placeholderString = "Workspace name"
+        alert.accessoryView = input
+        alert.window.initialFirstResponder = input
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+
+        let session = saveSession()
+        let store = WorkspaceStore.shared
+
+        if let existing = store.workspace(named: name) {
+            let confirm = NSAlert()
+            confirm.messageText = "Workspace Exists"
+            confirm.informativeText = "A workspace named \"\(name)\" already exists. Replace it?"
+            confirm.addButton(withTitle: "Replace")
+            confirm.addButton(withTitle: "Cancel")
+            guard confirm.runModal() == .alertFirstButtonReturn else { return }
+            store.updateSession(id: existing.id, session: session)
+        } else {
+            store.save(WorkspaceDefinition(name: name, session: session))
+        }
+    }
+
+    func promptDeleteWorkspace() {
+        let store = WorkspaceStore.shared
+        let workspaces = store.workspaces
+        guard !workspaces.isEmpty else {
+            let alert = NSAlert()
+            alert.messageText = "No Workspaces"
+            alert.informativeText = "There are no saved workspaces to delete."
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Delete Workspace"
+        alert.informativeText = "Select a workspace to delete:"
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+
+        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 260, height: 24), pullsDown: false)
+        for ws in workspaces {
+            popup.addItem(withTitle: ws.name)
+        }
+        alert.accessoryView = popup
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let selectedIndex = popup.indexOfSelectedItem
+        guard selectedIndex >= 0, selectedIndex < workspaces.count else { return }
+        store.delete(id: workspaces[selectedIndex].id)
+    }
+
     // MARK: - Surface Factory
 
     /// Centralized surface creation — wires up all callbacks (onClose, onTextInserted).

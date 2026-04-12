@@ -43,24 +43,27 @@ final class CommandRegistry {
     private var commandsByID: [String: CommandPlugin] = [:]
     private let smartPanelRegistry: SmartPanelRegistry
     private let sshProfileStore: SSHProfileStore
+    private let workspaceStore: WorkspaceStore
     private let preferencesWindowController: PreferencesWindowController
     private let settings: BellithSettings
 
     init(
         smartPanelRegistry: SmartPanelRegistry = .shared,
         sshProfileStore: SSHProfileStore = .shared,
+        workspaceStore: WorkspaceStore = .shared,
         preferencesWindowController: PreferencesWindowController = .shared,
         settings: BellithSettings = .shared
     ) {
         self.smartPanelRegistry = smartPanelRegistry
         self.sshProfileStore = sshProfileStore
+        self.workspaceStore = workspaceStore
         self.preferencesWindowController = preferencesWindowController
         self.settings = settings
         registerBuiltIns()
     }
 
     var allCommands: [CommandPlugin] {
-        orderedCommandIDs.compactMap { commandsByID[$0] } + smartPanelCommands + sshProfileCommands
+        orderedCommandIDs.compactMap { commandsByID[$0] } + smartPanelCommands + sshProfileCommands + workspaceCommands
     }
 
     func command(matching text: String) -> CommandPlugin? {
@@ -101,6 +104,21 @@ final class CommandRegistry {
                 aliases: [profile.host, profile.destination, profile.displayName]
             ) { container, _ in
                 container.connectSSHProfile(id: profile.id)
+                return true
+            }
+        }
+    }
+
+    private var workspaceCommands: [CommandPlugin] {
+        workspaceStore.workspaces.map { workspace in
+            CommandPlugin(
+                id: "workspace-\(workspace.id.uuidString)",
+                title: "Open Workspace: \(workspace.name)",
+                description: "Restore the \"\(workspace.name)\" workspace layout",
+                iconName: "square.grid.2x2",
+                aliases: [workspace.name]
+            ) { container, _ in
+                container.restoreSession(workspace.session)
                 return true
             }
         }
@@ -509,6 +527,28 @@ final class CommandRegistry {
                 process.standardError = FileHandle.nullDevice
                 try? process.run()
             }
+            return true
+        })
+
+        register(CommandPlugin(
+            id: "saveWorkspace",
+            title: "Save Workspace",
+            description: "Save current layout as a named workspace",
+            iconName: "square.and.arrow.down",
+            aliases: ["save workspace", "workspace save", "create workspace"]
+        ) { container, _ in
+            container.promptSaveWorkspace()
+            return true
+        })
+
+        register(CommandPlugin(
+            id: "deleteWorkspace",
+            title: "Delete Workspace",
+            description: "Delete a saved workspace",
+            iconName: "trash",
+            aliases: ["delete workspace", "remove workspace", "workspace delete"]
+        ) { container, _ in
+            container.promptDeleteWorkspace()
             return true
         })
     }

@@ -24,6 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var terminalConfigFailureObserver: NSObjectProtocol?
     private var settingsObserver: NSObjectProtocol?
     private var themeMenu = NSMenu(title: "Theme")
+    private var workspacesMenu = NSMenu(title: "Workspaces")
+    private var workspaceStoreObserver: NSObjectProtocol?
 
     private struct WindowEntry {
         let window: TerminalWindow
@@ -131,6 +133,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             createWindow()
         }
         setupMenus()
+
+        workspaceStoreObserver = NotificationCenter.default.addObserver(
+            forName: WorkspaceStore.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.rebuildWorkspacesMenu()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -173,6 +183,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let obs = settingsObserver {
             NotificationCenter.default.removeObserver(obs)
             settingsObserver = nil
+        }
+        if let obs = workspaceStoreObserver {
+            NotificationCenter.default.removeObserver(obs)
+            workspaceStoreObserver = nil
         }
 
         // Tear down all windows
@@ -362,6 +376,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             shellMenu.addItem(.separator())
             shellMenu.addItem(configuredMenuItem(title: "Close Pane", action: #selector(handleClosePane), shortcutID: "closePane"))
         }
+        shellMenu.addItem(.separator())
+        rebuildWorkspacesMenu()
+        let workspacesItem = NSMenuItem(title: "Workspaces", action: nil, keyEquivalent: "")
+        workspacesItem.submenu = workspacesMenu
+        shellMenu.addItem(workspacesItem)
+        shellMenu.addItem(.separator())
         shellMenu.addItem(configuredMenuItem(title: "Close Tab", action: #selector(handleCloseTab), shortcutID: "closeTab"))
         shellMenu.addItem(configuredMenuItem(title: "Close Window", action: #selector(handleCloseWindow)))
         let shellMenuItem = NSMenuItem()
@@ -479,7 +499,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.keyEquivalentModifierMask = shortcut.modifierFlags
     }
 
+    private func rebuildWorkspacesMenu() {
+        workspacesMenu.removeAllItems()
+        let workspaces = WorkspaceStore.shared.workspaces
+        if workspaces.isEmpty {
+            let empty = NSMenuItem(title: "No Saved Workspaces", action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            workspacesMenu.addItem(empty)
+        } else {
+            for workspace in workspaces {
+                let item = NSMenuItem(
+                    title: workspace.name,
+                    action: #selector(handleOpenWorkspace(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = self
+                item.representedObject = workspace.id
+                workspacesMenu.addItem(item)
+            }
+        }
+        workspacesMenu.addItem(.separator())
+        let saveItem = NSMenuItem(
+            title: "Save Current as Workspace…",
+            action: #selector(handleSaveWorkspace),
+            keyEquivalent: ""
+        )
+        saveItem.target = self
+        workspacesMenu.addItem(saveItem)
+    }
+
     // MARK: - Menu Actions
+
+    @objc private func handleOpenWorkspace(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? UUID,
+              let workspace = WorkspaceStore.shared.workspace(id: id) else { return }
+        if let container = activeEntry?.container {
+            container.restoreSession(workspace.session)
+        } else {
+            createWindow(session: workspace.session)
+        }
+    }
+
+    @objc private func handleSaveWorkspace() {
+        activeEntry?.container.promptSaveWorkspace()
+    }
 
     @objc private func handleCopy() { activeEntry?.container.copySelection() }
     @objc private func handlePaste() { activeEntry?.container.pasteClipboard() }
