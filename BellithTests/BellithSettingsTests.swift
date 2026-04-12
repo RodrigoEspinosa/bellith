@@ -217,6 +217,57 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(settings.backgroundOpacity, 0.8, accuracy: 0.001)
     }
 
+    // MARK: - Profile Appearance
+
+    func testDefaultProfileExistsWithMigratedOpacity() {
+        // Setup seeds a fresh suite; backgroundOpacity stays at 1.0 and the
+        // default profile inherits it through the migration pass.
+        XCTAssertEqual(settings.profiles.count, 1)
+        XCTAssertEqual(settings.activeProfileID, TerminalProfile.defaultID)
+        XCTAssertEqual(
+            settings.activeProfile.effectiveBackgroundOpacity(fallback: settings),
+            1.0,
+            accuracy: 0.001
+        )
+    }
+
+    func testUpdateActiveProfilePersistsOpacityAndBlur() {
+        settings.updateActiveProfile {
+            $0.backgroundOpacity = 0.65
+            $0.blurIntensity = 0.4
+            $0.wallpaperTint = true
+        }
+        let reloaded = BellithSettings(defaults: defaults, settingsFileURL: settingsFileURL)
+        let profile = reloaded.activeProfile
+        XCTAssertEqual(profile.effectiveBackgroundOpacity(fallback: reloaded), 0.65, accuracy: 0.001)
+        XCTAssertEqual(profile.effectiveBlurIntensity(), 0.4, accuracy: 0.001)
+        XCTAssertTrue(profile.effectiveWallpaperTint())
+    }
+
+    func testActiveProfileIDFallsBackToDefaultWhenMissing() {
+        settings.activeProfileID = "does-not-exist"
+        XCTAssertEqual(settings.activeProfileID, TerminalProfile.defaultID)
+    }
+
+    func testAddingSecondProfileAndSwitching() {
+        var list = settings.profiles
+        list.append(TerminalProfile(
+            id: "focus",
+            name: "Focus",
+            backgroundOpacity: 0.3,
+            blurIntensity: 0.8,
+            wallpaperTint: true
+        ))
+        settings.profiles = list
+        settings.activeProfileID = "focus"
+        XCTAssertEqual(settings.activeProfile.id, "focus")
+        XCTAssertEqual(
+            settings.activeProfile.effectiveBackgroundOpacity(fallback: settings),
+            0.3,
+            accuracy: 0.001
+        )
+    }
+
     func testBooleanSettingsRoundtrip() {
         settings.mouseHideWhileTyping = false
         XCTAssertFalse(settings.mouseHideWhileTyping)

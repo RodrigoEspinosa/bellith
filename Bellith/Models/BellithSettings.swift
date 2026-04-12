@@ -60,6 +60,7 @@ final class BellithSettings {
             "shell", "terminalTerm", "visorHotkey", "visorPosition", "workingDirectory",
             "bellMode", "wordSeparators", "shortcutPreset", "localSessionBootstrap",
             "terminalOptionKeyBehavior", "appearanceMode",
+            "activeTerminalProfileID",
         ]
         static let intKeys: Set<String> = [
             "fontSize", "scrollbackLines", "commandCompletionNotificationThreshold",
@@ -86,12 +87,13 @@ final class BellithSettings {
         ]
         static let featureFlags = "featureFlags"
         static let keybindings = "keybindings"
+        static let terminalProfiles = "terminalProfiles"
         static let all: Set<String> = stringKeys
             .union(intKeys)
             .union(doubleKeys)
             .union(boolKeys)
             .union(stringArrayKeys)
-            .union([featureFlags, keybindings])
+            .union([featureFlags, keybindings, terminalProfiles])
     }
 
     let defaults: UserDefaults
@@ -110,6 +112,7 @@ final class BellithSettings {
         self.settingsFileURL = settingsFileURL ?? Self.defaultSettingsFileURL(for: defaults)
         loadSettingsFileIfNeeded()
         migrateLegacyWindowPaddingIfNeeded()
+        migrateLegacyBackgroundOpacityToDefaultProfileIfNeeded()
         persistSettingsFileIfNeeded()
         startObservingSettingsFileIfNeeded()
     }
@@ -729,6 +732,19 @@ final class BellithSettings {
         defaults.set(WindowPaddingDefaults.current, forKey: "windowPaddingY")
     }
 
+    /// Seed the default profile's backgroundOpacity from the legacy global value
+    /// so pre-existing installs preserve their chosen translucency after moving
+    /// to per-profile storage.
+    private func migrateLegacyBackgroundOpacityToDefaultProfileIfNeeded() {
+        var list = profiles
+        guard let defaultIndex = list.firstIndex(where: { $0.id == TerminalProfile.defaultID }),
+              list[defaultIndex].backgroundOpacity == nil else {
+            return
+        }
+        list[defaultIndex].backgroundOpacity = backgroundOpacity
+        profiles = list
+    }
+
     static let defaultKeybindings: [KeyBindingEntry] = defaultKeybindings(for: .bellithHybrid, legacyPaneSupport: false)
 
     static func defaultKeybindings(
@@ -868,6 +884,13 @@ final class BellithSettings {
             guard let dictionaryValue = value as? [String: Any] else { return }
             defaults.set(Self.featureFlags(from: dictionaryValue), forKey: key)
 
+        case PersistedKeys.terminalProfiles:
+            guard JSONSerialization.isValidJSONObject(value),
+                  let jsonData = try? JSONSerialization.data(withJSONObject: value),
+                  let decoded = try? JSONDecoder().decode([TerminalProfile].self, from: jsonData),
+                  let encoded = try? JSONEncoder().encode(decoded) else { return }
+            defaults.set(encoded, forKey: key)
+
         case _ where PersistedKeys.stringArrayKeys.contains(key):
             guard let arrayValue = value as? [String] else { return }
             defaults.set(arrayValue, forKey: key)
@@ -900,7 +923,16 @@ final class BellithSettings {
             encodedKeybindings = []
         }
 
+        let encodedProfiles: Any
+        do {
+            let encoded = try JSONEncoder().encode(profiles)
+            encodedProfiles = try JSONSerialization.jsonObject(with: encoded)
+        } catch {
+            encodedProfiles = []
+        }
+
         let object: [String: Any] = [
+            "activeTerminalProfileID": activeProfileID,
             "appearanceMode": appearanceMode.rawValue,
             "backgroundOpacity": roundedForSettingsFile(backgroundOpacity),
             "bellMode": bellMode,
@@ -944,6 +976,7 @@ final class BellithSettings {
             "sidebarShowTools": sidebarShowTools,
             "sidebarTools": sidebarTools,
             "tabMode": tabMode,
+            "terminalProfiles": encodedProfiles,
             "terminalOptionKeyBehavior": terminalOptionKeyBehavior.rawValue,
             "terminalTerm": terminalTerm,
             "trafficLightAutoHide": trafficLightAutoHide,

@@ -155,14 +155,16 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         NotificationCenter.default.publisher(for: BellithSettings.didChangeNotification)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.applyFrameColor()
-                self?.statusBar.refreshTheme()
-                self?.titleBar.refreshTheme()
-                if let self {
-                    self.handleStatusBarVisibilityChange(self.shouldShowStatusBar)
+                guard let self else { return }
+                self.applyFrameColor()
+                self.statusBar.refreshTheme()
+                self.titleBar.refreshTheme()
+                self.handleStatusBarVisibilityChange(self.shouldShowStatusBar)
+                for tab in self.tabs {
+                    self.applyChrome(to: tab.rootView)
                 }
-                self?.needsLayout = true
-                self?.reloadConfig()
+                self.needsLayout = true
+                self.reloadConfig()
             }
             .store(in: &observationCancellables)
 
@@ -251,7 +253,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     private func applyChromeTheme() {
-        contentBackdropLayer.backgroundColor = Theme.surface.cgColor
+        contentBackdropLayer.backgroundColor = activeProfileIsTranslucent
+            ? NSColor.clear.cgColor
+            : Theme.surface.cgColor
         contentBackdropLayer.shadowColor = NSColor.clear.cgColor
         contentBackdropLayer.shadowOpacity = 0
         contentBackdropLayer.shadowRadius = 0
@@ -285,7 +289,15 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         root.layer?.masksToBounds = true
         root.layer?.borderWidth = 0
         root.layer?.borderColor = NSColor.clear.cgColor
-        root.layer?.backgroundColor = Theme.surface.cgColor
+        root.layer?.backgroundColor = activeProfileIsTranslucent
+            ? NSColor.clear.cgColor
+            : Theme.surface.cgColor
+    }
+
+    private var activeProfileIsTranslucent: Bool {
+        let profile = dependencies.settings.activeProfile
+        return profile.effectiveBackgroundOpacity(fallback: dependencies.settings) < 1.0
+            || profile.effectiveBlurIntensity() > 0
     }
 
     private func updateChromeFrames(animated: Bool, sidebarWidth: CGFloat? = nil, statusBarVisible: Bool? = nil) {
@@ -1923,7 +1935,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     // MARK: - Theme
 
     private func applyFrameColor() {
-        layer?.backgroundColor = Theme.colors.frame.cgColor
+        layer?.backgroundColor = activeProfileIsTranslucent
+            ? NSColor.clear.cgColor
+            : Theme.colors.frame.cgColor
         // Slider 0–1 maps to 0–0.08 (dark) or 0–0.12 (light) actual opacity
         let maxOpacity: Double = Theme.colors.isLight ? 0.12 : 0.08
         noiseLayer.opacity = Float(dependencies.settings.noiseIntensity * maxOpacity)

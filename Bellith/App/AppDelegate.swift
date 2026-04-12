@@ -209,7 +209,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         window.delegate = self
 
         let container = TerminalContainerView(terminalApp: terminalApp, dependencies: dependencies)
-        window.contentView = container
+        let backdrop = BackdropView(container: container)
+        window.contentView = backdrop
 
         let entry = WindowEntry(window: window, container: container)
         windows.append(entry)

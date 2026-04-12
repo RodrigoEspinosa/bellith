@@ -77,7 +77,10 @@ final class TerminalConfig {
     private(set) var config: ghostty_config_t?
     private(set) var configurationError: TerminalConfigError?
 
-    init(configurationDirectory: URL? = nil) {
+    init(
+        settings: BellithSettings = .shared,
+        configurationDirectory: URL? = nil
+    ) {
         config = ghostty_config_new()
         guard config != nil else {
             report(.failedToCreateGhosttyConfig)
@@ -85,7 +88,10 @@ final class TerminalConfig {
         }
 
         do {
-            let generatedConfigPath = try Self.writeConfigFile(configurationDirectory: configurationDirectory)
+            let generatedConfigPath = try Self.writeConfigFile(
+                settings: settings,
+                configurationDirectory: configurationDirectory
+            )
             generatedConfigPath.withCString { ghostty_config_load_file(config, $0) }
         } catch let error as TerminalConfigError {
             report(error)
@@ -131,7 +137,8 @@ final class TerminalConfig {
             "font-size = \(s.fontSize)",
             "theme = \(themeReference)",
             "term = \(s.effectiveTerminalTerm)",
-            "background-opacity = \(s.backgroundOpacity)",
+            "background-opacity = \(s.activeProfile.effectiveBackgroundOpacity(fallback: s))",
+            "background-blur-radius = \(Self.backgroundBlurRadius(for: s.activeProfile))",
             "window-padding-x = \(Self.windowPaddingXValue(for: s))",
             "window-padding-y = \(Self.windowPaddingYValue(for: s))",
             "window-padding-balance = false",
@@ -234,6 +241,15 @@ final class TerminalConfig {
         } catch {
             throw TerminalConfigError.failedToWriteThemeFile(file, underlying: error)
         }
+    }
+
+    /// Map the profile's 0–1 blur slider onto Ghostty's pixel-valued
+    /// `background-blur-radius`. 0 disables the native blur; 1 pins it to a
+    /// heavy frost.
+    private static func backgroundBlurRadius(for profile: TerminalProfile) -> Int {
+        let intensity = profile.effectiveBlurIntensity()
+        guard intensity > 0 else { return 0 }
+        return max(1, Int((intensity * 40).rounded()))
     }
 
     private static func windowPaddingXValue(for settings: BellithSettings) -> Int {

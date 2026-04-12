@@ -36,13 +36,24 @@ final class AppearancePane: NSView {
     private let padYLabel = SmallLabel("V")
     private var padYField: MiniNumberField!
 
-    private let windowCard = SettingsCard(title: "Window", subtitle: "Opacity and traffic-light behavior")
-    private let opacityLabel = CardRowLabel("Background Opacity")
-    private var opacityTrack: OpacityTrackView!
+    private let windowCard = SettingsCard(title: "Window", subtitle: "Texture and traffic-light behavior")
     private let noiseLabel = CardRowLabel("Noise Grain")
     private var noiseTrack: OpacityTrackView!
     private let trafficLightLabel = CardRowLabel("Auto-hide Traffic Lights")
     private var trafficLightToggle: PrefToggle!
+
+    private let profileCard = SettingsCard(
+        title: "Profile Appearance",
+        subtitle: "Per-profile opacity, blur, and wallpaper tint"
+    )
+    private let profileSelectLabel = CardRowLabel("Active Profile")
+    private let profilePopup = NSPopUpButton()
+    private let opacityLabel = CardRowLabel("Background Opacity")
+    private var opacityTrack: OpacityTrackView!
+    private let blurLabel = CardRowLabel("Blur Intensity")
+    private var blurTrack: OpacityTrackView!
+    private let tintLabel = CardRowLabel("Wallpaper Tint")
+    private var tintToggle: PrefToggle!
 
     private let statusBarCard = SettingsCard(title: "Status Bar", subtitle: "Choose which indicators appear in the lower metadata strip")
     private let statusBarContextLabel = CardRowLabel("Host & Environment")
@@ -141,8 +152,8 @@ final class AppearancePane: NSView {
 
         tabSegment = PrefSegment(labels: ["Sidebar", "Tab Bar"], selected: settings.tabMode == "sidebar" ? 0 : 1) { [weak self] index in
             self?.settings.tabMode = index == 0 ? "sidebar" : "tabbar"
-            if let window = NSApp.windows.first(where: { $0.contentView is TerminalContainerView }),
-               let container = window.contentView as? TerminalContainerView {
+            if let window = NSApp.windows.first(where: { ($0.contentView as? BackdropView) != nil }),
+               let container = (window.contentView as? BackdropView)?.container {
                 container.applyTabMode()
             }
         }
@@ -161,9 +172,6 @@ final class AppearancePane: NSView {
             interfaceCard.addSubview(view)
         }
 
-        opacityTrack = OpacityTrackView(value: settings.backgroundOpacity) { [weak self] value in
-            self?.settings.backgroundOpacity = value
-        }
         noiseTrack = OpacityTrackView(value: settings.noiseIntensity, minValue: 0.0) { [weak self] value in
             self?.settings.noiseIntensity = value
         }
@@ -171,8 +179,41 @@ final class AppearancePane: NSView {
             self?.settings.trafficLightAutoHide = value
         }
         content.addSubview(windowCard)
-        for view: NSView in [opacityLabel, opacityTrack, noiseLabel, noiseTrack, trafficLightLabel, trafficLightToggle] {
+        for view: NSView in [noiseLabel, noiseTrack, trafficLightLabel, trafficLightToggle] {
             windowCard.addSubview(view)
+        }
+
+        profilePopup.font = BellithFont.mono(12, weight: .regular)
+        profilePopup.focusRingType = .none
+        profilePopup.target = self
+        profilePopup.action = #selector(handleProfileChanged)
+        rebuildProfilePopup()
+
+        let activeProfile = settings.activeProfile
+        opacityTrack = OpacityTrackView(
+            value: activeProfile.effectiveBackgroundOpacity(fallback: settings),
+            minValue: 0.0
+        ) { [weak self] value in
+            self?.settings.updateActiveProfile { $0.backgroundOpacity = value }
+        }
+        blurTrack = OpacityTrackView(
+            value: activeProfile.effectiveBlurIntensity(),
+            minValue: 0.0
+        ) { [weak self] value in
+            self?.settings.updateActiveProfile { $0.blurIntensity = value }
+        }
+        tintToggle = PrefToggle(isOn: activeProfile.effectiveWallpaperTint()) { [weak self] value in
+            self?.settings.updateActiveProfile { $0.wallpaperTint = value }
+            WallpaperTint.shared.invalidate()
+        }
+        content.addSubview(profileCard)
+        for view: NSView in [
+            profileSelectLabel, profilePopup,
+            opacityLabel, opacityTrack,
+            blurLabel, blurTrack,
+            tintLabel, tintToggle,
+        ] {
+            profileCard.addSubview(view)
         }
 
         statusBarContextToggle = PrefToggle(isOn: settings.showStatusBarContext) { [weak self] value in
@@ -253,7 +294,13 @@ final class AppearancePane: NSView {
         statusBarSizeToggle.refreshAppearance()
         padXField.setValue(settings.windowPaddingX)
         padYField.setValue(settings.windowPaddingY)
-        opacityTrack.setValue(settings.backgroundOpacity)
+        rebuildProfilePopup()
+        let active = settings.activeProfile
+        opacityTrack.setValue(active.effectiveBackgroundOpacity(fallback: settings))
+        blurTrack.setValue(active.effectiveBlurIntensity())
+        tintToggle.setOn(active.effectiveWallpaperTint())
+        tintToggle.refreshAppearance()
+        profileCard.refresh()
         noiseTrack.setValue(settings.noiseIntensity)
         trafficLightToggle.setOn(settings.trafficLightAutoHide)
         trafficLightToggle.refreshAppearance()
@@ -286,6 +333,29 @@ final class AppearancePane: NSView {
         lightSummaryValue.textColor = Theme.textPrimary
         activeSummaryValue.textColor = Theme.textDisplay
         activeSummaryNote.textColor = Theme.textSecondary
+    }
+
+    private func rebuildProfilePopup() {
+        profilePopup.removeAllItems()
+        let list = settings.profiles
+        for profile in list {
+            profilePopup.addItem(withTitle: profile.name)
+            profilePopup.lastItem?.representedObject = profile.id
+        }
+        let activeID = settings.activeProfileID
+        if let index = list.firstIndex(where: { $0.id == activeID }) {
+            profilePopup.selectItem(at: index)
+        }
+    }
+
+    @objc private func handleProfileChanged() {
+        guard let id = profilePopup.selectedItem?.representedObject as? String else { return }
+        settings.activeProfileID = id
+        let active = settings.activeProfile
+        opacityTrack.setValue(active.effectiveBackgroundOpacity(fallback: settings))
+        blurTrack.setValue(active.effectiveBlurIntensity())
+        tintToggle.setOn(active.effectiveWallpaperTint())
+        tintToggle.refreshAppearance()
     }
 
     private func importThemes() {
@@ -367,18 +437,31 @@ final class AppearancePane: NSView {
         padYField.frame = NSRect(x: controlX + 106, y: ir2 + 6, width: 56, height: 28)
         y += interfaceCardHeight + PreferencesLayout.sectionGap
 
-        let windowCardHeight = windowCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        let windowCardHeight = windowCard.headerHeight + 2 * PreferencesLayout.rowH + PreferencesLayout.rowGap + PreferencesLayout.cardPad
         windowCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardWidth, height: windowCardHeight)
         let wr0 = windowCardHeight - windowCard.headerHeight - PreferencesLayout.rowH
-        opacityLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: wr0, width: labelWidth, height: PreferencesLayout.rowH)
-        opacityTrack.frame = NSRect(x: controlX, y: wr0 + 8, width: controlWidth, height: 24)
+        noiseLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: wr0, width: labelWidth, height: PreferencesLayout.rowH)
+        noiseTrack.frame = NSRect(x: controlX, y: wr0 + 8, width: controlWidth, height: 24)
         let wr1 = wr0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        noiseLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: wr1, width: labelWidth, height: PreferencesLayout.rowH)
-        noiseTrack.frame = NSRect(x: controlX, y: wr1 + 8, width: controlWidth, height: 24)
-        let wr2 = wr1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        trafficLightLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: wr2, width: toggleLabelWidth, height: PreferencesLayout.rowH)
-        trafficLightToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardWidth, rowY: wr2)
+        trafficLightLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: wr1, width: toggleLabelWidth, height: PreferencesLayout.rowH)
+        trafficLightToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardWidth, rowY: wr1)
         y += windowCardHeight + PreferencesLayout.sectionGap
+
+        let profileCardHeight = profileCard.headerHeight + 4 * PreferencesLayout.rowH + 3 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        profileCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardWidth, height: profileCardHeight)
+        let pr0 = profileCardHeight - profileCard.headerHeight - PreferencesLayout.rowH
+        profileSelectLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: pr0, width: labelWidth, height: PreferencesLayout.rowH)
+        profilePopup.frame = NSRect(x: controlX, y: pr0 + 4, width: min(220, controlWidth), height: 28)
+        let pr1 = pr0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        opacityLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: pr1, width: labelWidth, height: PreferencesLayout.rowH)
+        opacityTrack.frame = NSRect(x: controlX, y: pr1 + 8, width: controlWidth, height: 24)
+        let pr2 = pr1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        blurLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: pr2, width: labelWidth, height: PreferencesLayout.rowH)
+        blurTrack.frame = NSRect(x: controlX, y: pr2 + 8, width: controlWidth, height: 24)
+        let pr3 = pr2 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        tintLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: pr3, width: toggleLabelWidth, height: PreferencesLayout.rowH)
+        tintToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardWidth, rowY: pr3)
+        y += profileCardHeight + PreferencesLayout.sectionGap
 
         let statusBarCardHeight = statusBarCard.headerHeight + 7 * PreferencesLayout.rowH + 6 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
         statusBarCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardWidth, height: statusBarCardHeight)

@@ -29,6 +29,8 @@ final class TerminalWindow: NSWindow {
     private var trafficLightsVisible = true
     private var trafficLightDisplayMode: TrafficLightDisplayMode = .automatic
     private let settings: BellithSettings
+    private var settingsObserver: NSObjectProtocol?
+    private var wallpaperObserver: NSObjectProtocol?
 
     override init(
         contentRect: NSRect,
@@ -73,11 +75,11 @@ final class TerminalWindow: NSWindow {
 
         applyThemeBackground()
         applyThemeAppearance()
-        isOpaque = true
         hasShadow = true
         contentView?.wantsLayer = true
         contentView?.layer?.cornerRadius = Theme.radiusWindow + 4
         contentView?.layer?.masksToBounds = true
+        applyProfileAppearance()
 
         // Clear titlebar backgrounds
         if let titlebarContainer = standardWindowButton(.closeButton)?.superview?.superview {
@@ -98,15 +100,50 @@ final class TerminalWindow: NSWindow {
         ) { [weak self] _ in
             self?.applyThemeBackground()
             self?.applyThemeAppearance()
+            self?.applyProfileAppearance()
             self?.positionTrafficLights()
+        }
+
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: BellithSettings.didChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.applyProfileAppearance()
+        }
+
+        wallpaperObserver = NotificationCenter.default.addObserver(
+            forName: WallpaperTint.didChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.applyProfileAppearance()
         }
     }
 
     private func applyThemeBackground() {
-        backgroundColor = Theme.colors.frame
-        contentView?.layer?.backgroundColor = Theme.colors.frame.cgColor
         contentView?.layer?.borderWidth = 0
         contentView?.layer?.borderColor = NSColor.clear.cgColor
+        // The visible frame color is resolved in applyProfileAppearance so
+        // translucent profiles can bypass the opaque fill.
+    }
+
+    /// Syncs the window chrome to the active profile. Ghostty renders the
+    /// terminal background with `background-opacity`, so we just toggle the
+    /// window between opaque and clear backing. The `BackdropView` that
+    /// wraps the terminal container is always present — it provides the
+    /// material that shows through Ghostty's alpha.
+    private func applyProfileAppearance() {
+        let profile = settings.activeProfile
+        let opacity = profile.effectiveBackgroundOpacity(fallback: settings)
+        let blur = profile.effectiveBlurIntensity()
+        let wantsTranslucent = opacity < 1.0 || blur > 0
+
+        alphaValue = 1.0
+        isOpaque = !wantsTranslucent
+        backgroundColor = wantsTranslucent ? .clear : Theme.colors.frame
+
+        if let backdrop = contentView as? BackdropView {
+            backdrop.apply(profile: profile, fallback: settings, screen: screen)
+        }
+
+        invalidateShadow()
     }
 
     private func applyThemeAppearance() {
@@ -115,6 +152,8 @@ final class TerminalWindow: NSWindow {
 
     deinit {
         if let themeObserver { NotificationCenter.default.removeObserver(themeObserver) }
+        if let settingsObserver { NotificationCenter.default.removeObserver(settingsObserver) }
+        if let wallpaperObserver { NotificationCenter.default.removeObserver(wallpaperObserver) }
     }
 
     // MARK: - Traffic Light Auto-Hide
@@ -192,6 +231,7 @@ final class TerminalWindow: NSWindow {
         super.makeKeyAndOrderFront(sender)
         positionTrafficLights()
         setupTrafficLightTracking()
+        applyProfileAppearance()
     }
 
     private var lastTrackingHeight: CGFloat = 0
