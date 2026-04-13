@@ -122,12 +122,6 @@ final class TerminalSessionCoordinator {
                     sendCdWhenReady(surface: surface, cwd: cwd)
                 }
 
-                if shouldShowRestoredHistory(
-                    snapshot: terminalSnapshot,
-                    sshProfile: sshProfile
-                ), let scrollbackText = terminalSnapshot.scrollbackText {
-                    surface.showRestoredHistory(text: scrollbackText)
-                }
 
             case .smart:
                 guard let pluginID = tabState.smartPanelID,
@@ -216,17 +210,6 @@ final class TerminalSessionCoordinator {
     }
 
     private func shouldPersistScrollback(for tab: TerminalTabEntry) -> Bool {
-        guard tab.localSessionBootstrap == nil else { return false }
-        guard let context = tab.persistedContext else { return true }
-        return context.source == .local
-    }
-
-    private func shouldShowRestoredHistory(
-        snapshot: SessionState.TerminalSnapshot,
-        sshProfile: SSHProfile?
-    ) -> Bool {
-        guard snapshot.scrollbackText?.isEmpty == false else { return false }
-        guard snapshot.localSessionBootstrap == nil else { return false }
-        return sshProfile?.sessionBootstrap != .tmux && sshProfile?.sessionBootstrap != .zellij
+        false
     }
 }

@@ -4,18 +4,12 @@ import os
 
 /// NSView subclass that hosts a single ghostty terminal surface.
 /// Handles Metal rendering internally via libghostty — we just forward events.
-protocol TerminalRestoredHistoryPresenting: AnyObject {
-    func showRestoredHistory(text: String)
-    func hideRestoredHistory()
-}
-
 final class TerminalSurfaceView: NSView, NSTextInputClient {
     override var mouseDownCanMoveWindow: Bool { false }
     private(set) var surface: ghostty_surface_t?
     /// Whether the surface was successfully created and is ready for use.
     var isReady: Bool { surface != nil }
     private weak var terminalApp: TerminalApp?
-    weak var restoredHistoryPresenter: (any TerminalRestoredHistoryPresenting)?
     private var markedText = NSMutableAttributedString()
     private var keyTextAccumulator: [String]?
     private var eventMonitor: Any?
@@ -336,13 +330,6 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         onTextInserted?(text, self)
     }
 
-    func showRestoredHistory(text: String) {
-        restoredHistoryPresenter?.showRestoredHistory(text: text)
-    }
-
-    func hideRestoredHistory() {
-        restoredHistoryPresenter?.hideRestoredHistory()
-    }
 
     private static func shellInsertText(for urls: [URL]) -> String {
         urls.map { shellQuoted($0.path) }.joined(separator: " ") + " "

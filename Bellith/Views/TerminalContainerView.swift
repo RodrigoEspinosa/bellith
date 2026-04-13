@@ -1521,11 +1521,6 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 localSessionBootstrap: last.localSessionBootstrap,
                 localSessionName: last.localSessionName
             )
-            if let scrollbackText = last.scrollbackText,
-               last.localSessionBootstrap == nil,
-               last.context?.source != .sshProfile {
-                surface?.showRestoredHistory(text: scrollbackText)
-            }
         }
     }
 
@@ -2262,7 +2257,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     func makePaneContent(for surface: TerminalSurfaceView) -> NSView {
-        TerminalSessionView(surface: surface)
+        surface
     }
 
     private func makeSurface(tabId: UUID, app: TerminalApp, context: TerminalContext) -> TerminalSurfaceView {
@@ -2309,9 +2304,6 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private func terminalSurface(in view: NSView) -> TerminalSurfaceView? {
         if let surface = view as? TerminalSurfaceView {
             return surface
-        }
-        if let sessionView = view as? TerminalSessionView {
-            return sessionView.surface
         }
         for subview in view.subviews {
             if let surface = terminalSurface(in: subview) {
