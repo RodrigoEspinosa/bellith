@@ -25,13 +25,21 @@ final class SSHProfileStoreTests: XCTestCase {
     }
 
     func testRoundtripProfileSave() {
-        let profile = SSHProfile(name: "Prod", host: "prod.example.com", user: "deploy", environmentTag: "prod", isSensitive: true)
+        let profile = SSHProfile(
+            name: "Prod",
+            host: "prod.example.com",
+            user: "deploy",
+            transport: .mosh,
+            environmentTag: "prod",
+            isSensitive: true
+        )
         store.save([profile])
 
         let loaded = store.profiles
         XCTAssertEqual(loaded.count, 1)
         XCTAssertEqual(loaded.first?.displayName, "Prod")
         XCTAssertEqual(loaded.first?.host, "prod.example.com")
+        XCTAssertEqual(loaded.first?.transport, .mosh)
         XCTAssertTrue(loaded.first?.isSensitive ?? false)
     }
 
@@ -73,5 +81,18 @@ final class SSHProfileStoreTests: XCTestCase {
         let loaded = try XCTUnwrap(store.profiles.first)
         XCTAssertEqual(loaded.sessionBootstrap, .tmux)
         XCTAssertEqual(loaded.sessionName, "prod")
+    }
+
+    func testLegacyProfilesDefaultTransportToSSH() throws {
+        let object: [[String: Any]] = [[
+            "id": UUID().uuidString,
+            "name": "Prod",
+            "host": "prod.example.com"
+        ]]
+        let data = try JSONSerialization.data(withJSONObject: object)
+        defaults.set(data, forKey: "sshProfiles")
+
+        let loaded = try XCTUnwrap(store.profiles.first)
+        XCTAssertEqual(loaded.transport, .ssh)
     }
 }
