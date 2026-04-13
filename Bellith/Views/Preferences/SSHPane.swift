@@ -27,8 +27,8 @@ final class SSHPane: NSView {
     private var portField: MiniNumberField!
     private let identityLabel = CardRowLabel("Identity File")
     private var identityField: PrefTextField!
-    private let proxyJumpLabel = CardRowLabel("ProxyJump")
-    private var proxyJumpField: PrefTextField!
+    private let proxyJumpLabel = CardRowLabel("Jump Hosts")
+    private var proxyJumpEditor: SSHProxyJumpEditorView!
 
     private let sessionCard = SettingsCard(title: "Bootstrap", subtitle: "Remote shell setup applied after the SSH session starts")
     private let cwdLabel = CardRowLabel("Remote Directory")
@@ -90,7 +90,25 @@ final class SSHPane: NSView {
         }
         portField = MiniNumberField(value: 22, range: 1...65_535) { [weak self] value in self?.mutateSelectedProfile { $0.port = value } }
         identityField = PrefTextField(text: "") { [weak self] value in self?.mutateSelectedProfile { $0.identityPath = value } }
-        proxyJumpField = PrefTextField(text: "") { [weak self] value in self?.mutateSelectedProfile { $0.proxyJump = value } }
+        proxyJumpEditor = SSHProxyJumpEditorView()
+        proxyJumpEditor.onAddProfile = { [weak self] jumpProfileID in
+            guard let self else { return }
+            self.mutateSelectedProfile { profile in
+                profile.updateProxyJumpChain(
+                    profileIDs: profile.proxyJumpProfileIDs + [jumpProfileID],
+                    availableProfiles: self.profiles
+                )
+            }
+        }
+        proxyJumpEditor.onRemoveProfile = { [weak self] jumpProfileID in
+            guard let self else { return }
+            self.mutateSelectedProfile { profile in
+                profile.updateProxyJumpChain(
+                    profileIDs: profile.proxyJumpProfileIDs.filter { $0 != jumpProfileID },
+                    availableProfiles: self.profiles
+                )
+            }
+        }
         content.addSubview(connectionCard)
         for view: NSView in [
             nameLabel,
@@ -106,7 +124,7 @@ final class SSHPane: NSView {
             identityLabel,
             identityField,
             proxyJumpLabel,
-            proxyJumpField,
+            proxyJumpEditor,
         ] {
             connectionCard.addSubview(view)
         }
@@ -203,13 +221,14 @@ final class SSHPane: NSView {
 
     private func updateFieldValues() {
         guard let profile = selectedProfile else {
-            for field in [nameField, hostField, userField, identityField, proxyJumpField, cwdField, startupField, sessionNameField, environmentField, notesField] {
+            for field in [nameField, hostField, userField, identityField, cwdField, startupField, sessionNameField, environmentField, notesField] {
                 field?.updateText("")
             }
             transportSegment.setSelected(0)
             portField.setValue(22)
             multiplexerSegment.setSelected(0)
             sensitiveToggle.setOn(false)
+            proxyJumpEditor.update(profile: nil, availableProfiles: profiles)
             return
         }
 
@@ -219,7 +238,7 @@ final class SSHPane: NSView {
         transportSegment.setSelected(SSHTransport.allCases.firstIndex(of: profile.transport) ?? 0)
         portField.setValue(profile.port)
         identityField.updateText(profile.identityPath)
-        proxyJumpField.updateText(profile.proxyJump)
+        proxyJumpEditor.update(profile: profile, availableProfiles: profiles)
         cwdField.updateText(profile.defaultDirectory)
         startupField.updateText(profile.startupCommand)
         multiplexerSegment.setSelected(SSHSessionBootstrap.allCases.firstIndex(of: profile.sessionBootstrap) ?? 0)
@@ -308,8 +327,10 @@ final class SSHPane: NSView {
         y += profilesCardHeight + PreferencesLayout.sectionGap
 
         if let _ = selectedProfile {
+            let proxyJumpHeight = SSHProxyJumpEditorView.preferredHeight
             let connectionHeight = connectionCard.headerHeight
-                + 7 * PreferencesLayout.rowH
+                + 6 * PreferencesLayout.rowH
+                + proxyJumpHeight
                 + 6 * PreferencesLayout.rowGap
                 + PreferencesLayout.cardPad
             connectionCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: connectionHeight)
@@ -321,12 +342,20 @@ final class SSHPane: NSView {
                 (transportLabel, transportSegment as NSView),
                 (portLabel, portField as NSView),
                 (identityLabel, identityField as NSView),
-                (proxyJumpLabel, proxyJumpField as NSView),
             ] {
                 label.frame = NSRect(x: PreferencesLayout.cardPad, y: rowY, width: labelW - 12, height: PreferencesLayout.rowH)
                 control.frame = NSRect(x: controlX, y: rowY + 6, width: controlW, height: 28)
                 rowY -= PreferencesLayout.rowH + PreferencesLayout.rowGap
             }
+
+            let proxyJumpRowY = rowY - (proxyJumpHeight - PreferencesLayout.rowH)
+            proxyJumpLabel.frame = NSRect(
+                x: PreferencesLayout.cardPad,
+                y: proxyJumpRowY + max(0, proxyJumpHeight - PreferencesLayout.rowH),
+                width: labelW - 12,
+                height: PreferencesLayout.rowH
+            )
+            proxyJumpEditor.frame = NSRect(x: controlX, y: proxyJumpRowY + 4, width: controlW, height: proxyJumpHeight - 8)
             y += connectionHeight + PreferencesLayout.sectionGap
 
             let sessionHeight = sessionCard.headerHeight
@@ -362,6 +391,260 @@ final class SSHPane: NSView {
         }
 
         content.frame = NSRect(x: 0, y: 0, width: width, height: max(y, bounds.height))
+    }
+}
+
+private struct SSHProxyJumpHopItem {
+    let id: UUID?
+    let title: String
+    let isMissing: Bool
+}
+
+private final class SSHProxyJumpEditorView: NSView {
+    static let preferredHeight: CGFloat = 62
+
+    var onAddProfile: ((UUID) -> Void)?
+    var onRemoveProfile: ((UUID) -> Void)?
+
+    private let chainView = SSHProxyJumpChainView()
+    private let addPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+
+        chainView.onRemoveHop = { [weak self] hopID in
+            self?.onRemoveProfile?(hopID)
+        }
+        addSubview(chainView)
+
+        addPopup.font = BellithFont.mono(12, weight: .regular)
+        addPopup.focusRingType = .none
+        addPopup.target = self
+        addPopup.action = #selector(handleAddProfile)
+        addSubview(addPopup)
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    override func layout() {
+        super.layout()
+        chainView.frame = NSRect(x: 0, y: bounds.height - 28, width: bounds.width, height: 28)
+        addPopup.frame = NSRect(x: 0, y: 0, width: bounds.width, height: 28)
+    }
+
+    func update(profile: SSHProfile?, availableProfiles allProfiles: [SSHProfile]) {
+        guard let profile else {
+            chainView.update(hops: [])
+            rebuildAddPopup(selectedProfileID: nil, selectedJumpProfileIDs: [], availableProfiles: [])
+            return
+        }
+
+        let lookup = Dictionary(uniqueKeysWithValues: allProfiles.map { ($0.id, $0) })
+        let hops: [SSHProxyJumpHopItem]
+        if profile.hasProxyJumpProfileChain {
+            hops = profile.proxyJumpProfileIDs.map { profileID in
+                if let jumpProfile = lookup[profileID] {
+                    return SSHProxyJumpHopItem(
+                        id: profileID,
+                        title: jumpProfile.displayName.uppercased(),
+                        isMissing: false
+                    )
+                }
+                return SSHProxyJumpHopItem(id: profileID, title: "MISSING HOST", isMissing: true)
+            }
+        } else {
+            hops = profile.legacyProxyJumpHops.map {
+                SSHProxyJumpHopItem(id: nil, title: $0.uppercased(), isMissing: true)
+            }
+        }
+
+        chainView.update(hops: hops)
+        rebuildAddPopup(
+            selectedProfileID: profile.id,
+            selectedJumpProfileIDs: Set(profile.proxyJumpProfileIDs),
+            availableProfiles: allProfiles
+        )
+    }
+
+    @objc private func handleAddProfile() {
+        defer { addPopup.selectItem(at: 0) }
+        guard addPopup.indexOfSelectedItem > 0,
+              let jumpProfileID = addPopup.selectedItem?.representedObject as? UUID else { return }
+        onAddProfile?(jumpProfileID)
+    }
+
+    private func rebuildAddPopup(
+        selectedProfileID: UUID?,
+        selectedJumpProfileIDs: Set<UUID>,
+        availableProfiles: [SSHProfile]
+    ) {
+        addPopup.removeAllItems()
+        addPopup.addItem(withTitle: "Add jump host…")
+        addPopup.lastItem?.representedObject = nil
+
+        let eligibleProfiles = availableProfiles.filter { profile in
+            guard profile.id != selectedProfileID else { return false }
+            return !selectedJumpProfileIDs.contains(profile.id)
+        }
+
+        for profile in eligibleProfiles {
+            let title = profile.destination.isEmpty
+                ? profile.displayName
+                : "\(profile.displayName) — \(profile.destination)"
+            addPopup.addItem(withTitle: title)
+            addPopup.lastItem?.representedObject = profile.id
+        }
+
+        addPopup.selectItem(at: 0)
+        addPopup.isEnabled = selectedProfileID != nil && !eligibleProfiles.isEmpty
+        if !addPopup.isEnabled {
+            addPopup.item(at: 0)?.title = selectedProfileID == nil ? "Add jump host…" : "No other saved hosts"
+        }
+    }
+}
+
+private final class SSHProxyJumpChainView: NSView {
+    var onRemoveHop: ((UUID) -> Void)?
+
+    private let emptyLabel = NSTextField(labelWithString: "DIRECT CONNECTION")
+    private var hopViews: [SSHProxyJumpHopBadgeView] = []
+    private var arrowViews: [NSImageView] = []
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.cornerRadius = 8
+        layer?.borderWidth = 0.5
+
+        emptyLabel.font = BellithFont.mono(10, weight: .regular)
+        emptyLabel.textColor = Theme.textTertiary
+        addSubview(emptyLabel)
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    override func layout() {
+        super.layout()
+        layer?.backgroundColor = Theme.frame.cgColor
+        layer?.borderColor = Theme.border.cgColor
+        emptyLabel.textColor = Theme.textTertiary
+        emptyLabel.frame = bounds.insetBy(dx: 10, dy: 7)
+
+        let inset: CGFloat = 8
+        let arrowWidth: CGFloat = 14
+        let hopHeight = bounds.height - 8
+        let maxHopWidth = max(72, (bounds.width - inset * 2 - CGFloat(max(0, hopViews.count - 1)) * arrowWidth) / CGFloat(max(hopViews.count, 1)))
+
+        var x = inset
+        for (index, hopView) in hopViews.enumerated() {
+            let remainingWidth = max(72, bounds.width - inset - x)
+            let width = min(hopView.preferredWidth, maxHopWidth, remainingWidth)
+            hopView.frame = NSRect(x: x, y: 4, width: width, height: hopHeight)
+            x += width
+
+            if let arrowView = arrowViews[safe: index] {
+                arrowView.frame = NSRect(x: x, y: (bounds.height - 12) / 2, width: arrowWidth, height: 12)
+                x += arrowWidth
+            }
+        }
+    }
+
+    func update(hops: [SSHProxyJumpHopItem]) {
+        hopViews.forEach { $0.removeFromSuperview() }
+        arrowViews.forEach { $0.removeFromSuperview() }
+        hopViews.removeAll()
+        arrowViews.removeAll()
+
+        emptyLabel.isHidden = !hops.isEmpty
+
+        for (index, hop) in hops.enumerated() {
+            let hopView = SSHProxyJumpHopBadgeView()
+            hopView.update(hop: hop)
+            hopView.onRemove = { [weak self] in
+                guard let hopID = hop.id else { return }
+                self?.onRemoveHop?(hopID)
+            }
+            addSubview(hopView)
+            hopViews.append(hopView)
+
+            if index < hops.count - 1 {
+                let arrowView = NSImageView()
+                arrowView.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
+                arrowView.contentTintColor = Theme.textTertiary
+                arrowView.imageScaling = .scaleProportionallyDown
+                addSubview(arrowView)
+                arrowViews.append(arrowView)
+            }
+        }
+
+        needsLayout = true
+    }
+}
+
+private final class SSHProxyJumpHopBadgeView: NSView {
+    var onRemove: (() -> Void)?
+
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let removeButton = NSButton()
+    private var isMissing = false
+    private var showsRemoveButton = false
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.cornerRadius = 7
+        layer?.borderWidth = 0.5
+
+        titleLabel.font = BellithFont.mono(10, weight: .regular)
+        titleLabel.lineBreakMode = .byTruncatingTail
+        addSubview(titleLabel)
+
+        removeButton.isBordered = false
+        removeButton.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Remove jump host")
+        removeButton.imageScaling = .scaleProportionallyDown
+        removeButton.target = self
+        removeButton.action = #selector(handleRemove)
+        addSubview(removeButton)
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    var preferredWidth: CGFloat {
+        let measuredWidth = (titleLabel.stringValue as NSString).size(withAttributes: [.font: titleLabel.font as Any]).width
+        let removeWidth: CGFloat = showsRemoveButton ? 22 : 0
+        return min(160, max(72, measuredWidth + removeWidth + 20))
+    }
+
+    override func layout() {
+        super.layout()
+        refreshAppearance()
+
+        if showsRemoveButton {
+            removeButton.frame = NSRect(x: bounds.width - 18, y: (bounds.height - 12) / 2, width: 12, height: 12)
+            titleLabel.frame = NSRect(x: 8, y: 4, width: bounds.width - 30, height: bounds.height - 8)
+        } else {
+            removeButton.frame = .zero
+            titleLabel.frame = NSRect(x: 8, y: 4, width: bounds.width - 16, height: bounds.height - 8)
+        }
+    }
+
+    func update(hop: SSHProxyJumpHopItem) {
+        titleLabel.stringValue = hop.title
+        isMissing = hop.isMissing
+        showsRemoveButton = hop.id != nil
+        removeButton.isHidden = !showsRemoveButton
+        needsLayout = true
+    }
+
+    @objc private func handleRemove() {
+        onRemove?()
+    }
+
+    private func refreshAppearance() {
+        layer?.backgroundColor = (isMissing ? Theme.overlay.withAlphaComponent(0.28) : Theme.chromeElevated).cgColor
+        layer?.borderColor = (isMissing ? Theme.border : Theme.chromeHairline).cgColor
+        titleLabel.textColor = isMissing ? Theme.textSecondary : Theme.textPrimary
+        removeButton.contentTintColor = Theme.textTertiary
     }
 }
 

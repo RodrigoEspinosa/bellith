@@ -7,6 +7,39 @@ final class SSHLaunchBuilderTests: XCTestCase {
         XCTAssertEqual(SSHLaunchBuilder.command(for: profile), "ssh 'deploy@app.example.com'")
     }
 
+    func testBuildsSSHCommandWithResolvedProxyJumpChainFromSavedProfiles() {
+        let bastion = SSHProfile(name: "Bastion", host: "bastion.example.com", user: "jump")
+        let relay = SSHProfile(name: "Relay", host: "relay.example.com")
+        let profile = SSHProfile(
+            name: "Prod",
+            host: "prod.example.com",
+            user: "ops",
+            proxyJump: "stale-hop",
+            proxyJumpProfileIDs: [bastion.id, relay.id]
+        )
+
+        XCTAssertEqual(
+            SSHLaunchBuilder.command(for: profile, availableProfiles: [bastion, relay, profile]),
+            "ssh -J 'jump@bastion.example.com,relay.example.com' 'ops@prod.example.com'"
+        )
+    }
+
+    func testFallsBackToStoredProxyJumpWhenReferencedProfileIsMissing() {
+        let missingJump = UUID()
+        let profile = SSHProfile(
+            name: "Prod",
+            host: "prod.example.com",
+            user: "ops",
+            proxyJump: "legacy-bastion",
+            proxyJumpProfileIDs: [missingJump]
+        )
+
+        XCTAssertEqual(
+            SSHLaunchBuilder.command(for: profile, availableProfiles: [profile]),
+            "ssh -J 'legacy-bastion' 'ops@prod.example.com'"
+        )
+    }
+
     func testBuildsMoshCommandWithFallbackAndBootstrap() {
         let profile = SSHProfile(
             name: "Prod",

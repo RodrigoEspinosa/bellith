@@ -40,6 +40,7 @@ struct SSHProfile: Codable, Equatable, Identifiable {
     var port: Int
     var identityPath: String
     var proxyJump: String
+    var proxyJumpProfileIDs: [UUID]
     var defaultDirectory: String
     var startupCommand: String
     var sessionBootstrap: SSHSessionBootstrap
@@ -57,6 +58,7 @@ struct SSHProfile: Codable, Equatable, Identifiable {
         port: Int = 22,
         identityPath: String = "",
         proxyJump: String = "",
+        proxyJumpProfileIDs: [UUID] = [],
         defaultDirectory: String = "",
         startupCommand: String = "",
         sessionBootstrap: SSHSessionBootstrap = .none,
@@ -87,6 +89,7 @@ struct SSHProfile: Codable, Equatable, Identifiable {
         self.port = port
         self.identityPath = identityPath
         self.proxyJump = proxyJump
+        self.proxyJumpProfileIDs = Self.normalizedProxyJumpProfileIDs(proxyJumpProfileIDs, excluding: id)
         self.defaultDirectory = defaultDirectory
         self.startupCommand = startupCommand
         self.sessionBootstrap = resolvedBootstrap
@@ -138,6 +141,7 @@ struct SSHProfile: Codable, Equatable, Identifiable {
             port: max(1, min(65_535, port)),
             identityPath: trimmedIdentityPath,
             proxyJump: trimmedProxyJump,
+            proxyJumpProfileIDs: Self.normalizedProxyJumpProfileIDs(proxyJumpProfileIDs, excluding: id),
             defaultDirectory: trimmedDefaultDirectory,
             startupCommand: trimmedStartupCommand,
             sessionBootstrap: trimmedSessionName.isEmpty ? .none : sessionBootstrap,
@@ -146,6 +150,48 @@ struct SSHProfile: Codable, Equatable, Identifiable {
             isSensitive: isSensitive,
             notes: trimmedNotes
         )
+    }
+
+    var hasProxyJumpProfileChain: Bool {
+        !proxyJumpProfileIDs.isEmpty
+    }
+
+    var legacyProxyJumpHops: [String] {
+        guard !hasProxyJumpProfileChain else { return [] }
+        return trimmedProxyJump
+            .split(separator: ",")
+            .map { Self.trimmed(String($0)) }
+            .filter { !$0.isEmpty }
+    }
+
+    func resolvedProxyJumpArgument(using profiles: [SSHProfile]) -> String {
+        guard hasProxyJumpProfileChain else { return trimmedProxyJump }
+
+        let lookup = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+        let resolved = proxyJumpProfileIDs.compactMap { profileID in
+            lookup[profileID]?.destination
+        }
+        .map(Self.trimmed)
+        .filter { !$0.isEmpty }
+
+        if resolved.count == proxyJumpProfileIDs.count, !resolved.isEmpty {
+            return resolved.joined(separator: ",")
+        }
+
+        return trimmedProxyJump
+    }
+
+    mutating func updateProxyJumpChain(profileIDs: [UUID], availableProfiles: [SSHProfile]) {
+        let normalizedProfileIDs = Self.normalizedProxyJumpProfileIDs(profileIDs, excluding: id)
+        let lookup = Dictionary(uniqueKeysWithValues: availableProfiles.map { ($0.id, $0) })
+        let resolvedChain = normalizedProfileIDs.compactMap { profileID in
+            lookup[profileID]?.destination
+        }
+        .map(Self.trimmed)
+        .filter { !$0.isEmpty }
+
+        proxyJumpProfileIDs = normalizedProfileIDs
+        proxyJump = resolvedChain.joined(separator: ",")
     }
 
     private var trimmedName: String { Self.trimmed(name) }
@@ -163,6 +209,14 @@ struct SSHProfile: Codable, Equatable, Identifiable {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private static func normalizedProxyJumpProfileIDs(_ profileIDs: [UUID], excluding excludedID: UUID) -> [UUID] {
+        var seen = Set<UUID>()
+        return profileIDs.filter { profileID in
+            guard profileID != excludedID else { return false }
+            return seen.insert(profileID).inserted
+        }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case id
         case name
@@ -172,6 +226,7 @@ struct SSHProfile: Codable, Equatable, Identifiable {
         case port
         case identityPath
         case proxyJump
+        case proxyJumpProfileIDs
         case defaultDirectory
         case startupCommand
         case sessionBootstrap
@@ -204,6 +259,7 @@ struct SSHProfile: Codable, Equatable, Identifiable {
             port: try container.decodeIfPresent(Int.self, forKey: .port) ?? 22,
             identityPath: try container.decodeIfPresent(String.self, forKey: .identityPath) ?? "",
             proxyJump: try container.decodeIfPresent(String.self, forKey: .proxyJump) ?? "",
+            proxyJumpProfileIDs: try container.decodeIfPresent([UUID].self, forKey: .proxyJumpProfileIDs) ?? [],
             defaultDirectory: try container.decodeIfPresent(String.self, forKey: .defaultDirectory) ?? "",
             startupCommand: try container.decodeIfPresent(String.self, forKey: .startupCommand) ?? "",
             sessionBootstrap: migratedBootstrap,
@@ -224,6 +280,7 @@ struct SSHProfile: Codable, Equatable, Identifiable {
         try container.encode(port, forKey: .port)
         try container.encode(identityPath, forKey: .identityPath)
         try container.encode(proxyJump, forKey: .proxyJump)
+        try container.encode(proxyJumpProfileIDs, forKey: .proxyJumpProfileIDs)
         try container.encode(defaultDirectory, forKey: .defaultDirectory)
         try container.encode(startupCommand, forKey: .startupCommand)
         try container.encode(sessionBootstrap, forKey: .sessionBootstrap)
