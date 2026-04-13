@@ -4,6 +4,8 @@ import QuartzCore
 /// Custom window with Zen-inspired minimal chrome.
 /// Traffic lights auto-hide after a delay and reappear on hover.
 final class TerminalWindow: NSWindow {
+    let tabDragIdentifier = UUID()
+
     enum TrafficLightDisplayMode {
         case automatic
         case forcedVisible

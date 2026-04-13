@@ -32,6 +32,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let container: TerminalContainerView
     }
 
+    private func entry(forWindowID id: UUID) -> WindowEntry? {
+        windows.first { $0.window.tabDragIdentifier == id }
+    }
+
     /// The key (focused) window's container, or the most recent one.
     private var activeEntry: WindowEntry? {
         if let keyWindow = NSApp.keyWindow as? TerminalWindow {
@@ -198,7 +202,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func createWindow(
         session: SessionState? = nil,
         initialWorkingDirectory: String? = nil,
-        frameDescriptor: String? = nil
+        frameDescriptor: String? = nil,
+        createInitialTab: Bool = true,
+        orderFront: Bool = true,
+        dropScreenPoint: NSPoint? = nil
     ) -> WindowEntry? {
         guard let terminalApp else { return nil }
 
@@ -216,13 +223,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             } else {
                 window.center()
             }
+        } else if let dropScreenPoint {
+            position(window, around: dropScreenPoint)
         } else {
             window.center()
         }
         window.isReleasedWhenClosed = false
         window.delegate = self
 
-        let container = TerminalContainerView(terminalApp: terminalApp, dependencies: dependencies)
+        let container = TerminalContainerView(
+            terminalApp: terminalApp,
+            createInitialTab: createInitialTab,
+            dependencies: dependencies
+        )
         let backdrop = BackdropView(container: container)
         window.contentView = backdrop
 
@@ -236,9 +249,77 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         window.makeFirstResponder(container.activeSurface ?? container)
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate()
+        if orderFront {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate()
+        }
         return entry
+    }
+
+    private func position(_ window: NSWindow, around screenPoint: NSPoint) {
+        let frame = window.frame
+        let visibleFrame = window.screen?.visibleFrame
+            ?? NSScreen.screens.first(where: { NSMouseInRect(screenPoint, $0.frame, false) })?.visibleFrame
+            ?? NSScreen.main?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+
+        let targetOrigin = NSPoint(
+            x: screenPoint.x - frame.width / 2,
+            y: screenPoint.y - frame.height + 28
+        )
+        let clampedOrigin = NSPoint(
+            x: min(max(targetOrigin.x, visibleFrame.minX), visibleFrame.maxX - frame.width),
+            y: min(max(targetOrigin.y, visibleFrame.minY), visibleFrame.maxY - frame.height)
+        )
+        window.setFrameOrigin(clampedOrigin)
+    }
+
+    func moveTab(
+        _ tabID: UUID,
+        fromWindowWithID sourceWindowID: UUID,
+        toWindowWithID destinationWindowID: UUID,
+        insertionIndex: Int
+    ) -> Bool {
+        guard sourceWindowID != destinationWindowID,
+              let sourceEntry = entry(forWindowID: sourceWindowID),
+              let destinationEntry = entry(forWindowID: destinationWindowID),
+              let entry = sourceEntry.container.detachTab(withID: tabID) else {
+            return false
+        }
+
+        destinationEntry.container.insertTransferredTab(entry, at: insertionIndex)
+        destinationEntry.window.makeFirstResponder(destinationEntry.container.activeSurface ?? destinationEntry.container)
+        destinationEntry.window.makeKeyAndOrderFront(nil)
+        NSApp.activate()
+        return true
+    }
+
+    func tearOffTab(
+        _ tabID: UUID,
+        fromWindowWithID sourceWindowID: UUID,
+        dropScreenPoint: NSPoint
+    ) -> Bool {
+        guard entry(forWindowID: sourceWindowID) != nil,
+              let destinationEntry = createWindow(
+                  createInitialTab: false,
+                  orderFront: false,
+                  dropScreenPoint: dropScreenPoint
+              ) else {
+            return false
+        }
+
+        guard let sourceEntry = entry(forWindowID: sourceWindowID),
+              let entry = sourceEntry.container.detachTab(withID: tabID) else {
+            destinationEntry.window.close()
+            return false
+        }
+
+        destinationEntry.container.insertTransferredTab(entry, at: 0)
+        position(destinationEntry.window, around: dropScreenPoint)
+        destinationEntry.window.makeFirstResponder(destinationEntry.container.activeSurface ?? destinationEntry.container)
+        destinationEntry.window.makeKeyAndOrderFront(nil)
+        NSApp.activate()
+        return true
     }
 
     private func restoreSavedWindows() -> Bool {

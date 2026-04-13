@@ -33,4 +33,36 @@ final class TerminalContainerViewTests: XCTestCase {
             2
         )
     }
+
+    func testClampedDropInsertionIndexKeepsPinnedTabsInPinnedRegion() {
+        XCTAssertEqual(
+            TerminalContainerView.clampedDropInsertionIndex(
+                requestedIndex: 4,
+                movingPinned: true,
+                pinnedCount: 2,
+                tabCount: 5
+            ),
+            2
+        )
+        XCTAssertEqual(
+            TerminalContainerView.clampedDropInsertionIndex(
+                requestedIndex: 0,
+                movingPinned: false,
+                pinnedCount: 2,
+                tabCount: 5
+            ),
+            2
+        )
+    }
+
+    func testReorderDestinationIndexTreatsInsertionIndexAsEdgeDropTarget() {
+        XCTAssertEqual(
+            TabBarView.reorderDestinationIndex(sourceIndex: 1, insertionIndex: 4, tabCount: 4),
+            3
+        )
+        XCTAssertEqual(
+            TabBarView.reorderDestinationIndex(sourceIndex: 3, insertionIndex: 0, tabCount: 4),
+            0
+        )
+    }
 }

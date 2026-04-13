@@ -3,7 +3,7 @@ import AppKit
 /// Minimal Zen-style tab bar. Sits in the titlebar area, right of the traffic lights.
 /// Pill-shaped tabs, close button appears on hover only.
 /// Smart tabs show distinct icons and accent colors.
-final class TabBarView: NSView {
+final class TabBarView: NSView, NSDraggingSource {
     struct Tab {
         let id: UUID
         var title: String
@@ -20,19 +20,28 @@ final class TabBarView: NSView {
     var onNewTab: (() -> Void)?
     var onReorderTab: ((Int, Int) -> Void)?
     var onTogglePin: ((Int) -> Void)?
+    var onReceiveDraggedTab: ((TabDragPayload, Int) -> Void)?
+    var onTearOffTab: ((UUID, NSPoint) -> Void)?
+
+    var windowIdentifier: UUID?
 
     private var dragSourceIndex: Int?
-    private var dragTargetIndex: Int?
     private var dragIndicatorLayer: CALayer?
+    private var dragInsertionIndex: Int?
+    private var isDropAccepted = false
     private let smartPanelRegistry: SmartPanelRegistry
 
     private let newTabButton = NSButton()
     private let singleTabLabel = NSTextField(labelWithString: "")
     private var themeObserver: NSObjectProtocol?
+    private var singleTabMouseDownLocation: NSPoint?
+
+    override var mouseDownCanMoveWindow: Bool { false }
 
     init(frame frameRect: NSRect = .zero, smartPanelRegistry: SmartPanelRegistry = .shared) {
         self.smartPanelRegistry = smartPanelRegistry
         super.init(frame: frameRect)
+        registerForDraggedTypes([TabDragPayload.pasteboardType])
         setupNewTabButton()
         setupSingleTabLabel()
         themeObserver = NotificationCenter.default.addObserver(
@@ -110,9 +119,10 @@ final class TabBarView: NSView {
             pill.onSelect = { [weak self] in self?.onSelectTab?(i) }
             pill.onClose = { [weak self] in self?.onCloseTab?(i) }
             pill.onTogglePin = { [weak self] in self?.onTogglePin?(i) }
-            pill.onDragBegan = { [weak self] in self?.beginDrag(fromIndex: i) }
-            pill.onDragMoved = { [weak self] loc in self?.updateDrag(location: loc) }
-            pill.onDragEnded = { [weak self] in self?.endDrag() }
+            pill.onBeginDrag = { [weak self, weak pill] event in
+                guard let self else { return }
+                self.beginDragSession(fromIndex: i, event: event, dragView: pill)
+            }
             addSubview(pill)
             tabViews.append(pill)
         }
@@ -136,68 +146,238 @@ final class TabBarView: NSView {
 
         newTabButton.frame = NSRect(x: x + 4, y: (height - 24) / 2, width: 24, height: 24)
 
-        // Single tab: show just the label and new tab button, hide pills
+        // Single tab: show just the label and new tab button, hide pills.
         if tabs.count <= 1 {
             singleTabLabel.isHidden = false
-            singleTabLabel.frame = NSRect(x: 0, y: (height - 16) / 2, width: min(240, singleTabLabel.attributedStringValue.size().width + 8), height: 16)
+            singleTabLabel.frame = NSRect(
+                x: 0,
+                y: (height - 16) / 2,
+                width: min(240, singleTabLabel.attributedStringValue.size().width + 8),
+                height: 16
+            )
             newTabButton.frame = NSRect(x: singleTabLabel.frame.maxX + 8, y: (height - 24) / 2, width: 24, height: 24)
             tabViews.forEach { $0.isHidden = true }
         } else {
             singleTabLabel.isHidden = true
             tabViews.forEach { $0.isHidden = false }
         }
+
+        updateDragIndicatorFrame()
     }
 
-    // MARK: - Tab Reordering
-
-    private func beginDrag(fromIndex: Int) {
-        dragSourceIndex = fromIndex
-        dragTargetIndex = nil
-        if dragIndicatorLayer == nil {
-            let indicator = CALayer()
-            indicator.backgroundColor = Theme.accent.withAlphaComponent(0.5).cgColor
-            indicator.cornerRadius = 1
-            wantsLayer = true
-            layer?.addSublayer(indicator)
-            dragIndicatorLayer = indicator
+    override func mouseDown(with event: NSEvent) {
+        guard tabs.count == 1 else {
+            super.mouseDown(with: event)
+            return
         }
+
+        let location = convert(event.locationInWindow, from: nil)
+        guard singleTabLabel.frame.insetBy(dx: -4, dy: -4).contains(location) else {
+            super.mouseDown(with: event)
+            return
+        }
+
+        singleTabMouseDownLocation = event.locationInWindow
+        onSelectTab?(0)
     }
 
-    private func updateDrag(location: NSPoint) {
-        guard let sourceIdx = dragSourceIndex else { return }
-        let loc = convert(location, from: nil)
+    override func mouseDragged(with event: NSEvent) {
+        guard tabs.count == 1, let start = singleTabMouseDownLocation else {
+            super.mouseDragged(with: event)
+            return
+        }
 
-        var targetIdx: Int?
-        for (i, pill) in tabViews.enumerated() {
-            if loc.x >= pill.frame.minX && loc.x <= pill.frame.maxX {
-                targetIdx = i
-                break
+        let location = event.locationInWindow
+        guard hypot(location.x - start.x, location.y - start.y) > 4 else { return }
+        singleTabMouseDownLocation = nil
+        beginDragSession(fromIndex: 0, event: event, dragView: singleTabLabel)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        singleTabMouseDownLocation = nil
+        super.mouseUp(with: event)
+    }
+
+    private func beginDragSession(fromIndex: Int, event: NSEvent, dragView: NSView?) {
+        guard dragSourceIndex == nil,
+              fromIndex >= 0, fromIndex < tabs.count,
+              let windowIdentifier,
+              let dragView,
+              let draggingImage = dragImage(for: dragView) else { return }
+
+        let payload = TabDragPayload(sourceWindowID: windowIdentifier, tabID: tabs[fromIndex].id)
+        let pasteboardItem = NSPasteboardItem()
+        payload.set(on: pasteboardItem)
+
+        let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
+        draggingItem.setDraggingFrame(convert(dragView.bounds, from: dragView), contents: draggingImage)
+
+        dragSourceIndex = fromIndex
+        dragInsertionIndex = nil
+        isDropAccepted = false
+        ensureDragIndicator()
+        dragIndicatorLayer?.isHidden = true
+
+        let session = beginDraggingSession(with: [draggingItem], event: event, source: self)
+        session.animatesToStartingPositionsOnCancelOrFail = false
+        session.draggingFormation = .none
+    }
+
+    private func dragImage(for view: NSView) -> NSImage? {
+        guard view.bounds.width > 0, view.bounds.height > 0,
+              let representation = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+            return nil
+        }
+        view.cacheDisplay(in: view.bounds, to: representation)
+        let image = NSImage(size: view.bounds.size)
+        image.addRepresentation(representation)
+        return image
+    }
+
+    private func ensureDragIndicator() {
+        guard dragIndicatorLayer == nil else { return }
+        let indicator = CALayer()
+        indicator.backgroundColor = Theme.accent.withAlphaComponent(0.5).cgColor
+        indicator.cornerRadius = 1
+        wantsLayer = true
+        layer?.addSublayer(indicator)
+        dragIndicatorLayer = indicator
+    }
+
+    private func clearDragState() {
+        dragSourceIndex = nil
+        dragInsertionIndex = nil
+        isDropAccepted = false
+        dragIndicatorLayer?.removeFromSuperlayer()
+        dragIndicatorLayer = nil
+    }
+
+    private func insertionIndex(for location: NSPoint) -> Int {
+        guard !tabs.isEmpty else { return 0 }
+
+        if tabs.count <= 1 {
+            return location.x <= singleTabLabel.frame.midX ? 0 : 1
+        }
+
+        for (index, pill) in tabViews.enumerated() {
+            if location.x < pill.frame.midX {
+                return index
             }
         }
 
-        if let target = targetIdx, target != sourceIdx {
-            dragTargetIndex = target
-            let pill = tabViews[target]
-            let indicatorX = target < sourceIdx ? pill.frame.minX - 1 : pill.frame.maxX + 1
-            dragIndicatorLayer?.frame = NSRect(x: indicatorX, y: pill.frame.minY + 4, width: 2, height: pill.frame.height - 8)
-            dragIndicatorLayer?.isHidden = false
-        } else {
-            dragTargetIndex = nil
-            dragIndicatorLayer?.isHidden = true
-        }
+        return tabs.count
     }
 
-    private func endDrag() {
-        guard let sourceIdx = dragSourceIndex else { return }
-        dragIndicatorLayer?.removeFromSuperlayer()
-        dragIndicatorLayer = nil
-
-        let targetIdx = dragTargetIndex ?? sourceIdx
-        dragSourceIndex = nil
-        dragTargetIndex = nil
-        if targetIdx != sourceIdx {
-            onReorderTab?(sourceIdx, targetIdx)
+    private func updateDragIndicatorFrame() {
+        guard let indicator = dragIndicatorLayer,
+              let dragInsertionIndex else {
+            dragIndicatorLayer?.isHidden = true
+            return
         }
+
+        let tabHeight: CGFloat = 30
+        let y = (bounds.height - tabHeight) / 2 + 4
+        let height = tabHeight - 8
+
+        let x: CGFloat
+        if tabs.isEmpty {
+            x = 0
+        } else if tabs.count <= 1 {
+            x = dragInsertionIndex == 0 ? singleTabLabel.frame.minX - 2 : singleTabLabel.frame.maxX + 2
+        } else if dragInsertionIndex <= 0 {
+            x = tabViews.first?.frame.minX ?? 0
+        } else if dragInsertionIndex >= tabViews.count {
+            x = (tabViews.last?.frame.maxX ?? 0) + 6
+        } else {
+            x = tabViews[dragInsertionIndex].frame.minX - 3
+        }
+
+        indicator.frame = NSRect(x: x, y: y, width: 2, height: height)
+        indicator.isHidden = false
+    }
+
+    static func reorderDestinationIndex(sourceIndex: Int, insertionIndex: Int, tabCount: Int) -> Int {
+        guard tabCount > 0 else { return 0 }
+        let clampedInsertion = max(0, min(insertionIndex, tabCount))
+        let adjustedIndex = clampedInsertion > sourceIndex ? clampedInsertion - 1 : clampedInsertion
+        return max(0, min(adjustedIndex, tabCount - 1))
+    }
+
+    // MARK: - NSDraggingSource
+
+    func draggingSession(
+        _ session: NSDraggingSession,
+        sourceOperationMaskFor context: NSDraggingContext
+    ) -> NSDragOperation {
+        .move
+    }
+
+    func ignoreModifierKeys(for session: NSDraggingSession) -> Bool {
+        true
+    }
+
+    func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        let payload = dragSourceIndex.flatMap { tabs.indices.contains($0) ? tabs[$0].id : nil }
+        let shouldTearOff = operation == [] && !isDropAccepted
+        clearDragState()
+
+        guard shouldTearOff, let tabID = payload else { return }
+        onTearOffTab?(tabID, screenPoint)
+    }
+
+    // MARK: - NSDraggingDestination
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        draggingUpdated(sender)
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard TabDragPayload.read(from: sender.draggingPasteboard) != nil else {
+            dragInsertionIndex = nil
+            updateDragIndicatorFrame()
+            return []
+        }
+
+        ensureDragIndicator()
+        dragInsertionIndex = insertionIndex(for: convert(sender.draggingLocation, from: nil))
+        updateDragIndicatorFrame()
+        return .move
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        dragInsertionIndex = nil
+        updateDragIndicatorFrame()
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        TabDragPayload.read(from: sender.draggingPasteboard) != nil
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard let payload = TabDragPayload.read(from: sender.draggingPasteboard) else { return false }
+        let insertionIndex = dragInsertionIndex ?? insertionIndex(for: convert(sender.draggingLocation, from: nil))
+        let sourceIndex = tabs.firstIndex(where: { $0.id == payload.tabID })
+
+        if payload.sourceWindowID == windowIdentifier, let sourceIndex {
+            let destinationIndex = Self.reorderDestinationIndex(
+                sourceIndex: sourceIndex,
+                insertionIndex: insertionIndex,
+                tabCount: tabs.count
+            )
+            if destinationIndex != sourceIndex {
+                onReorderTab?(sourceIndex, destinationIndex)
+            }
+        } else {
+            onReceiveDraggedTab?(payload, insertionIndex)
+        }
+
+        isDropAccepted = true
+        return true
+    }
+
+    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
+        dragInsertionIndex = nil
+        updateDragIndicatorFrame()
     }
 
     @objc private func handleNewTab() {
@@ -211,9 +391,7 @@ fileprivate final class TabPillView: NSView {
     var onSelect: (() -> Void)?
     var onClose: (() -> Void)?
     var onTogglePin: (() -> Void)?
-    var onDragBegan: (() -> Void)?
-    var onDragMoved: ((NSPoint) -> Void)?
-    var onDragEnded: (() -> Void)?
+    var onBeginDrag: ((NSEvent) -> Void)?
     private var isDragging = false
     private var mouseDownLocation: NSPoint?
 
@@ -388,18 +566,14 @@ fileprivate final class TabPillView: NSView {
 
     override func mouseDragged(with event: NSEvent) {
         guard let start = mouseDownLocation else { return }
-        let loc = event.locationInWindow
-        if !isDragging && hypot(loc.x - start.x, loc.y - start.y) > 4 {
+        let location = event.locationInWindow
+        if !isDragging && hypot(location.x - start.x, location.y - start.y) > 4 {
             isDragging = true
-            onDragBegan?()
-        }
-        if isDragging {
-            onDragMoved?(event.locationInWindow)
+            onBeginDrag?(event)
         }
     }
 
     override func mouseUp(with event: NSEvent) {
-        if isDragging { onDragEnded?() }
         isDragging = false
         mouseDownLocation = nil
     }

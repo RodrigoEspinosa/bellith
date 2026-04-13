@@ -174,6 +174,14 @@ final class SessionStateTests: XCTestCase {
         XCTAssertEqual(decoded.frameDescriptor, "{{10, 20}, {900, 600}}")
     }
 
+    func testTabDragPayloadRoundtrip() throws {
+        let payload = TabDragPayload(sourceWindowID: UUID(), tabID: UUID())
+        let data = try JSONEncoder().encode(payload)
+        let decoded = try JSONDecoder().decode(TabDragPayload.self, from: data)
+
+        XCTAssertEqual(decoded, payload)
+    }
+
     func testLegacySplitTreeDecodesIntoFlattenedTerminalSnapshot() throws {
         let json = """
         {
