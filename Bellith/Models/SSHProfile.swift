@@ -17,11 +17,26 @@ enum SSHSessionBootstrap: String, Codable, CaseIterable {
     }
 }
 
+enum SSHTransport: String, Codable, CaseIterable {
+    case ssh
+    case mosh
+
+    var title: String {
+        switch self {
+        case .ssh:
+            return "SSH"
+        case .mosh:
+            return "Mosh"
+        }
+    }
+}
+
 struct SSHProfile: Codable, Equatable, Identifiable {
     let id: UUID
     var name: String
     var host: String
     var user: String
+    var transport: SSHTransport
     var port: Int
     var identityPath: String
     var proxyJump: String
@@ -38,6 +53,7 @@ struct SSHProfile: Codable, Equatable, Identifiable {
         name: String = "New Host",
         host: String = "",
         user: String = "",
+        transport: SSHTransport = .ssh,
         port: Int = 22,
         identityPath: String = "",
         proxyJump: String = "",
@@ -67,6 +83,7 @@ struct SSHProfile: Codable, Equatable, Identifiable {
         self.name = name
         self.host = host
         self.user = user
+        self.transport = transport
         self.port = port
         self.identityPath = identityPath
         self.proxyJump = proxyJump
@@ -117,6 +134,7 @@ struct SSHProfile: Codable, Equatable, Identifiable {
             name: displayName,
             host: trimmedHost,
             user: trimmedUser,
+            transport: transport,
             port: max(1, min(65_535, port)),
             identityPath: trimmedIdentityPath,
             proxyJump: trimmedProxyJump,
@@ -150,6 +168,7 @@ struct SSHProfile: Codable, Equatable, Identifiable {
         case name
         case host
         case user
+        case transport
         case port
         case identityPath
         case proxyJump
@@ -181,6 +200,7 @@ struct SSHProfile: Codable, Equatable, Identifiable {
             name: try container.decodeIfPresent(String.self, forKey: .name) ?? "New Host",
             host: try container.decodeIfPresent(String.self, forKey: .host) ?? "",
             user: try container.decodeIfPresent(String.self, forKey: .user) ?? "",
+            transport: try container.decodeIfPresent(SSHTransport.self, forKey: .transport) ?? .ssh,
             port: try container.decodeIfPresent(Int.self, forKey: .port) ?? 22,
             identityPath: try container.decodeIfPresent(String.self, forKey: .identityPath) ?? "",
             proxyJump: try container.decodeIfPresent(String.self, forKey: .proxyJump) ?? "",
@@ -200,6 +220,7 @@ struct SSHProfile: Codable, Equatable, Identifiable {
         try container.encode(name, forKey: .name)
         try container.encode(host, forKey: .host)
         try container.encode(user, forKey: .user)
+        try container.encode(transport, forKey: .transport)
         try container.encode(port, forKey: .port)
         try container.encode(identityPath, forKey: .identityPath)
         try container.encode(proxyJump, forKey: .proxyJump)

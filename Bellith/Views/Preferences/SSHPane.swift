@@ -14,13 +14,15 @@ final class SSHPane: NSView {
     private let emptyStateLabel = FooterNote("No saved SSH profiles yet. Add one to create reusable connect commands.")
     private var profileRows: [SSHProfileRow] = []
 
-    private let connectionCard = SettingsCard(title: "Connection", subtitle: "Network identity and access path")
+    private let connectionCard = SettingsCard(title: "Connection", subtitle: "Network identity, transport, and access path")
     private let nameLabel = CardRowLabel("Profile Name")
     private var nameField: PrefTextField!
     private let hostLabel = CardRowLabel("Host")
     private var hostField: PrefTextField!
     private let userLabel = CardRowLabel("User")
     private var userField: PrefTextField!
+    private let transportLabel = CardRowLabel("Transport")
+    private var transportSegment: PrefSegment!
     private let portLabel = CardRowLabel("Port")
     private var portField: MiniNumberField!
     private let identityLabel = CardRowLabel("Identity File")
@@ -79,11 +81,33 @@ final class SSHPane: NSView {
         nameField = PrefTextField(text: "") { [weak self] value in self?.mutateSelectedProfile { $0.name = value } }
         hostField = PrefTextField(text: "") { [weak self] value in self?.mutateSelectedProfile { $0.host = value } }
         userField = PrefTextField(text: "") { [weak self] value in self?.mutateSelectedProfile { $0.user = value } }
+        transportSegment = PrefSegment(
+            labels: SSHTransport.allCases.map(\.title),
+            selected: 0
+        ) { [weak self] idx in
+            guard let transport = SSHTransport.allCases[safe: idx] else { return }
+            self?.mutateSelectedProfile { $0.transport = transport }
+        }
         portField = MiniNumberField(value: 22, range: 1...65_535) { [weak self] value in self?.mutateSelectedProfile { $0.port = value } }
         identityField = PrefTextField(text: "") { [weak self] value in self?.mutateSelectedProfile { $0.identityPath = value } }
         proxyJumpField = PrefTextField(text: "") { [weak self] value in self?.mutateSelectedProfile { $0.proxyJump = value } }
         content.addSubview(connectionCard)
-        for view: NSView in [nameLabel, nameField, hostLabel, hostField, userLabel, userField, portLabel, portField, identityLabel, identityField, proxyJumpLabel, proxyJumpField] {
+        for view: NSView in [
+            nameLabel,
+            nameField,
+            hostLabel,
+            hostField,
+            userLabel,
+            userField,
+            transportLabel,
+            transportSegment as NSView,
+            portLabel,
+            portField,
+            identityLabel,
+            identityField,
+            proxyJumpLabel,
+            proxyJumpField,
+        ] {
             connectionCard.addSubview(view)
         }
 
@@ -182,6 +206,7 @@ final class SSHPane: NSView {
             for field in [nameField, hostField, userField, identityField, proxyJumpField, cwdField, startupField, sessionNameField, environmentField, notesField] {
                 field?.updateText("")
             }
+            transportSegment.setSelected(0)
             portField.setValue(22)
             multiplexerSegment.setSelected(0)
             sensitiveToggle.setOn(false)
@@ -191,6 +216,7 @@ final class SSHPane: NSView {
         nameField.updateText(profile.name)
         hostField.updateText(profile.host)
         userField.updateText(profile.user)
+        transportSegment.setSelected(SSHTransport.allCases.firstIndex(of: profile.transport) ?? 0)
         portField.setValue(profile.port)
         identityField.updateText(profile.identityPath)
         proxyJumpField.updateText(profile.proxyJump)
@@ -283,8 +309,8 @@ final class SSHPane: NSView {
 
         if let _ = selectedProfile {
             let connectionHeight = connectionCard.headerHeight
-                + 6 * PreferencesLayout.rowH
-                + 5 * PreferencesLayout.rowGap
+                + 7 * PreferencesLayout.rowH
+                + 6 * PreferencesLayout.rowGap
                 + PreferencesLayout.cardPad
             connectionCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: connectionHeight)
             var rowY = connectionHeight - connectionCard.headerHeight - PreferencesLayout.rowH
@@ -292,6 +318,7 @@ final class SSHPane: NSView {
                 (nameLabel, nameField as NSView),
                 (hostLabel, hostField as NSView),
                 (userLabel, userField as NSView),
+                (transportLabel, transportSegment as NSView),
                 (portLabel, portField as NSView),
                 (identityLabel, identityField as NSView),
                 (proxyJumpLabel, proxyJumpField as NSView),
