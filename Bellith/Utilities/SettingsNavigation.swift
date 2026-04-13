@@ -29,13 +29,50 @@ enum SettingsNavigation {
             return true
 
         case let .editor(settingsFileURL):
-            let targetContainer = container ?? createContainer?()
-            guard let targetContainer else {
-                preferencesWindowController.showWindow(selecting: paneID)
-                return false
-            }
-            targetContainer.openFileInEditor(settingsFileURL, titleOverride: settingsFileURL.lastPathComponent)
-            return true
+            return openEditor(
+                settingsFileURL,
+                selecting: paneID,
+                in: container,
+                preferencesWindowController: preferencesWindowController,
+                createContainer: createContainer
+            )
         }
+    }
+
+    @discardableResult
+    static func openSettingsFile(
+        in container: TerminalContainerView? = nil,
+        settings: BellithSettings = .shared,
+        preferencesWindowController: PreferencesWindowController = .shared,
+        createContainer: (() -> TerminalContainerView?)? = nil
+    ) -> Bool {
+        guard let settingsFileURL = settings.settingsFileLocation else {
+            preferencesWindowController.showWindow()
+            return false
+        }
+
+        return openEditor(
+            settingsFileURL,
+            in: container,
+            preferencesWindowController: preferencesWindowController,
+            createContainer: createContainer
+        )
+    }
+
+    @discardableResult
+    private static func openEditor(
+        _ settingsFileURL: URL,
+        selecting paneID: String? = nil,
+        in container: TerminalContainerView? = nil,
+        preferencesWindowController: PreferencesWindowController,
+        createContainer: (() -> TerminalContainerView?)? = nil
+    ) -> Bool {
+        let targetContainer = container ?? createContainer?()
+        guard let targetContainer else {
+            preferencesWindowController.showWindow(selecting: paneID)
+            return false
+        }
+        targetContainer.openFileInEditor(settingsFileURL, titleOverride: settingsFileURL.lastPathComponent)
+        return true
     }
 }

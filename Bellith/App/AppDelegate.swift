@@ -346,6 +346,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         appMenu.addItem(withTitle: "About Bellith", action: #selector(handleAbout), keyEquivalent: "")
         appMenu.addItem(.separator())
         appMenu.addItem(configuredMenuItem(title: "Settings…", action: #selector(handlePreferences), shortcutID: "preferences"))
+        appMenu.addItem(configuredMenuItem(title: "Open settings.json", action: #selector(handleOpenSettingsFile)))
         appMenu.addItem(.separator())
         let servicesItem = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
         let servicesMenu = NSMenu(title: "Services")
@@ -599,6 +600,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func handleReloadConfig() { activeEntry?.container.reloadConfig() }
     @objc private func handlePreferences() {
         SettingsNavigation.open(
+            in: activeEntry?.container,
+            settings: dependencies.settings,
+            preferencesWindowController: dependencies.preferencesWindowController,
+            createContainer: { [weak self] in self?.createWindow()?.container }
+        )
+    }
+    @objc private func handleOpenSettingsFile() {
+        SettingsNavigation.openSettingsFile(
             in: activeEntry?.container,
             settings: dependencies.settings,
             preferencesWindowController: dependencies.preferencesWindowController,

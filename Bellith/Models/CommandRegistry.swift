@@ -392,6 +392,21 @@ final class CommandRegistry {
         })
 
         register(CommandPlugin(
+            id: "openSettingsFile",
+            title: "Open settings.json",
+            description: "Open Bellith settings.json in your editor",
+            iconName: "doc.text",
+            aliases: ["settings json", "settings file", "config", "open config"]
+        ) { container, _ in
+            SettingsNavigation.openSettingsFile(
+                in: container,
+                settings: self.settings,
+                preferencesWindowController: self.preferencesWindowController
+            )
+            return true
+        })
+
+        register(CommandPlugin(
             id: "reloadConfig",
             title: "Reload Config",
             description: "Reload terminal configuration",

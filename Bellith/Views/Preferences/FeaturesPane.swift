@@ -12,7 +12,7 @@ final class FeaturesPane: NSView {
     private let builtInSettingsLabel = CardRowLabel(BellithFeatureFlag.builtInSettingsWindow.title)
     private var builtInSettingsToggle: PrefToggle!
     private let builtInSettingsNote = FooterNote(BellithFeatureFlag.builtInSettingsWindow.detail)
-    private let defaultStateNote = FooterNote("Default: off")
+    private let defaultStateNote = FooterNote("Default: on")
 
     init(frame frameRect: NSRect = .zero, settings: BellithSettings = .shared) {
         self.settings = settings

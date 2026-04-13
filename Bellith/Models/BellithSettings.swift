@@ -54,6 +54,11 @@ final class BellithSettings {
         static let legacyY = 38
         static let current = 0
     }
+    private enum BuiltInSettingsWindowDefaults {
+        static let migrationKey = "didMigrateBuiltInSettingsWindowDefault"
+        static let legacyDefault = false
+        static let currentDefault = true
+    }
     private enum PersistedKeys {
         static let stringKeys: Set<String> = [
             "fontFamily", "cursorStyle", "darkThemeName", "lightThemeName", "tabMode",
@@ -111,6 +116,7 @@ final class BellithSettings {
         self.smartPanelRegistry = smartPanelRegistry
         self.settingsFileURL = settingsFileURL ?? Self.defaultSettingsFileURL(for: defaults)
         loadSettingsFileIfNeeded()
+        migrateBuiltInSettingsWindowDefaultIfNeeded()
         migrateLegacyWindowPaddingIfNeeded()
         migrateLegacyBackgroundOpacityToDefaultProfileIfNeeded()
         persistSettingsFileIfNeeded()
@@ -715,6 +721,21 @@ final class BellithSettings {
         }
         merged.presetSource = persisted.presetSource
         return merged
+    }
+
+    private func migrateBuiltInSettingsWindowDefaultIfNeeded() {
+        guard !defaults.bool(forKey: BuiltInSettingsWindowDefaults.migrationKey) else { return }
+
+        var flags = storedFeatureFlags
+        let storedValue = flags[BellithFeatureFlag.builtInSettingsWindow.rawValue]
+        defer { defaults.set(true, forKey: BuiltInSettingsWindowDefaults.migrationKey) }
+
+        guard storedValue == nil || storedValue == BuiltInSettingsWindowDefaults.legacyDefault else {
+            return
+        }
+
+        flags[BellithFeatureFlag.builtInSettingsWindow.rawValue] = BuiltInSettingsWindowDefaults.currentDefault
+        defaults.set(flags, forKey: PersistedKeys.featureFlags)
     }
 
     private func migrateLegacyWindowPaddingIfNeeded() {

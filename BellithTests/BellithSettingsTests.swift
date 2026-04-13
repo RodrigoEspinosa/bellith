@@ -133,7 +133,7 @@ final class BellithSettingsTests: XCTestCase {
     }
 
     func testDefaultBuiltInSettingsWindowFeatureFlag() {
-        XCTAssertFalse(settings.builtInSettingsWindowEnabled)
+        XCTAssertTrue(settings.builtInSettingsWindowEnabled)
     }
 
     func testWindowPaddingAllowsZero() {
@@ -521,6 +521,30 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(object["terminalOptionKeyBehavior"] as? String, "left")
         XCTAssertEqual((object["showStatusBar"] as? NSNumber)?.boolValue, true)
         let featureFlags = try XCTUnwrap(object["featureFlags"] as? [String: Any])
-        XCTAssertEqual((featureFlags["builtInSettingsWindow"] as? NSNumber)?.boolValue, false)
+        XCTAssertEqual((featureFlags["builtInSettingsWindow"] as? NSNumber)?.boolValue, true)
+    }
+
+    func testLegacyBuiltInSettingsWindowDefaultMigratesToEnabled() throws {
+        let json = """
+        {
+          "featureFlags" : {
+            "builtInSettingsWindow" : false
+          }
+        }
+        """
+        try FileManager.default.createDirectory(
+            at: settingsFileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try json.write(to: settingsFileURL, atomically: true, encoding: .utf8)
+
+        let loaded = BellithSettings(defaults: defaults, settingsFileURL: settingsFileURL)
+
+        XCTAssertTrue(loaded.builtInSettingsWindowEnabled)
+
+        let data = try Data(contentsOf: settingsFileURL)
+        let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let featureFlags = try XCTUnwrap(object["featureFlags"] as? [String: Any])
+        XCTAssertEqual((featureFlags["builtInSettingsWindow"] as? NSNumber)?.boolValue, true)
     }
 }

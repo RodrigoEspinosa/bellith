@@ -20,7 +20,7 @@ enum BellithFeatureFlag: String, CaseIterable {
     var defaultValue: Bool {
         switch self {
         case .builtInSettingsWindow:
-            false
+            true
         }
     }
 }
