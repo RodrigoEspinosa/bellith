@@ -54,6 +54,22 @@ final class SSHProfileStoreTests: XCTestCase {
         XCTAssertEqual(store.profiles.first?.user, "root")
     }
 
+    func testRoundtripProxyJumpProfileIDs() throws {
+        let bastion = SSHProfile(name: "Bastion", host: "bastion.example.com")
+        let profile = SSHProfile(
+            name: "Prod",
+            host: "prod.example.com",
+            proxyJump: "bastion.example.com",
+            proxyJumpProfileIDs: [bastion.id]
+        )
+
+        store.save([bastion, profile])
+
+        let loadedProfile = try XCTUnwrap(store.profiles.first(where: { $0.id == profile.id }))
+        XCTAssertEqual(loadedProfile.proxyJumpProfileIDs, [bastion.id])
+        XCTAssertEqual(loadedProfile.proxyJump, "bastion.example.com")
+    }
+
     func testDeleteProfileRemovesStoredItem() {
         let profile = SSHProfile(name: "Logs", host: "logs.example.com")
         store.save([profile])

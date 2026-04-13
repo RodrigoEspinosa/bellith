@@ -1,19 +1,23 @@
 import Foundation
 
 enum SSHLaunchBuilder {
-    static func command(for profile: SSHProfile) -> String {
+    static func command(for profile: SSHProfile, availableProfiles: [SSHProfile] = SSHProfileStore.shared.profiles) -> String {
         let profile = profile.sanitized()
 
         switch profile.transport {
         case .ssh:
-            return sshCommand(for: profile)
+            return sshCommand(for: profile, availableProfiles: availableProfiles)
         case .mosh:
-            return moshCommand(for: profile)
+            return moshCommand(for: profile, availableProfiles: availableProfiles)
         }
     }
 
-    private static func sshCommand(for profile: SSHProfile, remoteCommandOverride: String? = nil) -> String {
-        var parts = sshTransportParts(for: profile)
+    private static func sshCommand(
+        for profile: SSHProfile,
+        availableProfiles: [SSHProfile],
+        remoteCommandOverride: String? = nil
+    ) -> String {
+        var parts = sshTransportParts(for: profile, availableProfiles: availableProfiles)
         parts.append(shellQuoted(profile.destination))
 
         if let remoteCommand = remoteCommandOverride ?? remoteCommand(for: profile) {
@@ -26,13 +30,14 @@ enum SSHLaunchBuilder {
         return parts.joined(separator: " ")
     }
 
-    private static func moshCommand(for profile: SSHProfile) -> String {
-        let fallbackSSHCommand = sshCommand(for: profile)
+    private static func moshCommand(for profile: SSHProfile, availableProfiles: [SSHProfile]) -> String {
+        let fallbackSSHCommand = sshCommand(for: profile, availableProfiles: availableProfiles)
         let remoteCheckCommand = sshCommand(
             for: profile,
+            availableProfiles: availableProfiles,
             remoteCommandOverride: "command -v mosh-server >/dev/null 2>&1"
         )
-        let remoteLaunchCommand = moshLaunchCommand(for: profile)
+        let remoteLaunchCommand = moshLaunchCommand(for: profile, availableProfiles: availableProfiles)
         let localFallbackMessage = "Bellith: mosh is not installed locally. Falling back to SSH."
         let remoteFallbackMessage = "Bellith: mosh-server is unavailable on \(profile.destination). Falling back to SSH."
 
@@ -51,10 +56,10 @@ enum SSHLaunchBuilder {
         """
     }
 
-    private static func moshLaunchCommand(for profile: SSHProfile) -> String {
+    private static func moshLaunchCommand(for profile: SSHProfile, availableProfiles: [SSHProfile]) -> String {
         var parts = [
             "mosh",
-            "--ssh=\(shellQuoted(sshTransportCommand(for: profile)))",
+            "--ssh=\(shellQuoted(sshTransportCommand(for: profile, availableProfiles: availableProfiles)))",
             shellQuoted(profile.destination),
         ]
 
@@ -67,11 +72,11 @@ enum SSHLaunchBuilder {
         return parts.joined(separator: " ")
     }
 
-    private static func sshTransportCommand(for profile: SSHProfile) -> String {
-        sshTransportParts(for: profile).joined(separator: " ")
+    private static func sshTransportCommand(for profile: SSHProfile, availableProfiles: [SSHProfile]) -> String {
+        sshTransportParts(for: profile, availableProfiles: availableProfiles).joined(separator: " ")
     }
 
-    private static func sshTransportParts(for profile: SSHProfile) -> [String] {
+    private static func sshTransportParts(for profile: SSHProfile, availableProfiles: [SSHProfile]) -> [String] {
         var parts = ["ssh"]
 
         if profile.port != 22 {
@@ -84,9 +89,10 @@ enum SSHLaunchBuilder {
             parts.append(shellQuoted(profile.identityPath))
         }
 
-        if !profile.proxyJump.isEmpty {
+        let proxyJumpArgument = profile.resolvedProxyJumpArgument(using: availableProfiles)
+        if !proxyJumpArgument.isEmpty {
             parts.append("-J")
-            parts.append(shellQuoted(profile.proxyJump))
+            parts.append(shellQuoted(proxyJumpArgument))
         }
 
         return parts
