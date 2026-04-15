@@ -929,7 +929,6 @@ fileprivate final class SidebarTabRow: NSView {
         if closeButton.frame.contains(loc) { onClose?(); return }
         mouseDownLocation = event.locationInWindow
         isDragging = false
-        onSelect?()
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -942,8 +941,12 @@ fileprivate final class SidebarTabRow: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        let shouldSelect = !isDragging
         isDragging = false
         mouseDownLocation = nil
+        if shouldSelect {
+            onSelect?()
+        }
     }
 
     override func rightMouseDown(with event: NSEvent) { onRightClick?(event.locationInWindow) }

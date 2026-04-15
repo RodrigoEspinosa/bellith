@@ -178,7 +178,6 @@ final class TabBarView: NSView, NSDraggingSource {
         }
 
         singleTabMouseDownLocation = event.locationInWindow
-        onSelectTab?(0)
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -194,7 +193,12 @@ final class TabBarView: NSView, NSDraggingSource {
     }
 
     override func mouseUp(with event: NSEvent) {
+        let shouldSelect = singleTabMouseDownLocation != nil
         singleTabMouseDownLocation = nil
+        if shouldSelect {
+            onSelectTab?(0)
+            return
+        }
         super.mouseUp(with: event)
     }
 
@@ -562,7 +566,6 @@ fileprivate final class TabPillView: NSView {
     override func mouseDown(with event: NSEvent) {
         mouseDownLocation = event.locationInWindow
         isDragging = false
-        onSelect?()
     }
 
     override func otherMouseDown(with event: NSEvent) {
@@ -582,8 +585,12 @@ fileprivate final class TabPillView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        let shouldSelect = !isDragging
         isDragging = false
         mouseDownLocation = nil
+        if shouldSelect {
+            onSelect?()
+        }
     }
 
     @objc private func handleClose() {
