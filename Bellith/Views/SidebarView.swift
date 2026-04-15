@@ -2,7 +2,7 @@ import AppKit
 import QuartzCore
 
 /// Monochrome utility sidebar with restrained chrome and strong type hierarchy.
-final class SidebarView: NSView {
+final class SidebarView: NSView, NSDraggingSource {
     typealias TabModel = (id: UUID, title: String, kind: TerminalContainerView.TabKind)
 
     struct SettingsSnapshot: Equatable {
@@ -61,6 +61,10 @@ final class SidebarView: NSView {
     var onExpandChanged: ((Bool) -> Void)?
     var onReorderTab: ((Int, Int) -> Void)?
     var onTabContextMenu: ((Int, NSPoint) -> Void)?
+    var onReceiveDraggedTab: ((TabDragPayload, Int) -> Void)?
+    var onTearOffTab: ((UUID, NSPoint) -> Void)?
+
+    var windowIdentifier: UUID?
 
     /// Called when a tool is clicked in the sidebar. The container opens it in the main content area.
     var onSelectTool: ((String) -> Void)?
@@ -68,6 +72,8 @@ final class SidebarView: NSView {
     private var newTabTrackingArea: NSTrackingArea?
     private var dragSourceIndex: Int?
     private var dragIndicatorLayer: CALayer?
+    private var dragInsertionIndex: Int?
+    private var isDropAccepted = false
     private let pinButton = NSButton()
     private var settingsObserver: NSObjectProtocol?
 
@@ -81,6 +87,7 @@ final class SidebarView: NSView {
         self.isPinned = settings.sidebarPinned
         self.settingsSnapshot = SettingsSnapshot.current(using: settings)
         super.init(frame: frameRect)
+        registerForDraggedTypes([TabDragPayload.pasteboardType])
         wantsLayer = true
         alphaValue = 1
         appearance = Theme.overlayAppearance
@@ -256,9 +263,10 @@ final class SidebarView: NSView {
             )
             row.onSelect = { [weak self] in self?.onSelectTab?(sourceIndex) }
             row.onClose = { [weak self] in self?.onCloseTab?(sourceIndex) }
-            row.onDragBegan = { [weak self] in self?.beginDrag(fromIndex: visibleIndex) }
-            row.onDragMoved = { [weak self] loc in self?.updateDrag(location: loc) }
-            row.onDragEnded = { [weak self] in self?.endDrag() }
+            row.onBeginDrag = { [weak self, weak row] event in
+                guard let self, let row else { return }
+                self.beginDragSession(fromVisibleIndex: visibleIndex, event: event, dragView: row)
+            }
             row.onRightClick = { [weak self] point in self?.onTabContextMenu?(sourceIndex, point) }
             addSubview(row)
             tabRows.append(row)
@@ -504,67 +512,199 @@ final class SidebarView: NSView {
         }
     }
 
-    // MARK: - Tab Reordering
+    // MARK: - Tab Dragging
 
-    private func beginDrag(fromIndex: Int) {
-        dragSourceIndex = fromIndex
-        if dragIndicatorLayer == nil {
-            let indicator = CALayer()
-            indicator.backgroundColor = Theme.accent.withAlphaComponent(0.5).cgColor
-            indicator.cornerRadius = 1
-            layer?.addSublayer(indicator)
-            dragIndicatorLayer = indicator
-        }
+    private func beginDragSession(fromVisibleIndex visibleIndex: Int, event: NSEvent, dragView: NSView) {
+        guard dragSourceIndex == nil,
+              visibleIndex >= 0, visibleIndex < tabRows.count,
+              let windowIdentifier,
+              let draggingImage = dragImage(for: dragView) else { return }
+
+        let sourceTabIndex = tabRowSourceIndices[visibleIndex]
+        let payload = TabDragPayload(sourceWindowID: windowIdentifier, tabID: tabs[sourceTabIndex].id)
+        let pasteboardItem = NSPasteboardItem()
+        payload.set(on: pasteboardItem)
+
+        let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
+        draggingItem.setDraggingFrame(convert(dragView.bounds, from: dragView), contents: draggingImage)
+
+        dragSourceIndex = visibleIndex
+        dragInsertionIndex = nil
+        isDropAccepted = false
+        ensureDragIndicator()
+        dragIndicatorLayer?.isHidden = true
+
+        let session = beginDraggingSession(with: [draggingItem], event: event, source: self)
+        session.animatesToStartingPositionsOnCancelOrFail = false
+        session.draggingFormation = .none
     }
 
-    private func updateDrag(location: NSPoint) {
-        guard let sourceIdx = dragSourceIndex else { return }
-        let loc = convert(location, from: nil)
-
-        var targetIdx: Int?
-        for (i, row) in tabRows.enumerated() {
-            if loc.y >= row.frame.minY && loc.y <= row.frame.maxY {
-                targetIdx = i
-                break
-            }
+    private func dragImage(for view: NSView) -> NSImage? {
+        guard view.bounds.width > 0, view.bounds.height > 0,
+              let representation = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+            return nil
         }
-
-        if let target = targetIdx, target != sourceIdx {
-            let row = tabRows[target]
-            let indicatorY = target < sourceIdx ? row.frame.maxY + 1 : row.frame.minY - 2
-            dragIndicatorLayer?.frame = NSRect(x: row.frame.minX + 4, y: indicatorY, width: row.frame.width - 8, height: 2)
-            dragIndicatorLayer?.isHidden = false
-        } else {
-            dragIndicatorLayer?.isHidden = true
-        }
+        view.cacheDisplay(in: view.bounds, to: representation)
+        let image = NSImage(size: view.bounds.size)
+        image.addRepresentation(representation)
+        return image
     }
 
-    private func endDrag() {
-        guard let sourceIdx = dragSourceIndex else { return }
+    private func ensureDragIndicator() {
+        guard dragIndicatorLayer == nil else { return }
+        let indicator = CALayer()
+        indicator.backgroundColor = Theme.accent.withAlphaComponent(0.5).cgColor
+        indicator.cornerRadius = 1
+        layer?.addSublayer(indicator)
+        dragIndicatorLayer = indicator
+    }
+
+    private func clearDragState() {
+        dragSourceIndex = nil
+        dragInsertionIndex = nil
+        isDropAccepted = false
         dragIndicatorLayer?.removeFromSuperlayer()
         dragIndicatorLayer = nil
+    }
 
-        var targetIdx = sourceIdx
+    private func visibleInsertionIndex(for location: NSPoint) -> Int {
+        guard !tabRows.isEmpty else { return 0 }
 
-        if let window = window {
-            let loc = convert(window.mouseLocationOutsideOfEventStream, from: nil)
-            for (i, row) in tabRows.enumerated() {
-                if loc.y >= row.frame.minY && loc.y <= row.frame.maxY && i != sourceIdx {
-                    targetIdx = i
-                    break
-                }
+        for (index, row) in tabRows.enumerated() {
+            if location.y > row.frame.midY {
+                return index
             }
         }
 
-        dragSourceIndex = nil
+        return tabRows.count
+    }
 
-        if targetIdx != sourceIdx,
-           sourceIdx < tabRowSourceIndices.count,
-           targetIdx < tabRowSourceIndices.count {
-            let sourceTabIndex = tabRowSourceIndices[sourceIdx]
-            let targetTabIndex = tabRowSourceIndices[targetIdx]
-            onReorderTab?(sourceTabIndex, targetTabIndex)
+    func sourceInsertionIndex(forVisibleInsertionIndex visibleInsertionIndex: Int) -> Int {
+        guard !tabRowSourceIndices.isEmpty else { return 0 }
+        let clampedVisibleIndex = max(0, min(visibleInsertionIndex, tabRowSourceIndices.count))
+
+        if clampedVisibleIndex <= 0 {
+            return tabRowSourceIndices[0]
         }
+        if clampedVisibleIndex >= tabRowSourceIndices.count {
+            return min((tabRowSourceIndices.last ?? -1) + 1, tabs.count)
+        }
+        return tabRowSourceIndices[clampedVisibleIndex]
+    }
+
+    private func updateDragIndicatorFrame() {
+        guard let dragIndicatorLayer,
+              let dragInsertionIndex else {
+            self.dragIndicatorLayer?.isHidden = true
+            return
+        }
+
+        let indicatorX = 18.0
+        let indicatorWidth = max(0, bounds.width - 36)
+        let indicatorY: CGFloat
+        if tabRows.isEmpty {
+            indicatorY = headerLabel.frame.minY - 24
+        } else if dragInsertionIndex <= 0 {
+            indicatorY = tabRows[0].frame.maxY + 2
+        } else if dragInsertionIndex >= tabRows.count {
+            indicatorY = tabRows[tabRows.count - 1].frame.minY - 3
+        } else {
+            indicatorY = tabRows[dragInsertionIndex].frame.maxY + 2
+        }
+
+        dragIndicatorLayer.frame = NSRect(x: indicatorX, y: indicatorY, width: indicatorWidth, height: 2)
+        dragIndicatorLayer.isHidden = false
+    }
+
+    static func reorderDestinationIndex(sourceIndex: Int, insertionIndex: Int, tabCount: Int) -> Int {
+        guard tabCount > 0 else { return 0 }
+        let clampedInsertion = max(0, min(insertionIndex, tabCount))
+        let adjustedIndex = clampedInsertion > sourceIndex ? clampedInsertion - 1 : clampedInsertion
+        return max(0, min(adjustedIndex, tabCount - 1))
+    }
+
+    // MARK: - NSDraggingSource
+
+    func draggingSession(
+        _ session: NSDraggingSession,
+        sourceOperationMaskFor context: NSDraggingContext
+    ) -> NSDragOperation {
+        .move
+    }
+
+    func ignoreModifierKeys(for session: NSDraggingSession) -> Bool {
+        true
+    }
+
+    func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        let tabID: UUID?
+        if let dragSourceIndex, dragSourceIndex < tabRowSourceIndices.count {
+            let sourceTabIndex = tabRowSourceIndices[dragSourceIndex]
+            tabID = tabs.indices.contains(sourceTabIndex) ? tabs[sourceTabIndex].id : nil
+        } else {
+            tabID = nil
+        }
+        let shouldTearOff = operation == [] && !isDropAccepted
+        clearDragState()
+
+        guard shouldTearOff, let tabID else { return }
+        onTearOffTab?(tabID, screenPoint)
+    }
+
+    // MARK: - NSDraggingDestination
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        draggingUpdated(sender)
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard TabDragPayload.read(from: sender.draggingPasteboard) != nil else {
+            dragInsertionIndex = nil
+            updateDragIndicatorFrame()
+            return []
+        }
+
+        ensureDragIndicator()
+        dragInsertionIndex = visibleInsertionIndex(for: convert(sender.draggingLocation, from: nil))
+        updateDragIndicatorFrame()
+        return .move
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        dragInsertionIndex = nil
+        updateDragIndicatorFrame()
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        TabDragPayload.read(from: sender.draggingPasteboard) != nil
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard let payload = TabDragPayload.read(from: sender.draggingPasteboard) else { return false }
+        let visibleInsertionIndex = dragInsertionIndex ?? visibleInsertionIndex(for: convert(sender.draggingLocation, from: nil))
+        let requestedInsertionIndex = sourceInsertionIndex(forVisibleInsertionIndex: visibleInsertionIndex)
+        let sourceTabIndex = tabs.firstIndex(where: { $0.id == payload.tabID })
+
+        if payload.sourceWindowID == windowIdentifier, let sourceTabIndex {
+            let destinationIndex = Self.reorderDestinationIndex(
+                sourceIndex: sourceTabIndex,
+                insertionIndex: requestedInsertionIndex,
+                tabCount: tabs.count
+            )
+            if destinationIndex != sourceTabIndex {
+                onReorderTab?(sourceTabIndex, destinationIndex)
+            }
+        } else {
+            onReceiveDraggedTab?(payload, requestedInsertionIndex)
+        }
+
+        isDropAccepted = true
+        return true
+    }
+
+    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
+        dragInsertionIndex = nil
+        updateDragIndicatorFrame()
     }
 
     // MARK: - Show / Hide
@@ -654,9 +794,7 @@ final class SidebarView: NSView {
 fileprivate final class SidebarTabRow: NSView {
     var onSelect: (() -> Void)?
     var onClose: (() -> Void)?
-    var onDragBegan: (() -> Void)?
-    var onDragMoved: ((NSPoint) -> Void)?
-    var onDragEnded: (() -> Void)?
+    var onBeginDrag: ((NSEvent) -> Void)?
     var onRightClick: ((NSPoint) -> Void)?
     private var isDragging = false
     private var mouseDownLocation: NSPoint?
@@ -791,13 +929,11 @@ fileprivate final class SidebarTabRow: NSView {
         let loc = event.locationInWindow
         if !isDragging && hypot(loc.x - start.x, loc.y - start.y) > 4 {
             isDragging = true
-            onDragBegan?()
+            onBeginDrag?(event)
         }
-        if isDragging { onDragMoved?(event.locationInWindow) }
     }
 
     override func mouseUp(with event: NSEvent) {
-        if isDragging { onDragEnded?() }
         isDragging = false
         mouseDownLocation = nil
     }

@@ -114,6 +114,12 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
         sidebar.onReorderTab = { [weak self] from, to in self?.reorderTab(from: from, to: to) }
         sidebar.onTabContextMenu = { [weak self] index, point in self?.showTabContextMenu(index: index, at: point) }
+        sidebar.onReceiveDraggedTab = { [weak self] payload, insertionIndex in
+            self?.receiveDraggedTab(payload, insertionIndex: insertionIndex)
+        }
+        sidebar.onTearOffTab = { [weak self] tabID, screenPoint in
+            self?.tearOffTab(tabID, dropScreenPoint: screenPoint)
+        }
         sidebar.onSelectTool = { [weak self] pluginID in self?.openOrSwitchToTool(pluginID) }
 
         // Tab bar
@@ -1846,6 +1852,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         tabBar.windowIdentifier = tabDragWindowID
+        sidebar.windowIdentifier = tabDragWindowID
         lastKnownStatusBarVisible = shouldShowStatusBar
         statusBar.alphaValue = lastKnownStatusBarVisible ? 1 : 0
         updateRuntimeStatusObservers()
