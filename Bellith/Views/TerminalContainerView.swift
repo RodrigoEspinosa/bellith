@@ -96,6 +96,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         self.statusBar = StatusBarView(settings: dependencies.settings)
         self.titleBar = TitleBarView(settings: dependencies.settings)
         super.init(frame: .zero)
+        registerForDraggedTypes([TabDragPayload.pasteboardType])
         wantsLayer = true
         applyFrameColor()
         configureChromeLayers()
@@ -2109,6 +2110,46 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             sidebar.show()
             (window as? TerminalWindow)?.showTrafficLights()
         }
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        draggingUpdated(sender)
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard useSidebar, TabDragPayload.read(from: sender.draggingPasteboard) != nil else {
+            return []
+        }
+
+        let location = convert(sender.draggingLocation, from: nil)
+        if !sidebar.isExpanded && location.x <= 24 {
+            sidebar.show()
+            needsLayout = true
+            layoutSubtreeIfNeeded()
+        }
+
+        guard sidebar.isExpanded, sidebar.frame.contains(location) else { return [] }
+        return sidebar.draggingUpdated(sender)
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        guard useSidebar, sidebar.isExpanded else { return }
+        sidebar.draggingExited(sender)
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard useSidebar else { return false }
+        return sidebar.prepareForDragOperation(sender)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard useSidebar else { return false }
+        return sidebar.performDragOperation(sender)
+    }
+
+    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
+        guard useSidebar else { return }
+        sidebar.concludeDragOperation(sender)
     }
 
     // MARK: - Command Palette
