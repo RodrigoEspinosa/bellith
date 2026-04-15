@@ -3,6 +3,7 @@ import QuartzCore
 
 /// Monochrome utility sidebar with restrained chrome and strong type hierarchy.
 final class SidebarView: NSView, NSDraggingSource {
+    override var mouseDownCanMoveWindow: Bool { false }
     typealias TabModel = (id: UUID, title: String, kind: TerminalContainerView.TabKind)
 
     struct SettingsSnapshot: Equatable {
@@ -526,7 +527,7 @@ final class SidebarView: NSView, NSDraggingSource {
         payload.set(on: pasteboardItem)
 
         let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
-        draggingItem.setDraggingFrame(convert(dragView.bounds, from: dragView), contents: draggingImage)
+        draggingItem.setDraggingFrame(dragView.bounds, contents: draggingImage)
 
         dragSourceIndex = visibleIndex
         dragInsertionIndex = nil
@@ -534,20 +535,23 @@ final class SidebarView: NSView, NSDraggingSource {
         ensureDragIndicator()
         dragIndicatorLayer?.isHidden = true
 
-        let session = beginDraggingSession(with: [draggingItem], event: event, source: self)
+        let session = dragView.beginDraggingSession(with: [draggingItem], event: event, source: self)
         session.animatesToStartingPositionsOnCancelOrFail = false
         session.draggingFormation = .none
     }
 
     private func dragImage(for view: NSView) -> NSImage? {
-        guard view.bounds.width > 0, view.bounds.height > 0,
-              let representation = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
-            return nil
+        guard view.bounds.width > 0, view.bounds.height > 0 else { return nil }
+
+        if let representation = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+            view.cacheDisplay(in: view.bounds, to: representation)
+            let image = NSImage(size: view.bounds.size)
+            image.addRepresentation(representation)
+            return image
         }
-        view.cacheDisplay(in: view.bounds, to: representation)
-        let image = NSImage(size: view.bounds.size)
-        image.addRepresentation(representation)
-        return image
+
+        let pdfData = view.dataWithPDF(inside: view.bounds)
+        return NSImage(data: pdfData)
     }
 
     private func ensureDragIndicator() {
@@ -800,6 +804,8 @@ fileprivate final class SidebarTabRow: NSView {
     private var mouseDownLocation: NSPoint?
 
     override var mouseDownCanMoveWindow: Bool { false }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard bounds.contains(point) else { return nil }
