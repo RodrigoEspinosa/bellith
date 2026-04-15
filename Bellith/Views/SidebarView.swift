@@ -801,6 +801,14 @@ fileprivate final class SidebarTabRow: NSView {
 
     override var mouseDownCanMoveWindow: Bool { false }
 
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard bounds.contains(point) else { return nil }
+        if closeButton.frame.contains(point) {
+            return closeButton
+        }
+        return self
+    }
+
     private let selectionIndicator = CALayer()
     private let iconPlate = CALayer()
     private let iconView = NSImageView()

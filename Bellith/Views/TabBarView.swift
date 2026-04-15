@@ -397,6 +397,14 @@ fileprivate final class TabPillView: NSView {
 
     override var mouseDownCanMoveWindow: Bool { false }
 
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard bounds.contains(point) else { return nil }
+        if !isPinned, closeButton.frame.contains(point) {
+            return closeButton
+        }
+        return self
+    }
+
     private let iconView = NSImageView()
     private let pinView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
