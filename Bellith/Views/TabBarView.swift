@@ -25,6 +25,10 @@ final class TabBarView: NSView, NSDraggingSource {
 
     var windowIdentifier: UUID?
 
+    private var effectiveWindowIdentifier: UUID? {
+        windowIdentifier ?? (window as? TerminalWindow)?.tabDragIdentifier
+    }
+
     private var dragSourceIndex: Int?
     private var dragIndicatorLayer: CALayer?
     private var dragInsertionIndex: Int?
@@ -206,7 +210,7 @@ final class TabBarView: NSView, NSDraggingSource {
     private func beginDragSession(fromIndex: Int, event: NSEvent, dragView: NSView?) {
         guard dragSourceIndex == nil,
               fromIndex >= 0, fromIndex < tabs.count,
-              let windowIdentifier,
+              let windowIdentifier = effectiveWindowIdentifier,
               let dragView,
               let draggingImage = dragImage(for: dragView) else { return }
 
@@ -366,7 +370,7 @@ final class TabBarView: NSView, NSDraggingSource {
         let insertionIndex = dragInsertionIndex ?? insertionIndex(for: convert(sender.draggingLocation, from: nil))
         let sourceIndex = tabs.firstIndex(where: { $0.id == payload.tabID })
 
-        if payload.sourceWindowID == windowIdentifier, let sourceIndex {
+        if payload.sourceWindowID == effectiveWindowIdentifier, let sourceIndex {
             let destinationIndex = Self.reorderDestinationIndex(
                 sourceIndex: sourceIndex,
                 insertionIndex: insertionIndex,

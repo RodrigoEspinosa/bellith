@@ -67,6 +67,10 @@ final class SidebarView: NSView, NSDraggingSource {
 
     var windowIdentifier: UUID?
 
+    private var effectiveWindowIdentifier: UUID? {
+        windowIdentifier ?? (window as? TerminalWindow)?.tabDragIdentifier
+    }
+
     /// Called when a tool is clicked in the sidebar. The container opens it in the main content area.
     var onSelectTool: ((String) -> Void)?
 
@@ -518,7 +522,7 @@ final class SidebarView: NSView, NSDraggingSource {
     private func beginDragSession(fromVisibleIndex visibleIndex: Int, event: NSEvent, dragView: NSView) {
         guard dragSourceIndex == nil,
               visibleIndex >= 0, visibleIndex < tabRows.count,
-              let windowIdentifier,
+              let windowIdentifier = effectiveWindowIdentifier,
               let draggingImage = dragImage(for: dragView) else { return }
 
         let sourceTabIndex = tabRowSourceIndices[visibleIndex]
@@ -689,7 +693,7 @@ final class SidebarView: NSView, NSDraggingSource {
         let requestedInsertionIndex = sourceInsertionIndex(forVisibleInsertionIndex: visibleInsertionIndex)
         let sourceTabIndex = tabs.firstIndex(where: { $0.id == payload.tabID })
 
-        if payload.sourceWindowID == windowIdentifier, let sourceTabIndex {
+        if payload.sourceWindowID == effectiveWindowIdentifier, let sourceTabIndex {
             let destinationIndex = Self.reorderDestinationIndex(
                 sourceIndex: sourceTabIndex,
                 insertionIndex: requestedInsertionIndex,
