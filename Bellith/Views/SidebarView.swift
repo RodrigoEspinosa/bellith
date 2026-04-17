@@ -76,6 +76,7 @@ final class SidebarView: NSView, NSDraggingSource {
 
     private var newTabTrackingArea: NSTrackingArea?
     private var dragSourceIndex: Int?
+    private var localDragSourceVisibleIndex: Int?
     private var dragIndicatorLayer: CALayer?
     private var dragInsertionIndex: Int?
     private var isDropAccepted = false
@@ -268,9 +269,12 @@ final class SidebarView: NSView, NSDraggingSource {
             )
             row.onSelect = { [weak self] in self?.onSelectTab?(sourceIndex) }
             row.onClose = { [weak self] in self?.onCloseTab?(sourceIndex) }
-            row.onBeginDrag = { [weak self, weak row] event in
+            row.onDragMoved = { [weak self, weak row] event in
                 guard let self, let row else { return }
-                self.beginDragSession(fromVisibleIndex: visibleIndex, event: event, dragView: row)
+                self.handleLocalDragMoved(fromVisibleIndex: visibleIndex, event: event, dragView: row)
+            }
+            row.onDragEnded = { [weak self] event in
+                self?.handleLocalDragEnded(fromVisibleIndex: visibleIndex, event: event)
             }
             row.onRightClick = { [weak self] point in self?.onTabContextMenu?(sourceIndex, point) }
             addSubview(row)
@@ -534,6 +538,7 @@ final class SidebarView: NSView, NSDraggingSource {
         draggingItem.setDraggingFrame(dragView.bounds, contents: draggingImage)
 
         dragSourceIndex = visibleIndex
+        localDragSourceVisibleIndex = nil
         dragInsertionIndex = nil
         isDropAccepted = false
         ensureDragIndicator()
@@ -569,6 +574,7 @@ final class SidebarView: NSView, NSDraggingSource {
 
     private func clearDragState() {
         dragSourceIndex = nil
+        localDragSourceVisibleIndex = nil
         dragInsertionIndex = nil
         isDropAccepted = false
         dragIndicatorLayer?.removeFromSuperlayer()
@@ -598,6 +604,48 @@ final class SidebarView: NSView, NSDraggingSource {
             return min((tabRowSourceIndices.last ?? -1) + 1, tabs.count)
         }
         return tabRowSourceIndices[clampedVisibleIndex]
+    }
+
+    private func handleLocalDragMoved(fromVisibleIndex visibleIndex: Int, event: NSEvent, dragView: NSView) {
+        let location = convert(event.locationInWindow, from: nil)
+
+        if dragSourceIndex != nil {
+            return
+        }
+
+        if localDragSourceVisibleIndex == nil {
+            localDragSourceVisibleIndex = visibleIndex
+            ensureDragIndicator()
+        }
+
+        if !bounds.insetBy(dx: -12, dy: -8).contains(location) {
+            beginDragSession(fromVisibleIndex: visibleIndex, event: event, dragView: dragView)
+            return
+        }
+
+        dragInsertionIndex = visibleInsertionIndex(for: location)
+        updateDragIndicatorFrame()
+    }
+
+    private func handleLocalDragEnded(fromVisibleIndex visibleIndex: Int, event: NSEvent) {
+        guard dragSourceIndex == nil else { return }
+        defer { clearDragState() }
+
+        guard localDragSourceVisibleIndex == visibleIndex else { return }
+
+        let location = convert(event.locationInWindow, from: nil)
+        let visibleInsertionIndex = dragInsertionIndex ?? visibleInsertionIndex(for: location)
+        let requestedInsertionIndex = sourceInsertionIndex(forVisibleInsertionIndex: visibleInsertionIndex)
+        let sourceTabIndex = tabRowSourceIndices[visibleIndex]
+        let destinationIndex = Self.reorderDestinationIndex(
+            sourceIndex: sourceTabIndex,
+            insertionIndex: requestedInsertionIndex,
+            tabCount: tabs.count
+        )
+
+        if destinationIndex != sourceTabIndex {
+            onReorderTab?(sourceTabIndex, destinationIndex)
+        }
     }
 
     private func updateDragIndicatorFrame() {
@@ -802,7 +850,8 @@ final class SidebarView: NSView, NSDraggingSource {
 fileprivate final class SidebarTabRow: NSView {
     var onSelect: (() -> Void)?
     var onClose: (() -> Void)?
-    var onBeginDrag: ((NSEvent) -> Void)?
+    var onDragMoved: ((NSEvent) -> Void)?
+    var onDragEnded: ((NSEvent) -> Void)?
     var onRightClick: ((NSPoint) -> Void)?
     private var isDragging = false
     private var mouseDownLocation: NSPoint?
@@ -946,12 +995,17 @@ fileprivate final class SidebarTabRow: NSView {
         let loc = event.locationInWindow
         if !isDragging && hypot(loc.x - start.x, loc.y - start.y) > 4 {
             isDragging = true
-            onBeginDrag?(event)
+        }
+        if isDragging {
+            onDragMoved?(event)
         }
     }
 
     override func mouseUp(with event: NSEvent) {
         let shouldSelect = !isDragging
+        if isDragging {
+            onDragEnded?(event)
+        }
         isDragging = false
         mouseDownLocation = nil
         if shouldSelect {
