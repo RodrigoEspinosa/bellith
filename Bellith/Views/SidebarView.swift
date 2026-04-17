@@ -269,9 +269,13 @@ final class SidebarView: NSView, NSDraggingSource {
             )
             row.onSelect = { [weak self] in self?.onSelectTab?(sourceIndex) }
             row.onClose = { [weak self] in self?.onCloseTab?(sourceIndex) }
-            row.onDragBegan = { [weak self] in self?.beginDrag(fromIndex: visibleIndex) }
-            row.onDragMoved = { [weak self] loc in self?.updateDrag(location: loc) }
-            row.onDragEnded = { [weak self] in self?.endDrag() }
+            row.onDragMoved = { [weak self, weak row] event in
+                guard let self, let row else { return }
+                self.handleLocalDragMoved(fromVisibleIndex: visibleIndex, event: event, dragView: row)
+            }
+            row.onDragEnded = { [weak self] event in
+                self?.handleLocalDragEnded(fromVisibleIndex: visibleIndex, event: event)
+            }
             row.onRightClick = { [weak self] point in self?.onTabContextMenu?(sourceIndex, point) }
             addSubview(row)
             tabRows.append(row)
@@ -519,64 +523,88 @@ final class SidebarView: NSView, NSDraggingSource {
 
     // MARK: - Tab Dragging
 
-    private func beginDrag(fromIndex: Int) {
-        dragSourceIndex = fromIndex
-        if dragIndicatorLayer == nil {
-            let indicator = CALayer()
-            indicator.backgroundColor = Theme.accent.withAlphaComponent(0.5).cgColor
-            indicator.cornerRadius = 1
-            layer?.addSublayer(indicator)
-            dragIndicatorLayer = indicator
-        }
+    private func beginDragSession(fromVisibleIndex visibleIndex: Int, event: NSEvent, dragView: NSView) {
+        guard dragSourceIndex == nil,
+              visibleIndex >= 0, visibleIndex < tabRowSourceIndices.count,
+              let windowIdentifier = effectiveWindowIdentifier else { return }
+
+        let sourceTabIndex = tabRowSourceIndices[visibleIndex]
+        guard tabs.indices.contains(sourceTabIndex),
+              let draggingImage = dragImage(for: dragView) else { return }
+
+        let payload = TabDragPayload(sourceWindowID: windowIdentifier, tabID: tabs[sourceTabIndex].id)
+        let pasteboardItem = NSPasteboardItem()
+        payload.set(on: pasteboardItem)
+
+        let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
+        draggingItem.setDraggingFrame(dragView.bounds, contents: draggingImage)
+
+        dragSourceIndex = visibleIndex
+        localDragSourceVisibleIndex = nil
+        dragInsertionIndex = nil
+        isDropAccepted = false
+        ensureDragIndicator()
+        dragIndicatorLayer?.isHidden = true
+
+        let session = dragView.beginDraggingSession(with: [draggingItem], event: event, source: self)
+        session.animatesToStartingPositionsOnCancelOrFail = false
+        session.draggingFormation = .none
     }
 
-    private func updateDrag(location: NSPoint) {
-        guard let sourceIdx = dragSourceIndex else { return }
-        let loc = convert(location, from: nil)
+    private func dragImage(for view: NSView) -> NSImage? {
+        guard view.bounds.width > 0, view.bounds.height > 0 else { return nil }
 
-        var targetIdx: Int?
-        for (index, row) in tabRows.enumerated() {
-            if loc.y >= row.frame.minY && loc.y <= row.frame.maxY {
-                targetIdx = index
-                break
-            }
+        if let representation = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+            view.cacheDisplay(in: view.bounds, to: representation)
+            let image = NSImage(size: view.bounds.size)
+            image.addRepresentation(representation)
+            return image
         }
 
-        if let target = targetIdx, target != sourceIdx {
-            let row = tabRows[target]
-            let indicatorY = target < sourceIdx ? row.frame.maxY + 1 : row.frame.minY - 2
-            dragIndicatorLayer?.frame = NSRect(x: row.frame.minX + 4, y: indicatorY, width: row.frame.width - 8, height: 2)
-            dragIndicatorLayer?.isHidden = false
-        } else {
-            dragIndicatorLayer?.isHidden = true
-        }
+        let pdfData = view.dataWithPDF(inside: view.bounds)
+        return NSImage(data: pdfData)
     }
 
-    private func endDrag() {
-        guard let sourceIdx = dragSourceIndex else { return }
-        dragIndicatorLayer?.removeFromSuperlayer()
-        dragIndicatorLayer = nil
+    private func handleLocalDragMoved(fromVisibleIndex visibleIndex: Int, event: NSEvent, dragView: NSView) {
+        // Once a system drag session starts, NSDraggingSource owns the lifecycle.
+        if dragSourceIndex != nil { return }
 
-        var targetIdx = sourceIdx
+        let location = convert(event.locationInWindow, from: nil)
 
-        if let window {
-            let loc = convert(window.mouseLocationOutsideOfEventStream, from: nil)
-            for (index, row) in tabRows.enumerated() {
-                if loc.y >= row.frame.minY && loc.y <= row.frame.maxY && index != sourceIdx {
-                    targetIdx = index
-                    break
-                }
-            }
+        if localDragSourceVisibleIndex == nil {
+            localDragSourceVisibleIndex = visibleIndex
+            ensureDragIndicator()
         }
 
-        dragSourceIndex = nil
+        if !bounds.insetBy(dx: -12, dy: -8).contains(location) {
+            beginDragSession(fromVisibleIndex: visibleIndex, event: event, dragView: dragView)
+            return
+        }
 
-        if targetIdx != sourceIdx,
-           sourceIdx < tabRowSourceIndices.count,
-           targetIdx < tabRowSourceIndices.count {
-            let sourceTabIndex = tabRowSourceIndices[sourceIdx]
-            let targetTabIndex = tabRowSourceIndices[targetIdx]
-            onReorderTab?(sourceTabIndex, targetTabIndex)
+        dragInsertionIndex = visibleInsertionIndex(for: location)
+        updateDragIndicatorFrame()
+    }
+
+    private func handleLocalDragEnded(fromVisibleIndex visibleIndex: Int, event: NSEvent) {
+        // System drag session already running — let NSDraggingSource finish it.
+        guard dragSourceIndex == nil else { return }
+        defer { clearDragState() }
+
+        guard localDragSourceVisibleIndex == visibleIndex,
+              visibleIndex < tabRowSourceIndices.count else { return }
+
+        let location = convert(event.locationInWindow, from: nil)
+        let insertion = dragInsertionIndex ?? visibleInsertionIndex(for: location)
+        let requestedInsertionIndex = sourceInsertionIndex(forVisibleInsertionIndex: insertion)
+        let sourceTabIndex = tabRowSourceIndices[visibleIndex]
+        let destinationIndex = Self.reorderDestinationIndex(
+            sourceIndex: sourceTabIndex,
+            insertionIndex: requestedInsertionIndex,
+            tabCount: tabs.count
+        )
+
+        if destinationIndex != sourceTabIndex {
+            onReorderTab?(sourceTabIndex, destinationIndex)
         }
     }
 
@@ -825,9 +853,8 @@ final class SidebarView: NSView, NSDraggingSource {
 fileprivate final class SidebarTabRow: NSView {
     var onSelect: (() -> Void)?
     var onClose: (() -> Void)?
-    var onDragBegan: (() -> Void)?
-    var onDragMoved: ((NSPoint) -> Void)?
-    var onDragEnded: (() -> Void)?
+    var onDragMoved: ((NSEvent) -> Void)?
+    var onDragEnded: ((NSEvent) -> Void)?
     var onRightClick: ((NSPoint) -> Void)?
     private var isDragging = false
     private var mouseDownLocation: NSPoint?
@@ -954,7 +981,6 @@ fileprivate final class SidebarTabRow: NSView {
         if closeButton.frame.contains(loc) { onClose?(); return }
         mouseDownLocation = event.locationInWindow
         isDragging = false
-        onSelect?()
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -962,15 +988,17 @@ fileprivate final class SidebarTabRow: NSView {
         let loc = event.locationInWindow
         if !isDragging && hypot(loc.x - start.x, loc.y - start.y) > 4 {
             isDragging = true
-            onDragBegan?()
         }
-        if isDragging { onDragMoved?(event.locationInWindow) }
+        if isDragging { onDragMoved?(event) }
     }
 
     override func mouseUp(with event: NSEvent) {
-        if isDragging { onDragEnded?() }
+        let shouldSelect = !isDragging
+        if isDragging { onDragEnded?(event) }
         isDragging = false
         mouseDownLocation = nil
+        // Fire selection after drag handling so refreshTabUI doesn't rebuild the row mid-interaction.
+        if shouldSelect { onSelect?() }
     }
 
     override func rightMouseDown(with event: NSEvent) { onRightClick?(event.locationInWindow) }
