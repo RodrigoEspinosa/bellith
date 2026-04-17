@@ -853,6 +853,9 @@ fileprivate final class SidebarTabRow: NSView {
     var onDragMoved: ((NSEvent) -> Void)?
     var onDragEnded: ((NSEvent) -> Void)?
     var onRightClick: ((NSPoint) -> Void)?
+    private var isDragging = false
+    private var mouseDownLocation: NSPoint?
+
     override var mouseDownCanMoveWindow: Bool { false }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -983,30 +986,30 @@ fileprivate final class SidebarTabRow: NSView {
     override func mouseDown(with event: NSEvent) {
         let loc = convert(event.locationInWindow, from: nil)
         if closeButton.frame.contains(loc) { onClose?(); return }
+        mouseDownLocation = event.locationInWindow
+        isDragging = false
+    }
 
-        let start = event.locationInWindow
-        var isDragging = false
+    override func mouseDragged(with event: NSEvent) {
+        guard let start = mouseDownLocation else { return }
+        let location = event.locationInWindow
+        if !isDragging && hypot(location.x - start.x, location.y - start.y) > 4 {
+            isDragging = true
+        }
+        if isDragging {
+            onDragMoved?(event)
+        }
+    }
 
-        while let nextEvent = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
-            switch nextEvent.type {
-            case .leftMouseDragged:
-                let location = nextEvent.locationInWindow
-                if !isDragging && hypot(location.x - start.x, location.y - start.y) > 4 {
-                    isDragging = true
-                }
-                if isDragging {
-                    onDragMoved?(nextEvent)
-                }
-            case .leftMouseUp:
-                if isDragging {
-                    onDragEnded?(nextEvent)
-                } else {
-                    onSelect?()
-                }
-                return
-            default:
-                break
-            }
+    override func mouseUp(with event: NSEvent) {
+        let shouldSelect = !isDragging
+        if isDragging {
+            onDragEnded?(event)
+        }
+        isDragging = false
+        mouseDownLocation = nil
+        if shouldSelect {
+            onSelect?()
         }
     }
 
