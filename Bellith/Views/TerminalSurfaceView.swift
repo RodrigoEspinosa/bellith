@@ -322,6 +322,10 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         }
     }
 
+    func insertCommandText(_ text: String) {
+        sendTextToSurface(text)
+    }
+
     private func sendTextToSurface(_ text: String) {
         guard let surface else { return }
         text.withCString { ptr in
@@ -329,7 +333,6 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         }
         onTextInserted?(text, self)
     }
-
 
     private static func shellInsertText(for urls: [URL]) -> String {
         urls.map { shellQuoted($0.path) }.joined(separator: " ") + " "

@@ -101,6 +101,7 @@ final class BellithSettingsTests: XCTestCase {
 
     func testDefaultCommandCompletionNotificationSettings() {
         XCTAssertTrue(settings.commandCompletionNotificationsEnabled)
+        XCTAssertTrue(settings.errorFixSuggestionsEnabled)
         XCTAssertEqual(settings.commandCompletionNotificationThreshold, 10)
     }
 
@@ -305,9 +306,11 @@ final class BellithSettingsTests: XCTestCase {
 
     func testCommandCompletionNotificationRoundtrip() {
         settings.commandCompletionNotificationsEnabled = false
+        settings.errorFixSuggestionsEnabled = false
         settings.commandCompletionNotificationThreshold = 42
 
         XCTAssertFalse(settings.commandCompletionNotificationsEnabled)
+        XCTAssertFalse(settings.errorFixSuggestionsEnabled)
         XCTAssertEqual(settings.commandCompletionNotificationThreshold, 42)
     }
 

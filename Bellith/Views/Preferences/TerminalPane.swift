@@ -72,6 +72,8 @@ final class TerminalPane: NSView {
     private var shellIntegrationSSHTerminfoToggle: PrefToggle!
     private let commandNotificationsLabel = CardRowLabel("Completion Notifications")
     private var commandNotificationsToggle: PrefToggle!
+    private let errorFixSuggestionsLabel = CardRowLabel("Error Fix Suggestions")
+    private var errorFixSuggestionsToggle: PrefToggle!
     private let commandNotificationThresholdLabel = CardRowLabel("Notify After")
     private var commandNotificationThresholdField: MiniNumberField!
     private let commandNotificationThresholdUnit = SmallLabel("SECONDS")
@@ -250,6 +252,9 @@ final class TerminalPane: NSView {
         commandNotificationsToggle = PrefToggle(isOn: settings.commandCompletionNotificationsEnabled) { [weak self] value in
             self?.settings.commandCompletionNotificationsEnabled = value
         }
+        errorFixSuggestionsToggle = PrefToggle(isOn: settings.errorFixSuggestionsEnabled) { [weak self] value in
+            self?.settings.errorFixSuggestionsEnabled = value
+        }
         commandNotificationThresholdField = MiniNumberField(
             value: settings.commandCompletionNotificationThreshold,
             range: 1...3_600
@@ -272,6 +277,8 @@ final class TerminalPane: NSView {
             shellIntegrationSSHTerminfoToggle,
             commandNotificationsLabel,
             commandNotificationsToggle,
+            errorFixSuggestionsLabel,
+            errorFixSuggestionsToggle,
             commandNotificationThresholdLabel,
             commandNotificationThresholdField,
             commandNotificationThresholdUnit,
@@ -353,6 +360,7 @@ final class TerminalPane: NSView {
         shellIntegrationSSHEnvToggle.setOn(settings.shellIntegrationSSHEnv)
         shellIntegrationSSHTerminfoToggle.setOn(settings.shellIntegrationSSHTerminfo)
         commandNotificationsToggle.setOn(settings.commandCompletionNotificationsEnabled)
+        errorFixSuggestionsToggle.setOn(settings.errorFixSuggestionsEnabled)
         commandNotificationThresholdField.setValue(settings.commandCompletionNotificationThreshold)
         inlineImagesToggle.setOn(settings.inlineImagesEnabled)
         optionKeyPopup.selectItem(at: TerminalOptionKeyBehavior.allCases.firstIndex(of: settings.terminalOptionKeyBehavior) ?? 0)
@@ -475,7 +483,7 @@ final class TerminalPane: NSView {
         y += sessionCardHeight + PreferencesLayout.sectionGap
 
         let shellLabelW = PreferencesLayout.labelWidth(toTrailingToggleIn: cardW)
-        let shellIntegrationCardHeight = shellIntegrationCard.headerHeight + 8 * PreferencesLayout.rowH + 7 * PreferencesLayout.rowGap + PreferencesLayout.cardPad + 14
+        let shellIntegrationCardHeight = shellIntegrationCard.headerHeight + 9 * PreferencesLayout.rowH + 8 * PreferencesLayout.rowGap + PreferencesLayout.cardPad + 14
         shellIntegrationCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: shellIntegrationCardHeight)
         let ir0 = shellIntegrationCardHeight - shellIntegrationCard.headerHeight - PreferencesLayout.rowH
         shellIntegrationEnabledLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir0, width: shellLabelW, height: PreferencesLayout.rowH)
@@ -499,9 +507,12 @@ final class TerminalPane: NSView {
         commandNotificationsLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir6, width: shellLabelW, height: PreferencesLayout.rowH)
         commandNotificationsToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: ir6)
         let ir7 = ir6 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        commandNotificationThresholdLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir7, width: shellLabelW, height: PreferencesLayout.rowH)
-        commandNotificationThresholdField.frame = NSRect(x: controlX, y: ir7 + 6, width: 96, height: 28)
-        commandNotificationThresholdUnit.frame = NSRect(x: controlX + 106, y: ir7 + 12, width: 64, height: 12)
+        errorFixSuggestionsLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir7, width: shellLabelW, height: PreferencesLayout.rowH)
+        errorFixSuggestionsToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: ir7)
+        let ir8 = ir7 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        commandNotificationThresholdLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir8, width: shellLabelW, height: PreferencesLayout.rowH)
+        commandNotificationThresholdField.frame = NSRect(x: controlX, y: ir8 + 6, width: 96, height: 28)
+        commandNotificationThresholdUnit.frame = NSRect(x: controlX + 106, y: ir8 + 12, width: 64, height: 12)
         shellIntegrationNote.frame = NSRect(x: PreferencesLayout.cardPad, y: PreferencesLayout.cardPad - 2, width: innerW, height: 14)
         y += shellIntegrationCardHeight + PreferencesLayout.sectionGap
 

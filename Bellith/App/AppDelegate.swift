@@ -1102,6 +1102,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if shouldNotifyForCompletedCommand(on: surfaceView, durationSeconds: durationSec) {
                 notifyCompletedCommand(on: surfaceView, durationSeconds: durationSec, exitCode: info.exit_code)
             }
+            if let surfaceView, let container = container(for: surfaceView) {
+                container.handleCompletedCommand(on: surfaceView, exitCode: info.exit_code)
+            }
             return true
 
         case GHOSTTY_ACTION_DESKTOP_NOTIFICATION:
