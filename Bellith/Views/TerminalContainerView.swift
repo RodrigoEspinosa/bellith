@@ -81,7 +81,11 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private let sidebarGlowLayer = CAGradientLayer()
     private let sidebarBridgeLayer = CAGradientLayer()
 
-    init(terminalApp: TerminalApp, dependencies: BellithDependencies = .live) {
+    init(
+        terminalApp: TerminalApp,
+        createInitialTab: Bool = true,
+        dependencies: BellithDependencies = .live
+    ) {
         self.dependencies = dependencies
         self.terminalApp = terminalApp
         self.sidebar = SidebarView(
@@ -92,6 +96,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         self.statusBar = StatusBarView(settings: dependencies.settings)
         self.titleBar = TitleBarView(settings: dependencies.settings)
         super.init(frame: .zero)
+        registerForDraggedTypes([TabDragPayload.pasteboardType])
         wantsLayer = true
         applyFrameColor()
         configureChromeLayers()
@@ -110,6 +115,12 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
         sidebar.onReorderTab = { [weak self] from, to in self?.reorderTab(from: from, to: to) }
         sidebar.onTabContextMenu = { [weak self] index, point in self?.showTabContextMenu(index: index, at: point) }
+        sidebar.onReceiveDraggedTab = { [weak self] payload, insertionIndex in
+            self?.receiveDraggedTab(payload, insertionIndex: insertionIndex)
+        }
+        sidebar.onTearOffTab = { [weak self] tabID, screenPoint in
+            self?.tearOffTab(tabID, dropScreenPoint: screenPoint)
+        }
         sidebar.onSelectTool = { [weak self] pluginID in self?.openOrSwitchToTool(pluginID) }
 
         // Tab bar
@@ -119,6 +130,12 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         tabBar.onNewTab = { [weak self] in self?.createTab() }
         tabBar.onReorderTab = { [weak self] from, to in self?.reorderTab(from: from, to: to) }
         tabBar.onTogglePin = { [weak self] i in self?.togglePinTab(i) }
+        tabBar.onReceiveDraggedTab = { [weak self] payload, insertionIndex in
+            self?.receiveDraggedTab(payload, insertionIndex: insertionIndex)
+        }
+        tabBar.onTearOffTab = { [weak self] tabID, screenPoint in
+            self?.tearOffTab(tabID, dropScreenPoint: screenPoint)
+        }
 
         // Status bar (optional, shown beneath the terminal content)
         statusBar.onVisibilityChanged = { [weak self] visible in
@@ -176,7 +193,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             .store(in: &observationCancellables)
 
         installEventMonitorsIfNeeded()
-        createTab()
+        if createInitialTab {
+            createTab()
+        }
     }
 
     deinit {
@@ -792,12 +811,8 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         guard let plugin = dependencies.smartPanelRegistry.plugin(for: pluginID),
               let panel = makeSmartPanel(pluginID: pluginID) else { return }
 
-        // Provide the shell PID and CWD so panels can scope their data
-        panel.shellPID = findShellPID()
-        panel.workingDirectory = currentTerminalCwd()
-        panel.onRequestNewTab = { [weak self] directory in
-            self?.createTab(initialWorkingDirectory: directory)
-        }
+        // Provide the shell PID and CWD so panels can scope their data.
+        prepareSmartPanel(panel)
 
         let id = UUID()
         tabs.append(TabEntry(
@@ -824,6 +839,105 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             return
         }
         createSmartTab(pluginID: pluginID)
+    }
+
+    static func clampedDropInsertionIndex(
+        requestedIndex: Int,
+        movingPinned: Bool,
+        pinnedCount: Int,
+        tabCount: Int
+    ) -> Int {
+        let clampedIndex = max(0, min(requestedIndex, tabCount))
+        if movingPinned {
+            return min(clampedIndex, pinnedCount)
+        }
+        return max(clampedIndex, pinnedCount)
+    }
+
+    func detachTab(withID id: UUID) -> TabEntry? {
+        guard let index = tabs.firstIndex(where: { $0.id == id }) else { return nil }
+
+        let entry = tabs.remove(at: index)
+        if case .smart(let panel) = entry.content {
+            panel.stopRefreshing()
+        }
+        entry.rootView.removeFromSuperview()
+        entry.rootView.isHidden = true
+
+        if lastSelectedTerminalTabID == id {
+            lastSelectedTerminalTabID = tabs.first(where: \.isTerminal)?.id
+        }
+
+        if tabs.isEmpty {
+            refreshTabUI()
+            DispatchQueue.main.async { [weak self] in
+                self?.window?.close()
+            }
+            return entry
+        }
+
+        if selectedTabIndex > index {
+            selectedTabIndex -= 1
+        } else if selectedTabIndex >= tabs.count {
+            selectedTabIndex = tabs.count - 1
+        }
+
+        selectTab(selectedTabIndex)
+        refreshTabUI()
+        return entry
+    }
+
+    func insertTransferredTab(_ entry: TabEntry, at requestedIndex: Int?) {
+        var transferredEntry = entry
+        let insertIndex = Self.clampedDropInsertionIndex(
+            requestedIndex: requestedIndex ?? tabs.count,
+            movingPinned: transferredEntry.isPinned,
+            pinnedCount: tabs.filter { $0.isPinned }.count,
+            tabCount: tabs.count
+        )
+
+        if case .smart(let panel) = transferredEntry.content {
+            prepareSmartPanel(panel)
+        }
+        for surface in transferredEntry.surfaces {
+            bindSurfaceCallbacks(for: surface, tabId: transferredEntry.id)
+        }
+
+        transferredEntry.rootView.removeFromSuperview()
+        transferredEntry.rootView.isHidden = true
+        tabs.insert(transferredEntry, at: insertIndex)
+        addSubview(transferredEntry.rootView, positioned: .below, relativeTo: sidebar)
+        selectTab(insertIndex)
+        refreshTabUI()
+    }
+
+    private func receiveDraggedTab(_ payload: TabDragPayload, insertionIndex: Int) {
+        guard let appDelegate = NSApp.delegate as? AppDelegate,
+              let destinationWindowID = tabDragWindowID else { return }
+        _ = appDelegate.moveTab(
+            payload.tabID,
+            fromWindowWithID: payload.sourceWindowID,
+            toWindowWithID: destinationWindowID,
+            insertionIndex: insertionIndex
+        )
+    }
+
+    private func tearOffTab(_ tabID: UUID, dropScreenPoint: NSPoint) {
+        guard let appDelegate = NSApp.delegate as? AppDelegate,
+              let sourceWindowID = tabDragWindowID else { return }
+        _ = appDelegate.tearOffTab(tabID, fromWindowWithID: sourceWindowID, dropScreenPoint: dropScreenPoint)
+    }
+
+    private var tabDragWindowID: UUID? {
+        (window as? TerminalWindow)?.tabDragIdentifier
+    }
+
+    private func prepareSmartPanel(_ panel: SmartPanelView) {
+        panel.shellPID = findShellPID()
+        panel.workingDirectory = currentTerminalCwd()
+        panel.onRequestNewTab = { [weak self] directory in
+            self?.createTab(initialWorkingDirectory: directory)
+        }
     }
 
     /// Toggle the pinned state of a tab. Pinning moves the tab to the left of
@@ -1502,9 +1616,12 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     @objc private func contextMenuMoveToNewWindow(_ sender: NSMenuItem) {
         guard let index = sender.representedObject as? Int,
-              let session = sessionState(forTabAt: index) else { return }
-        NotificationCenter.default.post(name: .bellithCreateNewWindow, object: WindowLaunchRequest(session: session))
-        closeTab(index)
+              index >= 0, index < tabs.count,
+              let currentWindow = window else { return }
+
+        let frame = currentWindow.frame
+        let dropPoint = NSPoint(x: frame.midX, y: frame.maxY - 32)
+        tearOffTab(tabs[index].id, dropScreenPoint: dropPoint)
     }
 
     // MARK: - Reopen Closed Tab
@@ -1735,6 +1852,8 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        tabBar.windowIdentifier = tabDragWindowID
+        sidebar.windowIdentifier = tabDragWindowID
         lastKnownStatusBarVisible = shouldShowStatusBar
         statusBar.alphaValue = lastKnownStatusBarVisible ? 1 : 0
         updateRuntimeStatusObservers()
@@ -1991,6 +2110,46 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             sidebar.show()
             (window as? TerminalWindow)?.showTrafficLights()
         }
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        draggingUpdated(sender)
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard useSidebar, TabDragPayload.read(from: sender.draggingPasteboard) != nil else {
+            return []
+        }
+
+        let location = convert(sender.draggingLocation, from: nil)
+        if !sidebar.isExpanded && location.x <= 24 {
+            sidebar.show()
+            needsLayout = true
+            layoutSubtreeIfNeeded()
+        }
+
+        guard sidebar.isExpanded, sidebar.frame.contains(location) else { return [] }
+        return sidebar.draggingUpdated(sender)
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        guard useSidebar, sidebar.isExpanded else { return }
+        sidebar.draggingExited(sender)
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard useSidebar else { return false }
+        return sidebar.prepareForDragOperation(sender)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard useSidebar else { return false }
+        return sidebar.performDragOperation(sender)
+    }
+
+    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
+        guard useSidebar else { return }
+        sidebar.concludeDragOperation(sender)
     }
 
     // MARK: - Command Palette
@@ -2263,6 +2422,11 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private func makeSurface(tabId: UUID, app: TerminalApp, context: TerminalContext) -> TerminalSurfaceView {
         let surface = TerminalSurfaceView(app: app)
         surface.terminalContext = context
+        bindSurfaceCallbacks(for: surface, tabId: tabId)
+        return surface
+    }
+
+    private func bindSurfaceCallbacks(for surface: TerminalSurfaceView, tabId: UUID) {
         surface.onFocus = { [weak self, weak surface] focusedSurface in
             guard let self, let surface, focusedSurface === surface else { return }
             guard let tabIndex = self.tabs.firstIndex(where: { tab in
@@ -2298,7 +2462,6 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 self.statusBar.updateSize(cols: cols, rows: rows)
             }
         }
-        return surface
     }
 
     private func terminalSurface(in view: NSView) -> TerminalSurfaceView? {
