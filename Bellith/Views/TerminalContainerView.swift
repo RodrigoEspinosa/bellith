@@ -68,6 +68,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     )] = []
     private static let maxRecentlyClosed = 10
     private var zoomBadge: NSView?
+    private var commandFailureSuggestionView: CommandFailureSuggestionView?
+    private var commandFailureSuggestion: CommandFailureSuggestion?
+    private weak var commandFailureSuggestionSurface: TerminalSurfaceView?
     private var lastKnownStatusBarVisible = false
     private var observationCancellables = Set<AnyCancellable>()
     private var windowObservationCancellables = Set<AnyCancellable>()
@@ -182,6 +185,11 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 }
                 self.needsLayout = true
                 self.reloadConfig()
+                if !self.dependencies.settings.errorFixSuggestionsEnabled || !self.dependencies.settings.shellIntegrationEnabled {
+                    self.clearCommandFailureSuggestion()
+                } else {
+                    self.updateCommandFailureSuggestionVisibility()
+                }
             }
             .store(in: &observationCancellables)
 
@@ -994,6 +1002,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         if case .smart(let panel) = entry.content {
             panel.stopRefreshing()
         }
+        if entry.surfaces.contains(where: { $0 === commandFailureSuggestionSurface }) {
+            clearCommandFailureSuggestion()
+        }
         for s in entry.surfaces { s.onClose = nil }
 
         // Fade out + subtle scale-down when closing a tab
@@ -1149,6 +1160,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
 
         updateChromeFrames(animated: previousIndex != index)
+        updateCommandFailureSuggestionVisibility()
         refreshTabUI()
     }
 
@@ -1796,6 +1808,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                     guard let currentIdx = self.tabs.firstIndex(where: { $0.id == id }) else { return }
                     parent.removeChild(leaf)
                     self.tabs[currentIdx].removeSurface(surface)
+                    if self.commandFailureSuggestionSurface === surface {
+                        self.clearCommandFailureSuggestion()
+                    }
                     if currentIdx == self.selectedTabIndex {
                         self.window?.makeFirstResponder(self.tabs[currentIdx].focusedSurface)
                         root.animateLayout(duration: Theme.animMedium)
@@ -1959,6 +1974,17 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 height: badgeH
             )
         }
+
+        if let suggestionView = commandFailureSuggestionView, suggestionView.superview != nil {
+            let suggestedWidth = min(420, max(300, rect.width * 0.4))
+            let panelHeight = suggestionView.preferredHeight(for: suggestedWidth)
+            suggestionView.frame = NSRect(
+                x: rect.maxX - suggestedWidth - 14,
+                y: rect.minY + 14,
+                width: suggestedWidth,
+                height: panelHeight
+            )
+        }
     }
 
     private func animateContentLayout(statusBarVisible explicitStatusBarVisible: Bool? = nil) {
@@ -2071,6 +2097,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
         (zoomBadge as? ZoomBadge)?.refreshTheme()
         (broadcastBadge as? BroadcastBadge)?.refreshTheme()
+        commandFailureSuggestionView?.refreshTheme()
         updateChromeFrames(animated: false)
         updateFocusIndicator()
         reloadConfig()
@@ -2273,6 +2300,95 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
     }
 
+    func handleCompletedCommand(on surface: TerminalSurfaceView, exitCode: Int16) {
+        guard dependencies.settings.shellIntegrationEnabled,
+              dependencies.settings.errorFixSuggestionsEnabled else {
+            if commandFailureSuggestionSurface === surface {
+                clearCommandFailureSuggestion()
+            }
+            return
+        }
+
+        guard exitCode > 0 else {
+            if commandFailureSuggestionSurface === surface {
+                clearCommandFailureSuggestion()
+            }
+            return
+        }
+
+        guard isSurfaceVisible(surface),
+              window?.isVisible == true,
+              window?.isKeyWindow == true,
+              let transcript = surface.readScreenText(),
+              let suggestion = CommandFailureSuggestionService.suggestion(
+                  for: transcript,
+                  exitCode: exitCode,
+                  foregroundProcessName: surface.lastForegroundPresentation?.text
+              ) else {
+            if commandFailureSuggestionSurface === surface {
+                clearCommandFailureSuggestion()
+            }
+            return
+        }
+
+        commandFailureSuggestionSurface = surface
+        commandFailureSuggestion = suggestion
+        updateCommandFailureSuggestionVisibility()
+    }
+
+    private func updateCommandFailureSuggestionVisibility() {
+        guard dependencies.settings.shellIntegrationEnabled,
+              dependencies.settings.errorFixSuggestionsEnabled,
+              let suggestion = commandFailureSuggestion,
+              let surface = commandFailureSuggestionSurface,
+              isSurfaceVisible(surface) else {
+            commandFailureSuggestionView?.removeFromSuperview()
+            if commandFailureSuggestionSurface == nil {
+                commandFailureSuggestion = nil
+            }
+            needsLayout = true
+            return
+        }
+
+        let view: CommandFailureSuggestionView
+        if let existingView = commandFailureSuggestionView {
+            view = existingView
+        } else {
+            let newView = CommandFailureSuggestionView()
+            newView.onInsertFix = { [weak self] in
+                self?.insertSuggestedFixCommand()
+            }
+            newView.onDismiss = { [weak self] in
+                self?.clearCommandFailureSuggestion()
+            }
+            commandFailureSuggestionView = newView
+            view = newView
+        }
+
+        view.update(with: suggestion)
+        view.refreshTheme()
+        if view.superview == nil {
+            addSubview(view, positioned: .below, relativeTo: overlayReferenceView)
+        }
+        needsLayout = true
+    }
+
+    private func clearCommandFailureSuggestion() {
+        commandFailureSuggestion = nil
+        commandFailureSuggestionSurface = nil
+        commandFailureSuggestionView?.removeFromSuperview()
+        needsLayout = true
+    }
+
+    private func insertSuggestedFixCommand() {
+        guard let surface = commandFailureSuggestionSurface,
+              isSurfaceVisible(surface),
+              let fixCommand = commandFailureSuggestion?.fixCommand else { return }
+        window?.makeFirstResponder(surface)
+        surface.insertCommandText(fixCommand)
+        clearCommandFailureSuggestion()
+    }
+
     // MARK: - Font Size
 
     func adjustFontSizePublic(delta: Int) { adjustFontSize(delta: delta) }
@@ -2435,6 +2551,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
             self.tabs[tabIndex].focusedSurface = surface
             if tabIndex == self.selectedTabIndex {
+                self.updateCommandFailureSuggestionVisibility()
                 self.titleBar.updateContext(surface.displayContext)
                 self.statusBar.updateContext(surface.displayContext)
                 self.updateFocusIndicator()

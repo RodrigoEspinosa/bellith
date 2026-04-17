@@ -79,7 +79,8 @@ final class BellithSettings {
             "inlineImagesEnabled",
             "shellIntegrationEnabled", "shellIntegrationCursor", "shellIntegrationTitle",
             "shellIntegrationPath", "shellIntegrationSSHEnv", "shellIntegrationSSHTerminfo",
-            "commandCompletionNotificationsEnabled", "sidebarPinned", "sidebarAutoHide",
+            "commandCompletionNotificationsEnabled", "errorFixSuggestionsEnabled",
+            "sidebarPinned", "sidebarAutoHide",
             "sidebarShowTools", "visorHideOnFocusLoss", "trafficLightAutoHide",
             "legacyPaneSupport",
             "showStatusBar", "showStatusBarContext", "showStatusBarPath",
@@ -311,6 +312,16 @@ final class BellithSettings {
             return true
         }
         set { defaults.set(newValue, forKey: "commandCompletionNotificationsEnabled"); notify() }
+    }
+
+    var errorFixSuggestionsEnabled: Bool {
+        get {
+            if defaults.object(forKey: "errorFixSuggestionsEnabled") != nil {
+                return defaults.bool(forKey: "errorFixSuggestionsEnabled")
+            }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "errorFixSuggestionsEnabled"); notify() }
     }
 
     var commandCompletionNotificationThreshold: Int {
@@ -959,6 +970,7 @@ final class BellithSettings {
             "bellMode": bellMode,
             "commandCompletionNotificationThreshold": commandCompletionNotificationThreshold,
             "commandCompletionNotificationsEnabled": commandCompletionNotificationsEnabled,
+            "errorFixSuggestionsEnabled": errorFixSuggestionsEnabled,
             "confirmClose": confirmClose,
             "cursorBlink": cursorBlink,
             "cursorStyle": cursorStyle,
