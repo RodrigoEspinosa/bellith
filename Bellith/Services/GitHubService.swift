@@ -16,6 +16,13 @@ enum GitHubService {
         let url: String
     }
 
+    enum CheckState: String, Equatable {
+        case success
+        case failure
+        case pending
+        case none
+    }
+
     struct PullRequest: Equatable {
         let number: Int
         let title: String
@@ -25,6 +32,9 @@ enum GitHubService {
         let headBranch: String
         let createdAt: String
         let url: String
+        let additions: Int
+        let deletions: Int
+        let checkState: CheckState
     }
 
     struct RepoInfo: Equatable {
@@ -180,7 +190,7 @@ enum GitHubService {
             "pr", "list",
             "--state", "open",
             "--limit", "\(limit)",
-            "--json", "number,title,author,labels,isDraft,headRefName,createdAt,url",
+            "--json", "number,title,author,labels,isDraft,headRefName,createdAt,url,additions,deletions,statusCheckRollup",
         ], directory: directory) else {
             return .failure(.commandFailed("Failed to list pull requests"))
         }
@@ -305,12 +315,36 @@ enum GitHubService {
             let headBranch = item["headRefName"] as? String ?? ""
             let createdAt = formatDate(item["createdAt"] as? String)
             let url = item["url"] as? String ?? ""
+            let additions = item["additions"] as? Int ?? 0
+            let deletions = item["deletions"] as? Int ?? 0
+            let checkState = aggregateChecks(item["statusCheckRollup"] as? [[String: Any]])
 
             return PullRequest(
                 number: number, title: title, author: author, labels: labels,
-                isDraft: isDraft, headBranch: headBranch, createdAt: createdAt, url: url
+                isDraft: isDraft, headBranch: headBranch, createdAt: createdAt, url: url,
+                additions: additions, deletions: deletions, checkState: checkState
             )
         }
+    }
+
+    private static func aggregateChecks(_ checks: [[String: Any]]?) -> CheckState {
+        guard let checks, !checks.isEmpty else { return .none }
+        var sawPending = false
+        for check in checks {
+            let status = (check["status"] as? String ?? "").uppercased()
+            let conclusion = (check["conclusion"] as? String ?? "").uppercased()
+            switch conclusion {
+            case "FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE":
+                return .failure
+            case "SUCCESS", "NEUTRAL", "SKIPPED":
+                continue
+            default:
+                if status != "COMPLETED" {
+                    sawPending = true
+                }
+            }
+        }
+        return sawPending ? .pending : .success
     }
 
     private static func formatDate(_ isoString: String?) -> String {
