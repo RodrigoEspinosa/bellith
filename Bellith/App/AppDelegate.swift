@@ -488,6 +488,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         tabMenu.addItem(configuredMenuItem(title: "Next Tab", action: #selector(handleNextTab), shortcutID: "nextTab"))
         tabMenu.addItem(configuredMenuItem(title: "Previous Tab", action: #selector(handlePrevTab), shortcutID: "prevTab"))
         tabMenu.addItem(.separator())
+        tabMenu.addItem(configuredMenuItem(title: "Rename Tab…", action: #selector(handleRenameTab), shortcutID: "renameTab"))
         tabMenu.addItem(configuredMenuItem(title: "Reopen Closed Tab", action: #selector(handleReopenTab), shortcutID: "reopenTab"))
         let tabMenuItem = NSMenuItem()
         tabMenuItem.submenu = tabMenu
@@ -659,6 +660,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func handleSplitRight() { activeEntry?.container.splitPane(direction: .vertical) }
     @objc private func handleSplitDown() { activeEntry?.container.splitPane(direction: .horizontal) }
     @objc private func handleReopenTab() { activeEntry?.container.reopenClosedTab() }
+    @objc private func handleRenameTab() { activeEntry?.container.promptRenameTab() }
     @objc private func handleNextTab() { activeEntry?.container.advanceToNextTerminalTab() }
     @objc private func handlePrevTab() { activeEntry?.container.advanceToPreviousTerminalTab() }
     @objc private func handleToggleSidebar() { activeEntry?.container.sidebar.toggle() }

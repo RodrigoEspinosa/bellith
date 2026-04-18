@@ -23,6 +23,7 @@ struct TerminalTabEntry {
     var localSessionBootstrap: SSHSessionBootstrap?
     var localSessionName: String?
     var isPinned: Bool = false
+    var isUserRenamed: Bool = false
     var content: TerminalTabContent
 
     var kind: TerminalTabKind {

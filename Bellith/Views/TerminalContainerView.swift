@@ -131,6 +131,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         tabBar.onSelectTab = { [weak self] i in self?.selectTab(i) }
         tabBar.onCloseTab = { [weak self] i in self?.closeTab(i) }
         tabBar.onNewTab = { [weak self] in self?.createTab() }
+        tabBar.onRenameTab = { [weak self] i in self?.promptRenameTab(at: i) }
         tabBar.onReorderTab = { [weak self] from, to in self?.reorderTab(from: from, to: to) }
         tabBar.onTogglePin = { [weak self] i in self?.togglePinTab(i) }
         tabBar.onReceiveDraggedTab = { [weak self] payload, insertionIndex in
@@ -729,6 +730,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
         if matches(event, action: "reloadConfig") { reloadConfig(); return true }
         if matches(event, action: "reopenTab") { reopenClosedTab(); return true }
+        if matches(event, action: "renameTab") { promptRenameTab(); return true }
         if matches(event, action: "clearBuffer") { clearBuffer(); return true }
         if matches(event, action: "preferences") {
             SettingsNavigation.open(
@@ -1184,6 +1186,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     func updateTabTitle(_ title: String, for surface: TerminalSurfaceView) {
         if let idx = tabs.firstIndex(where: { $0.surfaces.contains(where: { $0 === surface }) }) {
+            if tabs[idx].isUserRenamed { return }
             tabs[idx].title = title
             refreshTabUI()
         }
@@ -1193,8 +1196,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         surface.currentCwd = cwd
         if let idx = tabs.firstIndex(where: { $0.surfaces.contains(where: { $0 === surface }) }) {
             tabs[idx].cwd = cwd
-            let basename = (cwd as NSString).lastPathComponent
-            tabs[idx].title = basename
+            if !tabs[idx].isUserRenamed {
+                tabs[idx].title = (cwd as NSString).lastPathComponent
+            }
             refreshTabUI()
 
             // Update status bar and title bar if this is the active tab
@@ -2471,6 +2475,40 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
     }
 
+    // MARK: - Rename Tab
+
+    func promptRenameTab(at index: Int? = nil) {
+        let targetIndex = index ?? selectedTabIndex
+        guard tabs.indices.contains(targetIndex) else { return }
+        guard tabs[targetIndex].isTerminal else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Rename Tab"
+        alert.informativeText = "Enter a new name for this tab. Leave blank to restore the automatic name."
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        input.stringValue = tabs[targetIndex].title
+        input.selectText(nil)
+        alert.accessoryView = input
+        alert.window.initialFirstResponder = input
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if name.isEmpty {
+            tabs[targetIndex].isUserRenamed = false
+            if let cwd = tabs[targetIndex].cwd {
+                tabs[targetIndex].title = (cwd as NSString).lastPathComponent
+            }
+        } else {
+            tabs[targetIndex].title = name
+            tabs[targetIndex].isUserRenamed = true
+        }
+        refreshTabUI()
+    }
+
     // MARK: - Workspaces
 
     func promptSaveWorkspace() {
@@ -2639,7 +2677,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         surface.currentCwd = cwd
         if let idx = tabs.firstIndex(where: { $0.surfaces.contains(where: { $0 === surface }) }) {
             tabs[idx].cwd = cwd
-            tabs[idx].title = (cwd as NSString).lastPathComponent
+            if !tabs[idx].isUserRenamed {
+                tabs[idx].title = (cwd as NSString).lastPathComponent
+            }
             if idx == selectedTabIndex {
                 titleBar.updateContext(surface.displayContext)
                 statusBar.updateContext(surface.displayContext)

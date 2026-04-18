@@ -109,6 +109,15 @@ enum ShortcutDefinitionLibrary {
                 presetSource: preset
             ),
             KeyBindingEntry(
+                id: "renameTab",
+                label: "Rename Tab",
+                category: "Tabs",
+                scope: .windowChrome,
+                discoverabilityText: "Rename the current tab",
+                primaryShortcut: shortcut("e", command: true),
+                presetSource: preset
+            ),
+            KeyBindingEntry(
                 id: "commandPalette",
                 label: "Command Palette",
                 category: "Navigation",

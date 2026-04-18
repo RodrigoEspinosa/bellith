@@ -18,6 +18,7 @@ final class TabBarView: NSView, NSDraggingSource {
     var onSelectTab: ((Int) -> Void)?
     var onCloseTab: ((Int) -> Void)?
     var onNewTab: (() -> Void)?
+    var onRenameTab: ((Int) -> Void)?
     var onReorderTab: ((Int, Int) -> Void)?
     var onTogglePin: ((Int) -> Void)?
     var onReceiveDraggedTab: ((TabDragPayload, Int) -> Void)?
@@ -124,6 +125,7 @@ final class TabBarView: NSView, NSDraggingSource {
             pill.onSelect = { [weak self] in self?.onSelectTab?(i) }
             pill.onClose = { [weak self] in self?.onCloseTab?(i) }
             pill.onTogglePin = { [weak self] in self?.onTogglePin?(i) }
+            pill.onRename = { [weak self] in self?.onRenameTab?(i) }
             pill.onBeginDrag = { [weak self, weak pill] event in
                 guard let self else { return }
                 self.beginDragSession(fromIndex: i, event: event, dragView: pill)
@@ -403,6 +405,7 @@ fileprivate final class TabPillView: NSView {
     var onSelect: (() -> Void)?
     var onClose: (() -> Void)?
     var onTogglePin: (() -> Void)?
+    var onRename: (() -> Void)?
     var onBeginDrag: ((NSEvent) -> Void)?
     private var isDragging = false
     private var mouseDownLocation: NSPoint?
@@ -594,10 +597,13 @@ fileprivate final class TabPillView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        let shouldSelect = !isDragging
+        let wasDragging = isDragging
         isDragging = false
         mouseDownLocation = nil
-        if shouldSelect {
+        guard !wasDragging else { return }
+        if event.clickCount == 2 {
+            onRename?()
+        } else {
             onSelect?()
         }
     }

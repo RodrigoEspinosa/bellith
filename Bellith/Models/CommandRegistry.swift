@@ -188,6 +188,18 @@ final class CommandRegistry {
             return true
         })
 
+        register(CommandPlugin(
+            id: "renameTab",
+            title: "Rename Tab",
+            description: "Rename the current tab",
+            iconName: "pencil",
+            shortcutID: "renameTab",
+            aliases: ["rename", "rename tab"]
+        ) { container, _ in
+            container.promptRenameTab()
+            return true
+        })
+
         if settings.legacyPaneSupport {
             register(CommandPlugin(
                 id: "splitRight",

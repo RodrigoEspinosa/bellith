@@ -42,13 +42,15 @@ struct SessionState: Codable {
         let terminalContext: TerminalContext?
         let sshProfileID: UUID?
         let isPinned: Bool
+        let isUserRenamed: Bool
 
         init(
             title: String,
             terminalSnapshot: TerminalSnapshot,
             terminalContext: TerminalContext? = nil,
             sshProfileID: UUID? = nil,
-            isPinned: Bool = false
+            isPinned: Bool = false,
+            isUserRenamed: Bool = false
         ) {
             self.title = title
             self.kind = .terminal
@@ -57,6 +59,7 @@ struct SessionState: Codable {
             self.terminalContext = terminalContext
             self.sshProfileID = sshProfileID
             self.isPinned = isPinned
+            self.isUserRenamed = isUserRenamed
         }
 
         init(title: String, smartPanelID: String, isPinned: Bool = false) {
@@ -67,6 +70,7 @@ struct SessionState: Codable {
             self.terminalContext = nil
             self.sshProfileID = nil
             self.isPinned = isPinned
+            self.isUserRenamed = false
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -78,6 +82,7 @@ struct SessionState: Codable {
             case sshProfileID
             case splitTree
             case isPinned
+            case isUserRenamed
         }
 
         init(from decoder: Decoder) throws {
@@ -88,6 +93,7 @@ struct SessionState: Codable {
             terminalContext = try container.decodeIfPresent(TerminalContext.self, forKey: .terminalContext)
             sshProfileID = try container.decodeIfPresent(UUID.self, forKey: .sshProfileID)
             isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
+            isUserRenamed = try container.decodeIfPresent(Bool.self, forKey: .isUserRenamed) ?? false
             if let snapshot = try container.decodeIfPresent(TerminalSnapshot.self, forKey: .terminalSnapshot) {
                 terminalSnapshot = snapshot
             } else if let legacySplitTree = try container.decodeIfPresent(SplitNodeState.self, forKey: .splitTree) {
@@ -107,6 +113,9 @@ struct SessionState: Codable {
             try container.encodeIfPresent(sshProfileID, forKey: .sshProfileID)
             if isPinned {
                 try container.encode(isPinned, forKey: .isPinned)
+            }
+            if isUserRenamed {
+                try container.encode(isUserRenamed, forKey: .isUserRenamed)
             }
         }
     }
