@@ -34,6 +34,46 @@ final class TerminalContainerViewTests: XCTestCase {
         )
     }
 
+    func testNextTerminalTabIndexSkipsToolTabs() {
+        let tabKinds: [TerminalTabKind] = [.terminal, .smart("processes"), .terminal, .smart("network")]
+
+        XCTAssertEqual(
+            TerminalContainerView.nextTerminalTabIndex(after: 0, in: tabKinds),
+            2
+        )
+        XCTAssertEqual(
+            TerminalContainerView.nextTerminalTabIndex(after: 2, in: tabKinds),
+            0
+        )
+        XCTAssertEqual(
+            TerminalContainerView.nextTerminalTabIndex(after: 1, in: tabKinds),
+            2
+        )
+        XCTAssertNil(
+            TerminalContainerView.nextTerminalTabIndex(after: 0, in: [.smart("processes")])
+        )
+    }
+
+    func testPreviousTerminalTabIndexSkipsToolTabs() {
+        let tabKinds: [TerminalTabKind] = [.terminal, .smart("processes"), .terminal, .smart("network")]
+
+        XCTAssertEqual(
+            TerminalContainerView.previousTerminalTabIndex(before: 2, in: tabKinds),
+            0
+        )
+        XCTAssertEqual(
+            TerminalContainerView.previousTerminalTabIndex(before: 0, in: tabKinds),
+            2
+        )
+        XCTAssertEqual(
+            TerminalContainerView.previousTerminalTabIndex(before: 1, in: tabKinds),
+            0
+        )
+        XCTAssertNil(
+            TerminalContainerView.previousTerminalTabIndex(before: 0, in: [.smart("processes")])
+        )
+    }
+
     func testClampedDropInsertionIndexKeepsPinnedTabsInPinnedRegion() {
         XCTAssertEqual(
             TerminalContainerView.clampedDropInsertionIndex(

@@ -659,16 +659,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func handleSplitRight() { activeEntry?.container.splitPane(direction: .vertical) }
     @objc private func handleSplitDown() { activeEntry?.container.splitPane(direction: .horizontal) }
     @objc private func handleReopenTab() { activeEntry?.container.reopenClosedTab() }
-    @objc private func handleNextTab() {
-        guard let c = activeEntry?.container else { return }
-        let count = c.sidebar.tabs.count
-        c.selectTab(c.selectedTabIndex + 1 < count ? c.selectedTabIndex + 1 : 0)
-    }
-    @objc private func handlePrevTab() {
-        guard let c = activeEntry?.container else { return }
-        let count = c.sidebar.tabs.count
-        c.selectTab(c.selectedTabIndex > 0 ? c.selectedTabIndex - 1 : count - 1)
-    }
+    @objc private func handleNextTab() { activeEntry?.container.advanceToNextTerminalTab() }
+    @objc private func handlePrevTab() { activeEntry?.container.advanceToPreviousTerminalTab() }
     @objc private func handleToggleSidebar() { activeEntry?.container.sidebar.toggle() }
     @objc private func handleTogglePalette() { activeEntry?.container.toggleCommandPalette() }
     @objc private func handleShowKeyboardShortcuts() { activeEntry?.container.toggleShortcutCheatSheet() }

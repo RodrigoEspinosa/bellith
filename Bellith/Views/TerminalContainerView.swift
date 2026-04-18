@@ -443,6 +443,18 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         return terminalIndices[clampedPosition]
     }
 
+    static func nextTerminalTabIndex(after current: Int, in tabKinds: [TerminalTabKind]) -> Int? {
+        let terminalIndices = shortcutSelectableTerminalTabIndices(for: tabKinds)
+        guard !terminalIndices.isEmpty else { return nil }
+        return terminalIndices.first(where: { $0 > current }) ?? terminalIndices.first
+    }
+
+    static func previousTerminalTabIndex(before current: Int, in tabKinds: [TerminalTabKind]) -> Int? {
+        let terminalIndices = shortcutSelectableTerminalTabIndices(for: tabKinds)
+        guard !terminalIndices.isEmpty else { return nil }
+        return terminalIndices.last(where: { $0 < current }) ?? terminalIndices.last
+    }
+
     private func updateRuntimeStatusObservers() {
         windowObservationCancellables.removeAll()
         guard let window else { return }
@@ -665,14 +677,8 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         if matches(event, action: "toggleSidebar") { sidebar.toggle(); return true }
         if matches(event, action: "newTab") { createTab(); return true }
         if matches(event, action: "closeTab") { closeCurrentTab(); return true }
-        if matches(event, action: "nextTab") {
-            selectTab(selectedTabIndex + 1 < tabs.count ? selectedTabIndex + 1 : 0)
-            return true
-        }
-        if matches(event, action: "prevTab") {
-            selectTab(selectedTabIndex > 0 ? selectedTabIndex - 1 : tabs.count - 1)
-            return true
-        }
+        if matches(event, action: "nextTab") { advanceToNextTerminalTab(); return true }
+        if matches(event, action: "prevTab") { advanceToPreviousTerminalTab(); return true }
 
         if mods == .command, let digit = Int(key), digit >= 1 && digit <= 9 {
             if let tabIndex = Self.shortcutSelectableTerminalTabIndex(for: digit, tabKinds: tabs.map(\.kind)) {
@@ -1075,6 +1081,18 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
 
         refreshTabUI()
+    }
+
+    func advanceToNextTerminalTab() {
+        if let next = Self.nextTerminalTabIndex(after: selectedTabIndex, in: tabs.map(\.kind)) {
+            selectTab(next)
+        }
+    }
+
+    func advanceToPreviousTerminalTab() {
+        if let prev = Self.previousTerminalTabIndex(before: selectedTabIndex, in: tabs.map(\.kind)) {
+            selectTab(prev)
+        }
     }
 
     func selectTab(_ index: Int) {
