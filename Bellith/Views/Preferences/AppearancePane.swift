@@ -36,9 +36,11 @@ final class AppearancePane: NSView {
     private let padYLabel = SmallLabel("V")
     private var padYField: MiniNumberField!
 
-    private let windowCard = SettingsCard(title: "Window", subtitle: "Texture and traffic-light behavior")
+    private let windowCard = SettingsCard(title: "Window", subtitle: "Texture, chrome, and traffic-light behavior")
     private let noiseLabel = CardRowLabel("Noise Grain")
     private var noiseTrack: OpacityTrackView!
+    private let oledChromeLabel = CardRowLabel("True-Black Chrome")
+    private var oledChromeToggle: PrefToggle!
     private let trafficLightLabel = CardRowLabel("Auto-hide Traffic Lights")
     private var trafficLightToggle: PrefToggle!
 
@@ -171,11 +173,14 @@ final class AppearancePane: NSView {
         noiseTrack = OpacityTrackView(value: settings.noiseIntensity, minValue: 0.0) { [weak self] value in
             self?.settings.noiseIntensity = value
         }
+        oledChromeToggle = PrefToggle(isOn: settings.oledChromeForDarkThemes) { [weak self] value in
+            self?.settings.oledChromeForDarkThemes = value
+        }
         trafficLightToggle = PrefToggle(isOn: settings.trafficLightAutoHide) { [weak self] value in
             self?.settings.trafficLightAutoHide = value
         }
         content.addSubview(windowCard)
-        for view: NSView in [noiseLabel, noiseTrack, trafficLightLabel, trafficLightToggle] {
+        for view: NSView in [noiseLabel, noiseTrack, oledChromeLabel, oledChromeToggle, trafficLightLabel, trafficLightToggle] {
             windowCard.addSubview(view)
         }
 
@@ -298,6 +303,8 @@ final class AppearancePane: NSView {
         tintToggle.refreshAppearance()
         profileCard.refresh()
         noiseTrack.setValue(settings.noiseIntensity)
+        oledChromeToggle.setOn(settings.oledChromeForDarkThemes)
+        oledChromeToggle.refreshAppearance()
         trafficLightToggle.setOn(settings.trafficLightAutoHide)
         trafficLightToggle.refreshAppearance()
         appearanceModeSegment.setSelected(Self.segmentIndex(for: settings.appearanceMode))
@@ -433,14 +440,17 @@ final class AppearancePane: NSView {
         padYField.frame = NSRect(x: controlX + 106, y: ir2 + 6, width: 56, height: 28)
         y += interfaceCardHeight + PreferencesLayout.sectionGap
 
-        let windowCardHeight = windowCard.headerHeight + 2 * PreferencesLayout.rowH + PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        let windowCardHeight = windowCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
         windowCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardWidth, height: windowCardHeight)
         let wr0 = windowCardHeight - windowCard.headerHeight - PreferencesLayout.rowH
         noiseLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: wr0, width: labelWidth, height: PreferencesLayout.rowH)
         noiseTrack.frame = NSRect(x: controlX, y: wr0 + 8, width: controlWidth, height: 24)
         let wr1 = wr0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        trafficLightLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: wr1, width: toggleLabelWidth, height: PreferencesLayout.rowH)
-        trafficLightToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardWidth, rowY: wr1)
+        oledChromeLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: wr1, width: toggleLabelWidth, height: PreferencesLayout.rowH)
+        oledChromeToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardWidth, rowY: wr1)
+        let wr2 = wr1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        trafficLightLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: wr2, width: toggleLabelWidth, height: PreferencesLayout.rowH)
+        trafficLightToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardWidth, rowY: wr2)
         y += windowCardHeight + PreferencesLayout.sectionGap
 
         let profileCardHeight = profileCard.headerHeight + 4 * PreferencesLayout.rowH + 3 * PreferencesLayout.rowGap + PreferencesLayout.cardPad

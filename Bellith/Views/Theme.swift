@@ -673,12 +673,20 @@ enum Theme {
 
     // Semantic colors
     static var success: NSColor {
-        NSColor(red: 0.290, green: 0.620, blue: 0.361, alpha: 1.0) // #4A9E5C
+        colors.isLight
+            ? NSColor(red: 0.137, green: 0.510, blue: 0.255, alpha: 1.0) // #238241
+            : NSColor(red: 0.290, green: 0.620, blue: 0.361, alpha: 1.0) // #4A9E5C
     }
     static var warning: NSColor {
-        NSColor(red: 0.831, green: 0.659, blue: 0.263, alpha: 1.0) // #D4A843
+        colors.isLight
+            ? NSColor(red: 0.686, green: 0.494, blue: 0.125, alpha: 1.0) // #AF7E20
+            : NSColor(red: 0.831, green: 0.659, blue: 0.263, alpha: 1.0) // #D4A843
     }
-    static var destructive: NSColor { accent }
+    static var destructive: NSColor {
+        colors.isLight
+            ? NSColor(red: 0.796, green: 0.188, blue: 0.216, alpha: 1.0) // #CB3037
+            : NSColor(red: 0.898, green: 0.282, blue: 0.302, alpha: 1.0) // #E5484D
+    }
 
     // Divider
     static var divider: NSColor { colors.border }

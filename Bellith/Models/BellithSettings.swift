@@ -83,6 +83,7 @@ final class BellithSettings {
             "commandCompletionNotificationsEnabled", "errorFixSuggestionsEnabled",
             "sidebarPinned", "sidebarAutoHide",
             "sidebarShowTools", "visorHideOnFocusLoss", "trafficLightAutoHide",
+            "oledChromeForDarkThemes",
             "legacyPaneSupport",
             "showStatusBar", "showStatusBarContext", "showStatusBarPath",
             "showStatusBarGitWorktree", "showStatusBarGitBranch", "showStatusBarProcess",
@@ -492,6 +493,13 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "trafficLightAutoHide"); notify() }
     }
 
+    /// Force true-black chrome for dark themes, regardless of the theme's own default.
+    /// Has no effect on light themes or on themes that already declare OLED chrome.
+    var oledChromeForDarkThemes: Bool {
+        get { defaults.bool(forKey: "oledChromeForDarkThemes") }
+        set { defaults.set(newValue, forKey: "oledChromeForDarkThemes"); notify() }
+    }
+
     var noiseIntensity: Double {
         get {
             if defaults.object(forKey: "noiseIntensity") != nil {
@@ -817,7 +825,11 @@ final class BellithSettings {
             return resolvedIsDark ? .highContrastDark : .highContrastLight
         }
         let name = resolvedIsDark ? darkThemeName : lightThemeName
-        return ThemeColors.allThemes.first { $0.name == name } ?? .tokyonight
+        var theme = ThemeColors.allThemes.first { $0.name == name } ?? .tokyonight
+        if resolvedIsDark && !theme.isLight && oledChromeForDarkThemes {
+            theme.darkChromeStyle = .oled
+        }
+        return theme
     }
 
     var shellIntegrationMode: String {
@@ -985,6 +997,7 @@ final class BellithSettings {
             "lightThemeName": lightThemeName,
             "mouseHideWhileTyping": mouseHideWhileTyping,
             "noiseIntensity": roundedForSettingsFile(noiseIntensity),
+            "oledChromeForDarkThemes": oledChromeForDarkThemes,
             "restoreSession": restoreSession,
             "scrollbackLines": scrollbackLines,
             "scrollbackMinimapEnabled": scrollbackMinimapEnabled,
