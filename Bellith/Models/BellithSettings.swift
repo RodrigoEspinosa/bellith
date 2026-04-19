@@ -77,6 +77,7 @@ final class BellithSettings {
         static let boolKeys: Set<String> = [
             "mouseHideWhileTyping", "confirmClose", "restoreSession", "cursorBlink",
             "inlineImagesEnabled",
+            "scrollbackMinimapEnabled",
             "shellIntegrationEnabled", "shellIntegrationCursor", "shellIntegrationTitle",
             "shellIntegrationPath", "shellIntegrationSSHEnv", "shellIntegrationSSHTerminfo",
             "commandCompletionNotificationsEnabled", "errorFixSuggestionsEnabled",
@@ -199,6 +200,16 @@ final class BellithSettings {
     var scrollbackLines: Int {
         get { let v = defaults.integer(forKey: "scrollbackLines"); return v > 0 ? v : 10000 }
         set { defaults.set(newValue, forKey: "scrollbackLines"); notify() }
+    }
+
+    var scrollbackMinimapEnabled: Bool {
+        get {
+            if defaults.object(forKey: "scrollbackMinimapEnabled") != nil {
+                return defaults.bool(forKey: "scrollbackMinimapEnabled")
+            }
+            return false
+        }
+        set { defaults.set(newValue, forKey: "scrollbackMinimapEnabled"); notify() }
     }
 
     var mouseHideWhileTyping: Bool {
@@ -976,6 +987,7 @@ final class BellithSettings {
             "noiseIntensity": roundedForSettingsFile(noiseIntensity),
             "restoreSession": restoreSession,
             "scrollbackLines": scrollbackLines,
+            "scrollbackMinimapEnabled": scrollbackMinimapEnabled,
             "shell": shell,
             "legacyPaneSupport": legacyPaneSupport,
             "localSessionBootstrap": localSessionBootstrap.rawValue,

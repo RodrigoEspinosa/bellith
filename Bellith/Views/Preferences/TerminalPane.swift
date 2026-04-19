@@ -79,10 +79,13 @@ final class TerminalPane: NSView {
     private let commandNotificationThresholdUnit = SmallLabel("SECONDS")
     private let shellIntegrationNote = FooterNote("Prompt marks, command timing, and completion notifications require shell integration.")
 
-    private let graphicsCard = SettingsCard(title: "Graphics", subtitle: "Inline image protocols supported by Ghostty")
+    private let graphicsCard = SettingsCard(title: "Display", subtitle: "Inline images and scrollback navigation aids")
     private let inlineImagesLabel = CardRowLabel("Inline Images")
     private var inlineImagesToggle: PrefToggle!
     private let inlineImagesNote = FooterNote("Enables Kitty graphics and Sixel so tools like icat, chafa, timg, and gnuplot draw directly in the terminal.")
+    private let minimapLabel = CardRowLabel("Scrollback Minimap")
+    private var minimapToggle: PrefToggle!
+    private let minimapNote = FooterNote("Shows a zoomed-out strip along the right edge of each pane for rapid scrollback navigation.")
 
     private let behaviorCard = SettingsCard(title: "Behavior", subtitle: "Session lifecycle, cursor visibility, and terminal modifier keys")
     private let optionKeyLabel = CardRowLabel("Option Key")
@@ -296,8 +299,14 @@ final class TerminalPane: NSView {
         inlineImagesToggle = PrefToggle(isOn: settings.inlineImagesEnabled) { [weak self] value in
             self?.settings.inlineImagesEnabled = value
         }
+        minimapToggle = PrefToggle(isOn: settings.scrollbackMinimapEnabled) { [weak self] value in
+            self?.settings.scrollbackMinimapEnabled = value
+        }
         content.addSubview(graphicsCard)
-        for view: NSView in [inlineImagesLabel, inlineImagesToggle, inlineImagesNote] {
+        for view: NSView in [
+            inlineImagesLabel, inlineImagesToggle, inlineImagesNote,
+            minimapLabel, minimapToggle, minimapNote,
+        ] {
             graphicsCard.addSubview(view)
         }
 
@@ -363,6 +372,7 @@ final class TerminalPane: NSView {
         errorFixSuggestionsToggle.setOn(settings.errorFixSuggestionsEnabled)
         commandNotificationThresholdField.setValue(settings.commandCompletionNotificationThreshold)
         inlineImagesToggle.setOn(settings.inlineImagesEnabled)
+        minimapToggle.setOn(settings.scrollbackMinimapEnabled)
         optionKeyPopup.selectItem(at: TerminalOptionKeyBehavior.allCases.firstIndex(of: settings.terminalOptionKeyBehavior) ?? 0)
         hideMouseToggle.setOn(settings.mouseHideWhileTyping)
         confirmToggle.setOn(settings.confirmClose)
@@ -517,12 +527,16 @@ final class TerminalPane: NSView {
         y += shellIntegrationCardHeight + PreferencesLayout.sectionGap
 
         let graphicsLabelW = PreferencesLayout.labelWidth(toTrailingToggleIn: cardW)
-        let graphicsCardHeight = graphicsCard.headerHeight + PreferencesLayout.rowH + 14 + PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        let graphicsCardHeight = graphicsCard.headerHeight + 2 * PreferencesLayout.rowH + 2 * 14 + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
         graphicsCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: graphicsCardHeight)
         let gr0 = graphicsCardHeight - graphicsCard.headerHeight - PreferencesLayout.rowH
         inlineImagesLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: gr0, width: graphicsLabelW, height: PreferencesLayout.rowH)
         inlineImagesToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: gr0)
         inlineImagesNote.frame = NSRect(x: PreferencesLayout.cardPad, y: gr0 - 16, width: innerW, height: 14)
+        let gr1 = gr0 - PreferencesLayout.rowH - 14 - PreferencesLayout.rowGap
+        minimapLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: gr1, width: graphicsLabelW, height: PreferencesLayout.rowH)
+        minimapToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: gr1)
+        minimapNote.frame = NSRect(x: PreferencesLayout.cardPad, y: gr1 - 16, width: innerW, height: 14)
         y += graphicsCardHeight + PreferencesLayout.sectionGap
 
         let behaviorCardHeight = behaviorCard.headerHeight + 4 * PreferencesLayout.rowH + 14 + 3 * PreferencesLayout.rowGap + PreferencesLayout.cardPad

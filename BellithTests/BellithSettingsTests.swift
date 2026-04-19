@@ -66,6 +66,18 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(settings.scrollbackLines, 10000)
     }
 
+    func testDefaultScrollbackMinimapDisabled() {
+        XCTAssertFalse(settings.scrollbackMinimapEnabled)
+    }
+
+    func testScrollbackMinimapTogglePersists() {
+        settings.scrollbackMinimapEnabled = true
+        XCTAssertTrue(settings.scrollbackMinimapEnabled)
+
+        let reloaded = BellithSettings(defaults: defaults, settingsFileURL: settingsFileURL)
+        XCTAssertTrue(reloaded.scrollbackMinimapEnabled)
+    }
+
     func testDefaultMouseHideWhileTyping() {
         XCTAssertTrue(settings.mouseHideWhileTyping)
     }

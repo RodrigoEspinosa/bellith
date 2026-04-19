@@ -16,6 +16,11 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     private var focused = false
     private let dropIndicatorLayer = CALayer()
     private let temporaryDropDirectoryURL = TerminalSurfaceView.temporaryDropDirectoryURL()
+    private var minimapView: ScrollbackMinimapView?
+    private var lastScrollbarTotal: Int = 0
+    private var lastScrollbarOffset: Int = 0
+    private var lastScrollbarLen: Int = 0
+    private var settingsObserver: NSObjectProtocol?
 
     /// Called when the shell process exits or the surface requests close.
     var onClose: ((Bool) -> Void)?
@@ -69,6 +74,13 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyUp]) { [weak self] event in
             self?.localKeyUp(event) ?? event
         }
+
+        applyMinimapPreference()
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: BellithSettings.didChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.applyMinimapPreference()
+        }
     }
 
     @available(*, unavailable)
@@ -77,6 +89,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     deinit {
         Self.cleanupTemporaryDropDirectory(at: temporaryDropDirectoryURL)
         if let eventMonitor { NSEvent.removeMonitor(eventMonitor) }
+        if let settingsObserver { NotificationCenter.default.removeObserver(settingsObserver) }
         if let surface { ghostty_surface_free(surface) }
     }
 
@@ -160,6 +173,87 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         CATransaction.setDisableActions(true)
         dropIndicatorLayer.frame = bounds.insetBy(dx: 6, dy: 6)
         CATransaction.commit()
+        layoutMinimap()
+    }
+
+    // MARK: - Scrollback Minimap
+
+    private func applyMinimapPreference() {
+        let enabled = BellithSettings.shared.scrollbackMinimapEnabled
+        if enabled {
+            if minimapView == nil {
+                let minimap = ScrollbackMinimapView(frame: .zero)
+                minimap.onScrollToRow = { [weak self] row in
+                    self?.scrollToRow(row)
+                }
+                addSubview(minimap)
+                minimapView = minimap
+                minimap.updateScrollbar(
+                    total: lastScrollbarTotal,
+                    offset: lastScrollbarOffset,
+                    len: lastScrollbarLen
+                )
+            }
+        } else {
+            minimapView?.removeFromSuperview()
+            minimapView = nil
+        }
+        layoutMinimap()
+    }
+
+    private func layoutMinimap() {
+        guard let minimap = minimapView else { return }
+        let width = ScrollbackMinimapView.defaultWidth
+        let topInset: CGFloat = 2
+        let bottomInset: CGFloat = 2
+        minimap.frame = NSRect(
+            x: bounds.width - width,
+            y: bottomInset,
+            width: width,
+            height: max(0, bounds.height - topInset - bottomInset)
+        )
+    }
+
+    func updateScrollbarState(total: Int, offset: Int, len: Int) {
+        lastScrollbarTotal = total
+        lastScrollbarOffset = offset
+        lastScrollbarLen = len
+        minimapView?.updateScrollbar(total: total, offset: offset, len: len)
+    }
+
+    func recordCommandMark(exitCode: Int16) {
+        guard let minimap = minimapView else { return }
+        // Use the bottom-of-viewport row as the approximate prompt/command line.
+        let markRow = lastScrollbarOffset + max(0, lastScrollbarLen - 1)
+        minimap.appendMark(row: markRow, kind: exitCode == 0 ? .prompt : .error)
+    }
+
+    func resetMinimapMarks() {
+        minimapView?.clearMarks()
+    }
+
+    func updateMinimapSearchSelection() {
+        guard let minimap = minimapView else { return }
+        // Search automatically scrolls the selected hit into view, so the
+        // current viewport centre is a good proxy for the hit row.
+        if lastScrollbarLen > 0 && lastScrollbarTotal > 0 {
+            let row = lastScrollbarOffset + lastScrollbarLen / 2
+            minimap.setSearchHit(row: row)
+        } else {
+            minimap.setSearchHit(row: nil)
+        }
+    }
+
+    func clearMinimapSearchSelection() {
+        minimapView?.setSearchHit(row: nil)
+    }
+
+    private func scrollToRow(_ row: Int) {
+        guard let surface else { return }
+        let action = "scroll_to_row:\(row)"
+        action.withCString { ptr in
+            _ = ghostty_surface_binding_action(surface, ptr, UInt(action.utf8.count))
+        }
     }
 
     override func setFrameSize(_ newSize: NSSize) {
