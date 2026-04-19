@@ -152,10 +152,6 @@ final class AppearancePane: NSView {
 
         tabSegment = PrefSegment(labels: ["Sidebar", "Tab Bar"], selected: settings.tabMode == "sidebar" ? 0 : 1) { [weak self] index in
             self?.settings.tabMode = index == 0 ? "sidebar" : "tabbar"
-            if let window = NSApp.windows.first(where: { ($0.contentView as? BackdropView) != nil }),
-               let container = (window.contentView as? BackdropView)?.container {
-                container.applyTabMode()
-            }
         }
         statusBarToggle = PrefToggle(isOn: settings.showStatusBar) { [weak self] value in
             self?.settings.showStatusBar = value

@@ -376,6 +376,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return Unmanaged<TerminalSurfaceView>.fromOpaque(surfaceUD).takeUnretainedValue()
     }
 
+    private func handleRingBell(target: ghostty_target_s) {
+        switch dependencies.settings.bellMode {
+        case "none":
+            return
+        case "visual":
+            let surface = surfaceView(for: target)
+            let window = surface?.window ?? activeEntry?.window
+            window?.flashForVisualBell()
+        case "bounce":
+            NSApp.requestUserAttention(.criticalRequest)
+        default:
+            NSSound.beep()
+        }
+    }
+
     private func shouldNotifyForCompletedCommand(
         on surfaceView: TerminalSurfaceView?,
         durationSeconds: Double
@@ -420,6 +435,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func setupMenus() {
+        // `workspacesMenu` is a stored property, so it still claims a
+        // supermenu reference from the previous main-menu tree after the
+        // first pass. `setSubmenu:` throws `NSInternalInconsistencyException`
+        // if we attach it to a new item while it already has a parent — give
+        // it a fresh instance each rebuild. `themeMenu` is reassigned below
+        // for the same reason.
+        workspacesMenu = NSMenu(title: "Workspaces")
+
         let mainMenu = NSMenu()
 
         // App menu
@@ -1071,7 +1094,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return true
 
         case GHOSTTY_ACTION_RING_BELL:
-            NSSound.beep()
+            handleRingBell(target: target)
             return true
 
         case GHOSTTY_ACTION_MOUSE_OVER_LINK:

@@ -110,6 +110,7 @@ final class TerminalWindow: NSWindow {
             forName: BellithSettings.didChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             self?.applyProfileAppearance()
+            self?.applyTrafficLightAutoHidePreference()
         }
 
         wallpaperObserver = NotificationCenter.default.addObserver(
@@ -199,6 +200,18 @@ final class TerminalWindow: NSWindow {
     private func hideTrafficLights() {
         guard trafficLightDisplayMode == .automatic, trafficLightsVisible, shouldAutoHideTrafficLights else { return }
         setTrafficLightsVisible(false, animated: true)
+    }
+
+    private func applyTrafficLightAutoHidePreference() {
+        guard trafficLightDisplayMode == .automatic else { return }
+        if shouldAutoHideTrafficLights {
+            scheduleTrafficLightHide()
+        } else {
+            trafficLightHideTimer?.invalidate()
+            if !trafficLightsVisible {
+                setTrafficLightsVisible(true, animated: true)
+            }
+        }
     }
 
     func showTrafficLights() {
@@ -318,5 +331,38 @@ final class TerminalWindow: NSWindow {
            info["zone"] == "trafficLights" {
             scheduleTrafficLightHide()
         }
+    }
+}
+
+extension NSWindow {
+    /// Briefly flashes a translucent overlay across the content view to signal
+    /// a terminal bell when the user has picked the "Visual" bell mode.
+    func flashForVisualBell() {
+        guard let contentView, let layer = contentView.layer else {
+            NSSound.beep()
+            return
+        }
+        let flash = CALayer()
+        flash.frame = contentView.bounds
+        flash.backgroundColor = NSColor.white.withAlphaComponent(0.28).cgColor
+        flash.cornerRadius = layer.cornerRadius
+        flash.cornerCurve = layer.cornerCurve
+        flash.opacity = 0
+        flash.zPosition = 10_000
+        layer.addSublayer(flash)
+
+        let animation = CAKeyframeAnimation(keyPath: "opacity")
+        animation.values = [0, 1, 0]
+        animation.keyTimes = [0, 0.25, 1]
+        animation.duration = 0.18
+        animation.isRemovedOnCompletion = false
+        animation.fillMode = .forwards
+
+        CATransaction.begin()
+        CATransaction.setCompletionBlock {
+            flash.removeFromSuperlayer()
+        }
+        flash.add(animation, forKey: "visualBell")
+        CATransaction.commit()
     }
 }

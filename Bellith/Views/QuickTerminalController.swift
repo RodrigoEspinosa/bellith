@@ -118,10 +118,18 @@ final class QuickTerminalController: NSObject {
         let height = screenFrame.height * CGFloat(settings.visorHeightPercent)
 
         let x = screenFrame.origin.x + (screenFrame.width - width) / 2
-        let hiddenY = screenFrame.origin.y + screenFrame.height + 10
-        let visibleY = screenFrame.origin.y + screenFrame.height - height
+        let hiddenY: CGFloat
+        let visibleY: CGFloat
+        switch settings.visorPosition {
+        case "bottom":
+            hiddenY = screenFrame.origin.y - height - 10
+            visibleY = screenFrame.origin.y
+        default:
+            hiddenY = screenFrame.origin.y + screenFrame.height + 10
+            visibleY = screenFrame.origin.y + screenFrame.height - height
+        }
 
-        // Start offscreen above
+        // Start offscreen in the hidden direction before animating in
         window.setFrame(NSRect(x: x, y: hiddenY, width: width, height: height), display: false)
         window.makeKeyAndOrderFront(nil)
         window.level = .floating
@@ -150,7 +158,13 @@ final class QuickTerminalController: NSObject {
         guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
         let screenFrame = screen.visibleFrame
         let frame = window.frame
-        let hiddenY = screenFrame.origin.y + screenFrame.height + 10
+        let hiddenY: CGFloat
+        switch dependencies.settings.visorPosition {
+        case "bottom":
+            hiddenY = screenFrame.origin.y - frame.height - 10
+        default:
+            hiddenY = screenFrame.origin.y + screenFrame.height + 10
+        }
 
         isAnimating = true
         isVisible = false

@@ -12,7 +12,8 @@ final class QuickTerminalPane: NSView {
 
     private let activationCard = SettingsCard(title: "Activation", subtitle: "How the quick terminal appears and disappears")
     private let hotkeyLabel = CardRowLabel("Global Hotkey")
-    private let hotkeyValue = NSTextField(labelWithString: "")
+    private let hotkeyValue = NSTextField(labelWithString: "⌥ `")
+    private let hotkeyNote = FooterNote("Option + backtick toggles the visor anywhere in macOS.")
     private let hideLabel = CardRowLabel("Hide on Focus Loss")
     private var hideToggle: PrefToggle!
 
@@ -54,6 +55,7 @@ final class QuickTerminalPane: NSView {
         content.addSubview(activationCard)
         activationCard.addSubview(hotkeyLabel)
         activationCard.addSubview(hotkeyValue)
+        activationCard.addSubview(hotkeyNote)
         activationCard.addSubview(hideLabel)
         activationCard.addSubview(hideToggle)
 
@@ -82,7 +84,8 @@ final class QuickTerminalPane: NSView {
         paneSubtitleLabel.textColor = Theme.textSecondary
         activationCard.refresh()
         appearanceCard.refresh()
-        hotkeyValue.stringValue = settings.visorHotkey.uppercased()
+        hotkeyValue.textColor = Theme.textPrimary
+        hotkeyNote.textColor = Theme.textTertiary
         hideToggle.setOn(settings.visorHideOnFocusLoss)
         posSegment.setSelected(["top": 0, "bottom": 1][settings.visorPosition] ?? 0)
         widthTrack.setValue(settings.visorWidthPercent)
@@ -107,12 +110,13 @@ final class QuickTerminalPane: NSView {
         paneSubtitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y + 28, width: cardW, height: 16)
         y += 60
 
-        let activationCardHeight = activationCard.headerHeight + 2 * PreferencesLayout.rowH + PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        let activationCardHeight = activationCard.headerHeight + 2 * PreferencesLayout.rowH + 14 + PreferencesLayout.rowGap + PreferencesLayout.cardPad
         activationCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: activationCardHeight)
         let ar0 = activationCardHeight - activationCard.headerHeight - PreferencesLayout.rowH
         hotkeyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ar0, width: labelW - 12, height: PreferencesLayout.rowH)
         hotkeyValue.frame = NSRect(x: controlX, y: ar0 + 12, width: controlW, height: 16)
-        let ar1 = ar0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
+        hotkeyNote.frame = NSRect(x: controlX, y: ar0 - 2, width: controlW, height: 14)
+        let ar1 = ar0 - PreferencesLayout.rowH - 14 - PreferencesLayout.rowGap
         hideLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ar1, width: toggleLabelWidth, height: PreferencesLayout.rowH)
         hideToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: ar1)
         y += activationCardHeight + PreferencesLayout.sectionGap

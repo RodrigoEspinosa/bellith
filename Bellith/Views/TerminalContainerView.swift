@@ -181,6 +181,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 self.statusBar.refreshTheme()
                 self.titleBar.refreshTheme()
                 self.handleStatusBarVisibilityChange(self.shouldShowStatusBar)
+                self.applyTabMode()
                 for tab in self.tabs {
                     self.applyChrome(to: tab.rootView)
                 }
@@ -2435,7 +2436,18 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         guard let terminalApp = terminalApp, let app = terminalApp.app else { return }
         let config = TerminalConfig()
         guard let newConfig = config.config else { return }
+        // Update the app-level config so new surfaces inherit the new settings.
         ghostty_app_update_config(app, newConfig)
+        // ghostty_app_update_config does not touch existing surfaces — push the
+        // same config onto every live surface so theme, font, cursor, scrollback,
+        // and other settings reflect immediately without closing the tab.
+        for tab in tabs {
+            for surfaceView in tab.surfaces {
+                guard let surface = surfaceView.surface else { continue }
+                ghostty_surface_update_config(surface, newConfig)
+                ghostty_surface_refresh(surface)
+            }
+        }
     }
 
     // MARK: - Session Save / Restore

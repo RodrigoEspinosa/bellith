@@ -62,8 +62,8 @@ final class BellithSettings {
     private enum PersistedKeys {
         static let stringKeys: Set<String> = [
             "fontFamily", "cursorStyle", "darkThemeName", "lightThemeName", "tabMode",
-            "shell", "terminalTerm", "visorHotkey", "visorPosition", "workingDirectory",
-            "bellMode", "wordSeparators", "shortcutPreset", "localSessionBootstrap",
+            "shell", "terminalTerm", "visorPosition", "workingDirectory",
+            "bellMode", "shortcutPreset", "localSessionBootstrap",
             "terminalOptionKeyBehavior", "appearanceMode",
             "activeTerminalProfileID",
         ]
@@ -406,11 +406,6 @@ final class BellithSettings {
     }
 
     // Quick Terminal
-    var visorHotkey: String {
-        get { defaults.string(forKey: "visorHotkey") ?? "option+`" }
-        set { defaults.set(newValue, forKey: "visorHotkey"); notify() }
-    }
-
     var visorHideOnFocusLoss: Bool {
         get {
             if defaults.object(forKey: "visorHideOnFocusLoss") != nil {
@@ -462,11 +457,6 @@ final class BellithSettings {
             return bootstrap
         }
         set { defaults.set(newValue.rawValue, forKey: "localSessionBootstrap"); notify() }
-    }
-
-    var wordSeparators: String {
-        get { defaults.string(forKey: "wordSeparators") ?? " \t!@#$%^&*()=+[]{}\\|;:'\",.<>?/`~" }
-        set { defaults.set(newValue, forKey: "wordSeparators"); notify() }
     }
 
     var terminalOptionKeyBehavior: TerminalOptionKeyBehavior {
@@ -1015,12 +1005,10 @@ final class BellithSettings {
             "trafficLightAutoHide": trafficLightAutoHide,
             "visorHeightPercent": roundedForSettingsFile(visorHeightPercent),
             "visorHideOnFocusLoss": visorHideOnFocusLoss,
-            "visorHotkey": visorHotkey,
             "visorPosition": visorPosition,
             "visorWidthPercent": roundedForSettingsFile(visorWidthPercent),
             "windowPaddingX": windowPaddingX,
             "windowPaddingY": windowPaddingY,
-            "wordSeparators": wordSeparators,
             "workingDirectory": workingDirectory,
         ]
 
