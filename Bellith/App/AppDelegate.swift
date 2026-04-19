@@ -1119,8 +1119,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if shouldNotifyForCompletedCommand(on: surfaceView, durationSeconds: durationSec) {
                 notifyCompletedCommand(on: surfaceView, durationSeconds: durationSec, exitCode: info.exit_code)
             }
-            if let surfaceView, let container = container(for: surfaceView) {
-                container.handleCompletedCommand(on: surfaceView, exitCode: info.exit_code)
+            if let surfaceView {
+                surfaceView.recordCommandMark(exitCode: info.exit_code)
+                if let container = container(for: surfaceView) {
+                    container.handleCompletedCommand(on: surfaceView, exitCode: info.exit_code)
+                }
             }
             return true
 
@@ -1135,6 +1138,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return true
 
         case GHOSTTY_ACTION_SCROLLBAR:
+            let bar = action.action.scrollbar
+            if let surfaceView = surfaceView(for: target) {
+                surfaceView.updateScrollbarState(
+                    total: Int(bar.total),
+                    offset: Int(bar.offset),
+                    len: Int(bar.len)
+                )
+            }
             return true
 
         case GHOSTTY_ACTION_START_SEARCH:
@@ -1149,6 +1160,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         case GHOSTTY_ACTION_END_SEARCH:
             activeEntry?.container.hideSearch()
+            if let surfaceView = surfaceView(for: target) {
+                surfaceView.clearMinimapSearchSelection()
+            }
             return true
 
         case GHOSTTY_ACTION_SEARCH_TOTAL:
@@ -1159,6 +1173,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case GHOSTTY_ACTION_SEARCH_SELECTED:
             let selected = Int(action.action.search_selected.selected)
             activeEntry?.container.updateSearchSelected(selected)
+            if let surfaceView = surfaceView(for: target) {
+                surfaceView.updateMinimapSearchSelection()
+            }
             return true
 
         default:

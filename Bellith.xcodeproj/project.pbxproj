@@ -45,6 +45,7 @@
 		4859630C40EA72D0F6A13448 /* SSHLaunchBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A6320778E024E8ABCDF2A6 /* SSHLaunchBuilder.swift */; };
 		4C6D7ECB973811FC8DA4121C /* ProcessMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39A46EAB948FDDFB1C12E4B9 /* ProcessMonitor.swift */; };
 		4DDD96881F2A1409729CD580 /* HyperlinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2088BFA03DDDC079DE5DB8C /* HyperlinkRouter.swift */; };
+		4E51EEB1C2092382F475B24B /* ScrollbackMinimapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03168242417C9553954DD3F4 /* ScrollbackMinimapView.swift */; };
 		55B5329D0C164FDCBEE88A5D /* ToolActivityMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE6157DFCE204C3ADC26FA72 /* ToolActivityMonitor.swift */; };
 		5863C9295DF764ABD02BC958 /* HyperlinkRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CDC1927EB617093208667D9 /* HyperlinkRouterTests.swift */; };
 		5DD63722AB2EE526EB096050 /* GhosttyKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1E2025F109793353C35658F9 /* GhosttyKit.xcframework */; };
@@ -125,6 +126,7 @@
 
 /* Begin PBXFileReference section */
 		01AD6AF9F8A70A7E83B56C8C /* QuickTerminalPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickTerminalPane.swift; sourceTree = "<group>"; };
+		03168242417C9553954DD3F4 /* ScrollbackMinimapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollbackMinimapView.swift; sourceTree = "<group>"; };
 		0AF85C08BA2DF08A6A597C24 /* CommandFailureSuggestionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandFailureSuggestionView.swift; sourceTree = "<group>"; };
 		0B8A3CDE542974BFD639F6F0 /* CommandRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandRegistry.swift; sourceTree = "<group>"; };
 		0E054D89080718E9732C73F2 /* TerminalConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalConfig.swift; sourceTree = "<group>"; };
@@ -320,6 +322,7 @@
 				52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */,
 				7B6A4E8E8C5D7B65BB385570 /* ContextBadgeView.swift */,
 				9C964FC62608F8FA41EE01B5 /* QuickTerminalController.swift */,
+				03168242417C9553954DD3F4 /* ScrollbackMinimapView.swift */,
 				EC69484808B270DA784451B1 /* SearchBarView.swift */,
 				BB30AA7FAF949D6830C55830 /* ShortcutCheatSheetView.swift */,
 				EA87F2112E9FD1A9C106D8F2 /* SidebarView.swift */,
@@ -679,6 +682,7 @@
 				00EC7090FE625A045A9BEF48 /* SSHProfile.swift in Sources */,
 				6798D6E2D3D556D644A18E41 /* SSHProfileStore.swift in Sources */,
 				2BC36AC2F4C1DD3823B68CA5 /* SSHSessionDetector.swift in Sources */,
+				4E51EEB1C2092382F475B24B /* ScrollbackMinimapView.swift in Sources */,
 				F26474311EB82215B71E0CE0 /* SearchBarView.swift in Sources */,
 				D18360F5978A3344A622645C /* SessionBootstrapCommandBuilder.swift in Sources */,
 				3AA2DA3E813BBA3E1B8CF1B9 /* SessionState.swift in Sources */,
