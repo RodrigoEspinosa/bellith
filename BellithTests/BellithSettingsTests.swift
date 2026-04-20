@@ -232,28 +232,18 @@ final class BellithSettingsTests: XCTestCase {
 
     // MARK: - Profile Appearance
 
-    func testDefaultProfileExistsWithMigratedOpacity() {
-        // Setup seeds a fresh suite; backgroundOpacity stays at 1.0 and the
-        // default profile inherits it through the migration pass.
+    func testDefaultProfileExists() {
         XCTAssertEqual(settings.profiles.count, 1)
         XCTAssertEqual(settings.activeProfileID, TerminalProfile.defaultID)
-        XCTAssertEqual(
-            settings.activeProfile.effectiveBackgroundOpacity(fallback: settings),
-            1.0,
-            accuracy: 0.001
-        )
+        XCTAssertEqual(settings.backgroundOpacity, 1.0, accuracy: 0.001)
     }
 
-    func testUpdateActiveProfilePersistsTranslucencyAndTint() {
-        settings.updateActiveProfile {
-            $0.backgroundOpacity = 0.65
-            $0.wallpaperTint = true
-        }
+    func testGlobalTranslucencyAndTintPersist() {
+        settings.backgroundOpacity = 0.65
+        settings.wallpaperTint = true
         let reloaded = BellithSettings(defaults: defaults, settingsFileURL: settingsFileURL)
-        let profile = reloaded.activeProfile
-        XCTAssertEqual(profile.effectiveBackgroundOpacity(fallback: reloaded), 0.65, accuracy: 0.001)
-        XCTAssertEqual(profile.effectiveFrameTranslucency(fallback: reloaded), 0.35, accuracy: 0.001)
-        XCTAssertTrue(profile.effectiveWallpaperTint())
+        XCTAssertEqual(reloaded.backgroundOpacity, 0.65, accuracy: 0.001)
+        XCTAssertTrue(reloaded.wallpaperTint)
     }
 
     func testActiveProfileIDFallsBackToDefaultWhenMissing() {
@@ -263,20 +253,10 @@ final class BellithSettingsTests: XCTestCase {
 
     func testAddingSecondProfileAndSwitching() {
         var list = settings.profiles
-        list.append(TerminalProfile(
-            id: "focus",
-            name: "Focus",
-            backgroundOpacity: 0.3,
-            wallpaperTint: true
-        ))
+        list.append(TerminalProfile(id: "focus", name: "Focus"))
         settings.profiles = list
         settings.activeProfileID = "focus"
         XCTAssertEqual(settings.activeProfile.id, "focus")
-        XCTAssertEqual(
-            settings.activeProfile.effectiveBackgroundOpacity(fallback: settings),
-            0.3,
-            accuracy: 0.001
-        )
     }
 
     func testBooleanSettingsRoundtrip() {

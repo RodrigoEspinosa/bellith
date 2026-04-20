@@ -133,16 +133,15 @@ final class TerminalWindow: NSWindow {
     /// wraps the terminal container is always present — it provides the
     /// material that shows through Ghostty's alpha.
     private func applyProfileAppearance() {
-        let profile = settings.activeProfile
-        let translucency = profile.effectiveFrameTranslucency(fallback: settings)
-        let wantsTranslucent = translucency > 0
+        let opacity = min(max(settings.backgroundOpacity, 0.0), 1.0)
+        let wantsTranslucent = opacity < 1.0
 
         alphaValue = 1.0
         isOpaque = !wantsTranslucent
         backgroundColor = wantsTranslucent ? .clear : Theme.colors.frame
 
         if let backdrop = contentView as? BackdropView {
-            backdrop.apply(profile: profile, fallback: settings, screen: screen)
+            backdrop.apply(settings: settings, screen: screen)
         }
 
         invalidateShadow()

@@ -12,16 +12,30 @@ struct TerminalProfile: Codable, Identifiable, Equatable {
     var workingDirectory: String?
     var cursorStyle: String?
 
-    /// Frame opacity in [0.0, 1.0]. `nil` falls back to the global setting.
-    /// This is the sole knob driving frame translucency: the displayed
-    /// "Frame Translucency" slider writes `1 - translucency` here, and the
-    /// visual-effect material intensity is derived from it so every slider
-    /// position yields a visually coherent frame.
-    var backgroundOpacity: Double?
+    /// Only kept so we can read the value from pre-unification installs and
+    /// promote it to the global setting during migration. Never written.
+    var legacyBackgroundOpacity: Double?
+    var legacyWallpaperTint: Bool?
 
-    /// When true, a muted accent derived from the desktop wallpaper is
-    /// overlaid on the translucent window chrome.
-    var wallpaperTint: Bool?
+    private enum CodingKeys: String, CodingKey {
+        case id, name, fontFamily, fontSize, themeName, shell, workingDirectory, cursorStyle
+        case legacyBackgroundOpacity = "backgroundOpacity"
+        case legacyWallpaperTint = "wallpaperTint"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encodeIfPresent(fontFamily, forKey: .fontFamily)
+        try c.encodeIfPresent(fontSize, forKey: .fontSize)
+        try c.encodeIfPresent(themeName, forKey: .themeName)
+        try c.encodeIfPresent(shell, forKey: .shell)
+        try c.encodeIfPresent(workingDirectory, forKey: .workingDirectory)
+        try c.encodeIfPresent(cursorStyle, forKey: .cursorStyle)
+        // legacy fields are intentionally not re-encoded; migration promotes
+        // them to global settings on first launch after the unification.
+    }
 
     func effectiveFont(fallback: BellithSettings) -> String {
         fontFamily ?? fallback.fontFamily
@@ -35,26 +49,11 @@ struct TerminalProfile: Codable, Identifiable, Equatable {
         shell ?? fallback.shell
     }
 
-    func effectiveBackgroundOpacity(fallback: BellithSettings) -> Double {
-        let value = backgroundOpacity ?? fallback.backgroundOpacity
-        return min(max(value, 0.0), 1.0)
-    }
-
-    /// Derived 0...1 glass strength. 0 means a fully solid frame (no blur
-    /// backdrop); 1 means maximum glass. Always co-varies with the frame
-    /// opacity so the two can't drift into incoherent combinations.
-    func effectiveFrameTranslucency(fallback: BellithSettings) -> Double {
-        1.0 - effectiveBackgroundOpacity(fallback: fallback)
-    }
-
-    func effectiveWallpaperTint() -> Bool {
-        wallpaperTint ?? false
-    }
-
     static let defaultID = "default"
 
     static let `default` = TerminalProfile(id: defaultID, name: "Default")
 }
+
 
 extension BellithSettings {
     private static let profilesKey = "terminalProfiles"

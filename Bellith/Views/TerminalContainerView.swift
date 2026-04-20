@@ -324,8 +324,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     private var activeProfileIsTranslucent: Bool {
-        let profile = dependencies.settings.activeProfile
-        return profile.effectiveFrameTranslucency(fallback: dependencies.settings) > 0
+        dependencies.settings.backgroundOpacity < 1.0
     }
 
     private func updateChromeFrames(animated: Bool, sidebarWidth: CGFloat? = nil, statusBarVisible: Bool? = nil) {

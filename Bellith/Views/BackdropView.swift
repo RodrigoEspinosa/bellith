@@ -40,9 +40,9 @@ final class BackdropView: NSVisualEffectView {
 
     /// Update the material and tint for the given profile. Called whenever
     /// settings or the active profile change.
-    func apply(profile: TerminalProfile, fallback: BellithSettings, screen: NSScreen?) {
-        let translucency = profile.effectiveFrameTranslucency(fallback: fallback)
-        let opacity = 1.0 - translucency
+    func apply(settings: BellithSettings, screen: NSScreen?) {
+        let opacity = min(max(settings.backgroundOpacity, 0.0), 1.0)
+        let translucency = 1.0 - opacity
         let wantsTranslucent = translucency > 0
 
         // When the profile is fully opaque we hide the material so Ghostty's
@@ -66,7 +66,7 @@ final class BackdropView: NSVisualEffectView {
         }
         CATransaction.commit()
 
-        if profile.effectiveWallpaperTint(), wantsTranslucent {
+        if settings.wallpaperTint, wantsTranslucent {
             let accent = WallpaperTint.shared.accent(for: screen ?? NSScreen.main)
             let blended = Self.blend(base: Theme.colors.frame, tint: accent, amount: 0.3)
             tintLayer.backgroundColor = blended.withAlphaComponent(0.55).cgColor

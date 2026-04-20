@@ -83,7 +83,7 @@ final class BellithSettings {
             "commandCompletionNotificationsEnabled", "errorFixSuggestionsEnabled",
             "sidebarPinned", "sidebarAutoHide",
             "sidebarShowTools", "visorHideOnFocusLoss", "trafficLightAutoHide",
-            "oledChromeForDarkThemes",
+            "oledChromeForDarkThemes", "wallpaperTint",
             "legacyPaneSupport",
             "showStatusBar", "showStatusBarContext", "showStatusBarPath",
             "showStatusBarGitWorktree", "showStatusBarGitBranch", "showStatusBarProcess",
@@ -121,7 +121,7 @@ final class BellithSettings {
         loadSettingsFileIfNeeded()
         migrateBuiltInSettingsWindowDefaultIfNeeded()
         migrateLegacyWindowPaddingIfNeeded()
-        migrateLegacyBackgroundOpacityToDefaultProfileIfNeeded()
+        migrateLegacyProfileAppearanceToGlobalIfNeeded()
         persistSettingsFileIfNeeded()
         startObservingSettingsFileIfNeeded()
     }
@@ -162,6 +162,14 @@ final class BellithSettings {
             return 1.0
         }
         set { defaults.set(newValue, forKey: "backgroundOpacity"); notify() }
+    }
+
+    /// When true, a muted accent derived from the desktop wallpaper is overlaid
+    /// on the translucent window chrome. Only visible when the frame is at all
+    /// translucent (`backgroundOpacity < 1`).
+    var wallpaperTint: Bool {
+        get { defaults.bool(forKey: "wallpaperTint") }
+        set { defaults.set(newValue, forKey: "wallpaperTint"); notify() }
     }
 
     var cursorStyle: String {
@@ -773,17 +781,23 @@ final class BellithSettings {
         defaults.set(WindowPaddingDefaults.current, forKey: "windowPaddingY")
     }
 
-    /// Seed the default profile's backgroundOpacity from the legacy global value
-    /// so pre-existing installs preserve their chosen translucency after moving
-    /// to per-profile storage.
-    private func migrateLegacyBackgroundOpacityToDefaultProfileIfNeeded() {
-        var list = profiles
-        guard let defaultIndex = list.firstIndex(where: { $0.id == TerminalProfile.defaultID }),
-              list[defaultIndex].backgroundOpacity == nil else {
+    /// Pull the default profile's appearance fields (opacity/tint) back up into
+    /// the global settings now that frame translucency and wallpaper tint are
+    /// window-level. Runs once per install and only if the user had customized
+    /// the default profile.
+    private func migrateLegacyProfileAppearanceToGlobalIfNeeded() {
+        let list = profiles
+        guard let defaultProfile = list.first(where: { $0.id == TerminalProfile.defaultID }) else {
             return
         }
-        list[defaultIndex].backgroundOpacity = backgroundOpacity
-        profiles = list
+        if let opacity = defaultProfile.legacyBackgroundOpacity,
+           defaults.object(forKey: "backgroundOpacity") == nil {
+            backgroundOpacity = opacity
+        }
+        if let tint = defaultProfile.legacyWallpaperTint,
+           defaults.object(forKey: "wallpaperTint") == nil {
+            wallpaperTint = tint
+        }
     }
 
     static let defaultKeybindings: [KeyBindingEntry] = defaultKeybindings(for: .bellithHybrid, legacyPaneSupport: false)
@@ -998,6 +1012,7 @@ final class BellithSettings {
             "mouseHideWhileTyping": mouseHideWhileTyping,
             "noiseIntensity": roundedForSettingsFile(noiseIntensity),
             "oledChromeForDarkThemes": oledChromeForDarkThemes,
+            "wallpaperTint": wallpaperTint,
             "restoreSession": restoreSession,
             "scrollbackLines": scrollbackLines,
             "scrollbackMinimapEnabled": scrollbackMinimapEnabled,
