@@ -46,11 +46,11 @@ final class AppearancePane: NSView {
 
     private let profileCard = SettingsCard(
         title: "Profile Appearance",
-        subtitle: "Per-profile opacity, blur, and wallpaper tint"
+        subtitle: "Per-profile frame opacity, blur, and wallpaper tint"
     )
     private let profileSelectLabel = CardRowLabel("Active Profile")
     private let profilePopup = NSPopUpButton()
-    private let opacityLabel = CardRowLabel("Background Opacity")
+    private let opacityLabel = CardRowLabel("Window Frame Opacity")
     private var opacityTrack: OpacityTrackView!
     private let blurLabel = CardRowLabel("Blur Intensity")
     private var blurTrack: OpacityTrackView!

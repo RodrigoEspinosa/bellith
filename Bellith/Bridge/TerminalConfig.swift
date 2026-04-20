@@ -137,7 +137,7 @@ final class TerminalConfig {
             "font-size = \(s.fontSize)",
             "theme = \(themeReference)",
             "term = \(s.effectiveTerminalTerm)",
-            "background-opacity = \(s.activeProfile.effectiveBackgroundOpacity(fallback: s))",
+            "background-opacity = 1.0",
             "background-blur-radius = \(Self.backgroundBlurRadius(for: s.activeProfile))",
             "window-padding-x = \(Self.windowPaddingXValue(for: s))",
             "window-padding-y = \(Self.windowPaddingYValue(for: s))",

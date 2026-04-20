@@ -1,11 +1,12 @@
 import AppKit
 
 /// Root window content view that hosts a terminal container and provides a
-/// translucent material behind it. Used so profiles with
-/// `backgroundOpacity < 1` have a visible backdrop instead of the raw desktop
-/// when Ghostty composites its alpha pixels.
+/// translucent material behind the *frame* (sidebar, title bar, padding) when
+/// `backgroundOpacity < 1`. The terminal content surface itself always renders
+/// fully opaque so text stays legible regardless of frame translucency.
 final class BackdropView: NSVisualEffectView {
     let container: TerminalContainerView
+    private let frameTintLayer = CALayer()
     private let tintLayer = CALayer()
 
     init(container: TerminalContainerView) {
@@ -16,6 +17,9 @@ final class BackdropView: NSVisualEffectView {
         material = .hudWindow
         wantsLayer = true
         layer?.masksToBounds = true
+
+        frameTintLayer.backgroundColor = NSColor.clear.cgColor
+        layer?.addSublayer(frameTintLayer)
 
         tintLayer.backgroundColor = NSColor.clear.cgColor
         layer?.addSublayer(tintLayer)
@@ -30,6 +34,7 @@ final class BackdropView: NSVisualEffectView {
     override func layout() {
         super.layout()
         container.frame = bounds
+        frameTintLayer.frame = bounds
         tintLayer.frame = bounds
     }
 
@@ -44,6 +49,22 @@ final class BackdropView: NSVisualEffectView {
         // own background fills the window without any blur cost.
         isHidden = !wantsTranslucent
         material = Self.material(forBlurIntensity: blur)
+
+        // Tint the frame (areas around the opaque terminal surface — sidebar,
+        // title bar, padding) with the theme frame color at the requested
+        // opacity. This lets the slider blend between solid frame and glass
+        // without touching the terminal content, which always renders opaque.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        if wantsTranslucent {
+            frameTintLayer.backgroundColor = Theme.colors.frame
+                .withAlphaComponent(CGFloat(opacity))
+                .cgColor
+            frameTintLayer.isHidden = false
+        } else {
+            frameTintLayer.isHidden = true
+        }
+        CATransaction.commit()
 
         if profile.effectiveWallpaperTint(), wantsTranslucent {
             let accent = WallpaperTint.shared.accent(for: screen ?? NSScreen.main)
