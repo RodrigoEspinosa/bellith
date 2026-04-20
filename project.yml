@@ -27,7 +27,6 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Bellith/Bellith.entitlements
         CODE_SIGN_STYLE: Automatic
         ENABLE_DEBUG_DYLIB: NO
-        ENABLE_DEBUG_DYLIB_SUPPORT: NO
         SWIFT_OBJC_BRIDGING_HEADER: ""
         OTHER_LDFLAGS:
           - "-framework Metal"

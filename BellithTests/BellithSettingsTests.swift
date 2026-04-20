@@ -244,16 +244,15 @@ final class BellithSettingsTests: XCTestCase {
         )
     }
 
-    func testUpdateActiveProfilePersistsOpacityAndBlur() {
+    func testUpdateActiveProfilePersistsTranslucencyAndTint() {
         settings.updateActiveProfile {
             $0.backgroundOpacity = 0.65
-            $0.blurIntensity = 0.4
             $0.wallpaperTint = true
         }
         let reloaded = BellithSettings(defaults: defaults, settingsFileURL: settingsFileURL)
         let profile = reloaded.activeProfile
         XCTAssertEqual(profile.effectiveBackgroundOpacity(fallback: reloaded), 0.65, accuracy: 0.001)
-        XCTAssertEqual(profile.effectiveBlurIntensity(), 0.4, accuracy: 0.001)
+        XCTAssertEqual(profile.effectiveFrameTranslucency(fallback: reloaded), 0.35, accuracy: 0.001)
         XCTAssertTrue(profile.effectiveWallpaperTint())
     }
 
@@ -268,7 +267,6 @@ final class BellithSettingsTests: XCTestCase {
             id: "focus",
             name: "Focus",
             backgroundOpacity: 0.3,
-            blurIntensity: 0.8,
             wallpaperTint: true
         ))
         settings.profiles = list

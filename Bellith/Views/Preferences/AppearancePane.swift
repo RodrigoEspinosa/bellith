@@ -46,14 +46,12 @@ final class AppearancePane: NSView {
 
     private let profileCard = SettingsCard(
         title: "Profile Appearance",
-        subtitle: "Per-profile frame opacity, blur, and wallpaper tint"
+        subtitle: "Per-profile frame translucency and wallpaper tint"
     )
     private let profileSelectLabel = CardRowLabel("Active Profile")
     private let profilePopup = NSPopUpButton()
-    private let opacityLabel = CardRowLabel("Window Frame Opacity")
-    private var opacityTrack: OpacityTrackView!
-    private let blurLabel = CardRowLabel("Blur Intensity")
-    private var blurTrack: OpacityTrackView!
+    private let translucencyLabel = CardRowLabel("Frame Translucency")
+    private var translucencyTrack: OpacityTrackView!
     private let tintLabel = CardRowLabel("Wallpaper Tint")
     private var tintToggle: PrefToggle!
 
@@ -191,17 +189,11 @@ final class AppearancePane: NSView {
         rebuildProfilePopup()
 
         let activeProfile = settings.activeProfile
-        opacityTrack = OpacityTrackView(
-            value: activeProfile.effectiveBackgroundOpacity(fallback: settings),
+        translucencyTrack = OpacityTrackView(
+            value: activeProfile.effectiveFrameTranslucency(fallback: settings),
             minValue: 0.0
         ) { [weak self] value in
-            self?.settings.updateActiveProfile { $0.backgroundOpacity = value }
-        }
-        blurTrack = OpacityTrackView(
-            value: activeProfile.effectiveBlurIntensity(),
-            minValue: 0.0
-        ) { [weak self] value in
-            self?.settings.updateActiveProfile { $0.blurIntensity = value }
+            self?.settings.updateActiveProfile { $0.backgroundOpacity = 1.0 - value }
         }
         tintToggle = PrefToggle(isOn: activeProfile.effectiveWallpaperTint()) { [weak self] value in
             self?.settings.updateActiveProfile { $0.wallpaperTint = value }
@@ -210,8 +202,7 @@ final class AppearancePane: NSView {
         content.addSubview(profileCard)
         for view: NSView in [
             profileSelectLabel, profilePopup,
-            opacityLabel, opacityTrack,
-            blurLabel, blurTrack,
+            translucencyLabel, translucencyTrack,
             tintLabel, tintToggle,
         ] {
             profileCard.addSubview(view)
@@ -297,8 +288,7 @@ final class AppearancePane: NSView {
         padYField.setValue(settings.windowPaddingY)
         rebuildProfilePopup()
         let active = settings.activeProfile
-        opacityTrack.setValue(active.effectiveBackgroundOpacity(fallback: settings))
-        blurTrack.setValue(active.effectiveBlurIntensity())
+        translucencyTrack.setValue(active.effectiveFrameTranslucency(fallback: settings))
         tintToggle.setOn(active.effectiveWallpaperTint())
         tintToggle.refreshAppearance()
         profileCard.refresh()
@@ -355,8 +345,7 @@ final class AppearancePane: NSView {
         guard let id = profilePopup.selectedItem?.representedObject as? String else { return }
         settings.activeProfileID = id
         let active = settings.activeProfile
-        opacityTrack.setValue(active.effectiveBackgroundOpacity(fallback: settings))
-        blurTrack.setValue(active.effectiveBlurIntensity())
+        translucencyTrack.setValue(active.effectiveFrameTranslucency(fallback: settings))
         tintToggle.setOn(active.effectiveWallpaperTint())
         tintToggle.refreshAppearance()
     }
@@ -453,20 +442,17 @@ final class AppearancePane: NSView {
         trafficLightToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardWidth, rowY: wr2)
         y += windowCardHeight + PreferencesLayout.sectionGap
 
-        let profileCardHeight = profileCard.headerHeight + 4 * PreferencesLayout.rowH + 3 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
+        let profileCardHeight = profileCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
         profileCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardWidth, height: profileCardHeight)
         let pr0 = profileCardHeight - profileCard.headerHeight - PreferencesLayout.rowH
         profileSelectLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: pr0, width: labelWidth, height: PreferencesLayout.rowH)
         profilePopup.frame = NSRect(x: controlX, y: pr0 + 4, width: min(220, controlWidth), height: 28)
         let pr1 = pr0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        opacityLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: pr1, width: labelWidth, height: PreferencesLayout.rowH)
-        opacityTrack.frame = NSRect(x: controlX, y: pr1 + 8, width: controlWidth, height: 24)
+        translucencyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: pr1, width: labelWidth, height: PreferencesLayout.rowH)
+        translucencyTrack.frame = NSRect(x: controlX, y: pr1 + 8, width: controlWidth, height: 24)
         let pr2 = pr1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        blurLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: pr2, width: labelWidth, height: PreferencesLayout.rowH)
-        blurTrack.frame = NSRect(x: controlX, y: pr2 + 8, width: controlWidth, height: 24)
-        let pr3 = pr2 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        tintLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: pr3, width: toggleLabelWidth, height: PreferencesLayout.rowH)
-        tintToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardWidth, rowY: pr3)
+        tintLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: pr2, width: toggleLabelWidth, height: PreferencesLayout.rowH)
+        tintToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardWidth, rowY: pr2)
         y += profileCardHeight + PreferencesLayout.sectionGap
 
         let statusBarCardHeight = statusBarCard.headerHeight + 7 * PreferencesLayout.rowH + 6 * PreferencesLayout.rowGap + PreferencesLayout.cardPad

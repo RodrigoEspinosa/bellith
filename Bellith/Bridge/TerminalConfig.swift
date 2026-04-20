@@ -138,7 +138,7 @@ final class TerminalConfig {
             "theme = \(themeReference)",
             "term = \(s.effectiveTerminalTerm)",
             "background-opacity = 1.0",
-            "background-blur-radius = \(Self.backgroundBlurRadius(for: s.activeProfile))",
+            "background-blur-radius = \(Self.backgroundBlurRadius(for: s.activeProfile, settings: s))",
             "window-padding-x = \(Self.windowPaddingXValue(for: s))",
             "window-padding-y = \(Self.windowPaddingYValue(for: s))",
             "window-padding-balance = false",
@@ -243,11 +243,11 @@ final class TerminalConfig {
         }
     }
 
-    /// Map the profile's 0–1 blur slider onto Ghostty's pixel-valued
+    /// Map the profile's derived translucency onto Ghostty's pixel-valued
     /// `background-blur-radius`. 0 disables the native blur; 1 pins it to a
     /// heavy frost.
-    private static func backgroundBlurRadius(for profile: TerminalProfile) -> Int {
-        let intensity = profile.effectiveBlurIntensity()
+    private static func backgroundBlurRadius(for profile: TerminalProfile, settings: BellithSettings) -> Int {
+        let intensity = profile.effectiveFrameTranslucency(fallback: settings)
         guard intensity > 0 else { return 0 }
         return max(1, Int((intensity * 40).rounded()))
     }

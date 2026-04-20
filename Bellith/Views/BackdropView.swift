@@ -41,14 +41,14 @@ final class BackdropView: NSVisualEffectView {
     /// Update the material and tint for the given profile. Called whenever
     /// settings or the active profile change.
     func apply(profile: TerminalProfile, fallback: BellithSettings, screen: NSScreen?) {
-        let opacity = profile.effectiveBackgroundOpacity(fallback: fallback)
-        let blur = profile.effectiveBlurIntensity()
-        let wantsTranslucent = opacity < 1.0 || blur > 0
+        let translucency = profile.effectiveFrameTranslucency(fallback: fallback)
+        let opacity = 1.0 - translucency
+        let wantsTranslucent = translucency > 0
 
         // When the profile is fully opaque we hide the material so Ghostty's
         // own background fills the window without any blur cost.
         isHidden = !wantsTranslucent
-        material = Self.material(forBlurIntensity: blur)
+        material = Self.material(forFrameTranslucency: translucency)
 
         // Tint the frame (areas around the opaque terminal surface — sidebar,
         // title bar, padding) with the theme frame color at the requested
@@ -83,8 +83,11 @@ final class BackdropView: NSVisualEffectView {
         }
     }
 
-    private static func material(forBlurIntensity intensity: Double) -> NSVisualEffectView.Material {
-        switch intensity {
+    /// Curated material progression along the unified translucency slider.
+    /// Each band was picked so every slider position yields a materially
+    /// coherent frame — no flickering thresholds at off positions.
+    private static func material(forFrameTranslucency value: Double) -> NSVisualEffectView.Material {
+        switch value {
         case ..<0.2: return .hudWindow
         case ..<0.45: return .sidebar
         case ..<0.7: return .menu

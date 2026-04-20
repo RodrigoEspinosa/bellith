@@ -12,12 +12,12 @@ struct TerminalProfile: Codable, Identifiable, Equatable {
     var workingDirectory: String?
     var cursorStyle: String?
 
-    /// Background opacity in [0.0, 1.0]. `nil` falls back to the global setting.
+    /// Frame opacity in [0.0, 1.0]. `nil` falls back to the global setting.
+    /// This is the sole knob driving frame translucency: the displayed
+    /// "Frame Translucency" slider writes `1 - translucency` here, and the
+    /// visual-effect material intensity is derived from it so every slider
+    /// position yields a visually coherent frame.
     var backgroundOpacity: Double?
-
-    /// Blur intensity in [0.0, 1.0]. 0 disables the visual-effect backdrop;
-    /// higher values pick a heavier `NSVisualEffectView.Material`.
-    var blurIntensity: Double?
 
     /// When true, a muted accent derived from the desktop wallpaper is
     /// overlaid on the translucent window chrome.
@@ -40,8 +40,11 @@ struct TerminalProfile: Codable, Identifiable, Equatable {
         return min(max(value, 0.0), 1.0)
     }
 
-    func effectiveBlurIntensity() -> Double {
-        min(max(blurIntensity ?? 0.0, 0.0), 1.0)
+    /// Derived 0...1 glass strength. 0 means a fully solid frame (no blur
+    /// backdrop); 1 means maximum glass. Always co-varies with the frame
+    /// opacity so the two can't drift into incoherent combinations.
+    func effectiveFrameTranslucency(fallback: BellithSettings) -> Double {
+        1.0 - effectiveBackgroundOpacity(fallback: fallback)
     }
 
     func effectiveWallpaperTint() -> Bool {

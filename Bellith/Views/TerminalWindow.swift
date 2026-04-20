@@ -134,9 +134,8 @@ final class TerminalWindow: NSWindow {
     /// material that shows through Ghostty's alpha.
     private func applyProfileAppearance() {
         let profile = settings.activeProfile
-        let opacity = profile.effectiveBackgroundOpacity(fallback: settings)
-        let blur = profile.effectiveBlurIntensity()
-        let wantsTranslucent = opacity < 1.0 || blur > 0
+        let translucency = profile.effectiveFrameTranslucency(fallback: settings)
+        let wantsTranslucent = translucency > 0
 
         alphaValue = 1.0
         isOpaque = !wantsTranslucent
