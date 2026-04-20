@@ -125,7 +125,7 @@ final class SidebarView: NSView, NSDraggingSource {
 
         toolsHeaderLabel.stringValue = "TOOLS"
         toolsHeaderLabel.font = BellithFont.mono(11, weight: .regular)
-        toolsHeaderLabel.textColor = Theme.textMuted
+        toolsHeaderLabel.textColor = Theme.textSecondary
         toolsHeaderLabel.isEditable = false
         toolsHeaderLabel.isBezeled = false
         toolsHeaderLabel.drawsBackground = false
@@ -227,7 +227,7 @@ final class SidebarView: NSView, NSDraggingSource {
         edgeBlend.cornerRadius = 0
 
         headerLabel.textColor = Theme.textSecondary
-        toolsHeaderLabel.textColor = Theme.textMuted
+        toolsHeaderLabel.textColor = Theme.textSecondary
         noiseView.alphaValue = 0
         noiseView.refreshTheme()
         newTabButton.contentTintColor = Theme.textSecondary
@@ -1126,7 +1126,7 @@ fileprivate final class SidebarToolRow: NSView {
         } else {
             backgroundColor = NSColor.clear
             borderColor = NSColor.clear
-            iconColor = Theme.textSecondary
+            iconColor = Theme.textPrimary.withAlphaComponent(Theme.colors.isLight ? 0.68 : 0.72)
             layer?.shadowOpacity = 0
         }
 
