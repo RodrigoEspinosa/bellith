@@ -488,6 +488,7 @@
 				AD25C25F1F20F07E225479E5 /* Resources */,
 				EA08AA80D81307CF5B4BAF8F /* Frameworks */,
 				2750E7815A8C61345A367EF5 /* Embed bellith CLI */,
+				7F716890074A1CAF1368C798 /* Stamp version from git */,
 				204543A95711977EF5010CA0 /* SwiftLint */,
 			);
 			buildRules = (
@@ -606,6 +607,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "CLI_SRC=\"$BUILT_PRODUCTS_DIR/bellith\"\nCLI_DST=\"$TARGET_BUILD_DIR/$FULL_PRODUCT_NAME/Contents/Resources/bellith\"\nif [ -f \"$CLI_SRC\" ]; then\n  mkdir -p \"$(dirname \"$CLI_DST\")\"\n  cp -f \"$CLI_SRC\" \"$CLI_DST\"\n  chmod +x \"$CLI_DST\"\nfi\n";
+		};
+		7F716890074A1CAF1368C798 /* Stamp version from git */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Stamp version from git";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/scripts/stamp-version.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
