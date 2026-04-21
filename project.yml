@@ -20,12 +20,16 @@ targets:
         excludes:
           - "*.entitlements"
           - "Info.plist"
+          - "PrivacyInfo.xcprivacy"
+      - path: Bellith/PrivacyInfo.xcprivacy
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.rec.bellith
         INFOPLIST_FILE: Bellith/Info.plist
         CODE_SIGN_ENTITLEMENTS: Bellith/Bellith.entitlements
         CODE_SIGN_STYLE: Automatic
+        ENABLE_HARDENED_RUNTIME: YES
         ENABLE_DEBUG_DYLIB: NO
         SWIFT_OBJC_BRIDGING_HEADER: ""
         OTHER_LDFLAGS:
@@ -74,6 +78,7 @@ targets:
         PRODUCT_NAME: bellith
         SKIP_INSTALL: YES
         CODE_SIGN_STYLE: Automatic
+        ENABLE_HARDENED_RUNTIME: YES
 
   BellithTests:
     type: bundle.unit-test

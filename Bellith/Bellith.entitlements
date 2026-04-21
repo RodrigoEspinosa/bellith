@@ -2,7 +2,26 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Terminal emulator: must fork/exec arbitrary child processes; cannot run in App Sandbox. -->
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
+
+	<!-- Hardened Runtime: keep the attack surface minimal while supporting a terminal's legitimate needs. -->
+
+	<!-- Child shells (node, python, some language runtimes) JIT-compile code. -->
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+
+	<!-- JIT-compiling children write executable pages that are not code-signed. -->
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+
+	<!-- GhosttyKit is a third-party XCFramework with its own signing identity; we need to load it. -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+
+	<!-- User shells rely on DYLD_* env vars (e.g. DYLD_LIBRARY_PATH) for custom toolchains. -->
+	<key>com.apple.security.cs.allow-dyld-environment-variables</key>
+	<true/>
 </dict>
 </plist>
