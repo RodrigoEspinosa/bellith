@@ -11,6 +11,11 @@ settings:
     SWIFT_VERSION: "5.10"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
 
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
+
 targets:
   Bellith:
     type: application
@@ -39,6 +44,8 @@ targets:
     dependencies:
       - framework: Frameworks/GhosttyKit.xcframework
         embed: false
+      - package: Sparkle
+        product: Sparkle
       - target: bellith-cli
         embed: false
         link: false
