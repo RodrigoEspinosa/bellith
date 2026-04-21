@@ -1,0 +1,229 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.2.0). Must already exist."
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build, sign, notarize, release
+    runs-on: macos-14
+    env:
+      SCHEME: Bellith
+      CONFIG: Release
+      APP_NAME: Bellith
+      BUNDLE_ID: com.rec.bellith
+    steps:
+      - name: Resolve tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT_NAME: ${{ github.event_name }}
+          GH_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG="${GH_REF#refs/tags/}"
+          fi
+          # Validate: "v" followed by semver-ish. Prevents shell metacharacters.
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) : ;;
+            *) echo "::error::invalid tag '$TAG' (expected v<major>.<minor>.<patch>)"; exit 1 ;;
+          esac
+          VERSION="${TAG#v}"
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Import Developer ID signing cert
+        env:
+          CERT_BASE64:       ${{ secrets.APPLE_DEVELOPER_ID_CERT }}
+          CERT_PASSWORD:     ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/bellith-release.keychain-db"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          printf '%s' "$CERT_BASE64" | base64 --decode -o "$CERT_PATH"
+          security import "$CERT_PATH" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          # Prepend the release keychain to the user search list so xcodebuild can find the identity.
+          CURRENT_KEYCHAINS=$(security list-keychains -d user | sed 's/"//g')
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $CURRENT_KEYCHAINS
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+      - name: Build (Release)
+        env:
+          BELLITH_MARKETING_VERSION: ${{ steps.tag.outputs.version }}
+          BELLITH_BUILD_NUMBER:      ${{ github.run_number }}
+          DEVELOPER_ID_APPLICATION:  ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_NAME }}
+          APPLE_TEAM_ID:             ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project Bellith.xcodeproj \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIG" \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath build \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="$DEVELOPER_ID_APPLICATION" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            OTHER_CODE_SIGN_FLAGS="--timestamp" \
+            build
+
+      - name: Locate built app
+        id: app
+        run: |
+          set -euo pipefail
+          APP_PATH="build/Build/Products/$CONFIG/$APP_NAME.app"
+          test -d "$APP_PATH" || { echo "::error::built app not found at $APP_PATH"; exit 1; }
+          echo "path=$APP_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Verify signature and runtime flags
+        env:
+          APP_PATH: ${{ steps.app.outputs.path }}
+        run: |
+          set -euo pipefail
+          codesign -dvvv "$APP_PATH"
+          codesign --verify --deep --strict --verbose=4 "$APP_PATH"
+          codesign -dvvv "$APP_PATH" 2>&1 | grep -q "flags=0x10000(runtime)" || {
+            echo "::error::Hardened Runtime flag missing from built app"; exit 1;
+          }
+
+      - name: Create DMG
+        id: dmg
+        env:
+          APP_PATH: ${{ steps.app.outputs.path }}
+          VERSION:  ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          brew install create-dmg
+          DMG_NAME="${APP_NAME}-${VERSION}.dmg"
+          DMG_PATH="$RUNNER_TEMP/$DMG_NAME"
+          STAGING="$RUNNER_TEMP/dmg-staging"
+          mkdir -p "$STAGING"
+          cp -R "$APP_PATH" "$STAGING/"
+          create-dmg \
+            --volname "$APP_NAME $VERSION" \
+            --window-size 540 360 \
+            --icon-size 96 \
+            --icon "$APP_NAME.app" 140 170 \
+            --app-drop-link 400 170 \
+            --hide-extension "$APP_NAME.app" \
+            --no-internet-enable \
+            "$DMG_PATH" "$STAGING" || {
+              # create-dmg occasionally exits non-zero even on success if hdiutil lingers.
+              [ -f "$DMG_PATH" ] || exit 1
+            }
+          echo "path=$DMG_PATH" >> "$GITHUB_OUTPUT"
+          echo "name=$DMG_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Sign DMG
+        env:
+          DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_NAME }}
+          DMG_PATH: ${{ steps.dmg.outputs.path }}
+        run: |
+          codesign --force --sign "$DEVELOPER_ID_APPLICATION" --timestamp --options runtime "$DMG_PATH"
+
+      - name: Notarize DMG
+        env:
+          APPLE_ID:           ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID:      ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          DMG_PATH:           ${{ steps.dmg.outputs.path }}
+        run: |
+          set -euo pipefail
+          xcrun notarytool submit "$DMG_PATH" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --wait
+          xcrun stapler staple "$DMG_PATH"
+          xcrun stapler validate "$DMG_PATH"
+
+      - name: Compute DMG sha256
+        id: shasum
+        env:
+          DMG_PATH: ${{ steps.dmg.outputs.path }}
+          DMG_NAME: ${{ steps.dmg.outputs.name }}
+        run: |
+          set -euo pipefail
+          SHA=$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')
+          SHA_PATH="$RUNNER_TEMP/$DMG_NAME.sha256"
+          echo "$SHA  $DMG_NAME" > "$SHA_PATH"
+          echo "sha256=$SHA"       >> "$GITHUB_OUTPUT"
+          echo "sha_path=$SHA_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Render updated Homebrew cask
+        id: cask
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          SHA256:  ${{ steps.shasum.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          CASK_SRC="Casks/bellith.rb"
+          CASK_OUT="$RUNNER_TEMP/bellith.rb"
+          /usr/bin/sed -E \
+            -e "s/^([[:space:]]*version)[[:space:]]+\"[^\"]*\"/\\1 \"$VERSION\"/" \
+            -e "s/^([[:space:]]*sha256)[[:space:]]+.*$/\\1 \"$SHA256\"/" \
+            "$CASK_SRC" > "$CASK_OUT"
+          echo "path=$CASK_OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          draft: false
+          prerelease: ${{ contains(steps.tag.outputs.version, '-') }}
+          generate_release_notes: true
+          files: |
+            ${{ steps.dmg.outputs.path }}
+            ${{ steps.shasum.outputs.sha_path }}
+            ${{ steps.cask.outputs.path }}
+          body: |
+            Bellith ${{ steps.tag.outputs.version }}
+
+            **Install**
+            - `brew install --cask bellith`
+            - Or download `${{ steps.dmg.outputs.name }}` below.
+
+            **Integrity**
+            SHA-256: `${{ steps.shasum.outputs.sha256 }}`
+
+      - name: Clean keychain
+        if: always()
+        env:
+          KEYCHAIN_PATH: ${{ env.KEYCHAIN_PATH }}
+        run: |
+          [ -n "${KEYCHAIN_PATH:-}" ] && security delete-keychain "$KEYCHAIN_PATH" || true
