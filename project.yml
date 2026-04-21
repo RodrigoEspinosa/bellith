@@ -54,6 +54,10 @@ targets:
         name: Embed bellith CLI
         basedOnDependencyAnalysis: false
       - script: |
+          "$SRCROOT/scripts/stamp-version.sh"
+        name: Stamp version from git
+        basedOnDependencyAnalysis: false
+      - script: |
           if command -v swiftlint >/dev/null 2>&1; then
             swiftlint lint --config "$SRCROOT/.swiftlint.yml" 2>/dev/null || true
           fi

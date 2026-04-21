@@ -8,7 +8,7 @@
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14.0%2B-blue)
 ![Swift 5.10](https://img.shields.io/badge/Swift-5.10-orange)
-![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-green)
+![Latest release](https://img.shields.io/github/v/tag/RodrigoEspinosa/bellith?label=release&color=green)
 
 ## Features
 
