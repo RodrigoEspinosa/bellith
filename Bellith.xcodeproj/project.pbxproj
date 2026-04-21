@@ -54,6 +54,7 @@
 		6D65D2902B34E20D77196A44 /* TerminalSurfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41878447E775AEA363F6EF96 /* TerminalSurfaceView.swift */; };
 		74262591A8DDBF6D4AF2E324 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D31E78EB4EBC7FC49C2F22FC /* main.swift */; };
 		765D4B7FDA9B6F3ACD937BEF /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB0C524BC98C2F0D18E7B327 /* NetworkMonitor.swift */; };
+		784226302741DD7113718E7E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D7B76343FF4883C7B0533EAB /* PrivacyInfo.xcprivacy */; };
 		7B41F3CE5DB2BA28D89D339C /* SmartPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469D41729D62F6520EB09E3B /* SmartPanelView.swift */; };
 		7F18C8E24F67D3ECEEF7332C /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EAAEAFE7F888E5EFF104DCE /* FeatureFlags.swift */; };
 		7F77B0D9CD2EBB86D801E76B /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21183D4A7A9CA0A0013ED67A /* Theme.swift */; };
@@ -213,6 +214,7 @@
 		D391C65B83BEE0FDBEAE9ACC /* KeyBindings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyBindings.swift; sourceTree = "<group>"; };
 		D589B7C0CC3E08F11671DDFA /* SettingsNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsNavigation.swift; sourceTree = "<group>"; };
 		D65ED0D10E5739FCA342E50A /* PreferencesPaneRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesPaneRegistry.swift; sourceTree = "<group>"; };
+		D7B76343FF4883C7B0533EAB /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		D7F6C0E62F0D6DFD08E3A8E5 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		DB0C524BC98C2F0D18E7B327 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		DDFFF00A8FCA7C5D765650BD /* AppearancePane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearancePane.swift; sourceTree = "<group>"; };
@@ -244,6 +246,7 @@
 			isa = PBXGroup;
 			children = (
 				C6D8A2F2C2B69B1DF8B695CA /* Assets.xcassets */,
+				D7B76343FF4883C7B0533EAB /* PrivacyInfo.xcprivacy */,
 				77DA8562D603F051F9AFAEE5 /* App */,
 				2DFA76A5A35BFC692A95E5A4 /* Bridge */,
 				C8083A37D985A7B13AA5B057 /* Models */,
@@ -563,6 +566,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8504ED57A71B5C4492164E11 /* Assets.xcassets in Resources */,
+				784226302741DD7113718E7E /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -748,6 +752,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -766,6 +771,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_DEBUG_DYLIB = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"Frameworks\"",
@@ -795,6 +801,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -813,6 +820,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_DEBUG_DYLIB = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"Frameworks\"",
