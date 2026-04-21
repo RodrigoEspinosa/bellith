@@ -117,4 +117,6 @@ Bellith/
 
 ## License
 
-This project uses [GhosttyKit](https://ghostty.org) for terminal rendering. See Ghostty's license for details on framework usage.
+Bellith is released under the [MIT License](./LICENSE).
+
+Bellith bundles [GhosttyKit](https://ghostty.org) for terminal rendering. GhosttyKit is distributed under Ghostty's own (MIT-compatible) license — see the upstream project for details.
