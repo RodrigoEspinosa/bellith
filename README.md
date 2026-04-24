@@ -22,7 +22,38 @@
 - **TERM-aware defaults** — Explicit `xterm-ghostty` advertising with an override for legacy tooling
 - **Frameless window** — Clean, minimal window chrome with custom title bar
 
+## Install
+
+The easiest way to try Bellith is the signed, notarized DMG attached to the [latest release](https://github.com/RodrigoEspinosa/bellith/releases/latest):
+
+```bash
+# Download + install the DMG
+open "https://github.com/RodrigoEspinosa/bellith/releases/latest"
+```
+
+Drag `Bellith.app` into `/Applications`. On first launch macOS will verify the notarization ticket — no "unidentified developer" prompt.
+
+### Homebrew cask
+
+Until Bellith is accepted into [homebrew-cask](https://github.com/Homebrew/homebrew-cask), install directly from the release artifact:
+
+```bash
+brew install --cask https://github.com/RodrigoEspinosa/bellith/releases/latest/download/bellith.rb
+```
+
+The release workflow publishes an up-to-date `bellith.rb` next to each DMG; Homebrew reads the SHA-256 from there and verifies the download before installing.
+
+### Verifying the download
+
+Every release ships a `.sha256` file alongside the DMG:
+
+```bash
+shasum -a 256 -c Bellith-<version>.dmg.sha256
+```
+
 ## Requirements
+
+For building from source:
 
 - macOS 14.0 (Sonoma) or later
 - Xcode 16.0+
