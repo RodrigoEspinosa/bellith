@@ -59,6 +59,18 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Fetch GhosttyKit XCFramework
+        run: |
+          set -euo pipefail
+          GHOSTTYKIT_URL=$(ruby -e 'puts File.read("Package.swift")[/url:\s*"([^"]+)"/, 1]')
+          GHOSTTYKIT_SHA256=$(ruby -e 'puts File.read("Package.swift")[/checksum:\s*"([^"]+)"/, 1]')
+          ARCHIVE_PATH="$RUNNER_TEMP/GhosttyKit.xcframework.zip"
+          mkdir -p Frameworks
+          curl -L "$GHOSTTYKIT_URL" -o "$ARCHIVE_PATH"
+          echo "$GHOSTTYKIT_SHA256  $ARCHIVE_PATH" | shasum -a 256 -c -
+          rm -rf Frameworks/GhosttyKit.xcframework
+          ditto -x -k "$ARCHIVE_PATH" Frameworks
+
       - name: Generate Xcode project
         run: xcodegen generate
 
