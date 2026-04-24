@@ -166,6 +166,8 @@ jobs:
           echo "name=$DMG_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Sign DMG
+        id: sign_dmg
+        continue-on-error: true
         env:
           DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_NAME }}
           DMG_PATH: ${{ steps.dmg.outputs.path }}
@@ -173,6 +175,9 @@ jobs:
           codesign --force --sign "$DEVELOPER_ID_APPLICATION" --timestamp --options runtime "$DMG_PATH"
 
       - name: Notarize DMG
+        id: notarize_dmg
+        if: steps.sign_dmg.outcome == 'success'
+        continue-on-error: true
         env:
           APPLE_ID:           ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID:      ${{ secrets.APPLE_TEAM_ID }}
@@ -237,6 +242,10 @@ jobs:
 
             **Integrity**
             SHA-256: `${{ steps.shasum.outputs.sha256 }}`
+
+            **Release validation**
+            - DMG signing: `${{ steps.sign_dmg.outcome }}`
+            - DMG notarization: `${{ steps.notarize_dmg.outcome }}`
 
       - name: Clean keychain
         if: always()
