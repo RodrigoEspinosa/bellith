@@ -60,13 +60,16 @@ jobs:
         run: brew install xcodegen
 
       - name: Fetch GhosttyKit XCFramework
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          GHOSTTYKIT_URL=$(ruby -e 'puts File.read("Package.swift")[/url:\s*"([^"]+)"/, 1]')
+          GHOSTTYKIT_TAG=$(ruby -e 'puts File.read("Package.swift")[%r{releases/download/([^/]+)/}, 1]')
+          GHOSTTYKIT_ASSET_NAME=$(ruby -ruri -e 'url = File.read("Package.swift")[/url:\s*"([^"]+)"/, 1]; puts File.basename(URI(url).path)')
           GHOSTTYKIT_SHA256=$(ruby -e 'puts File.read("Package.swift")[/checksum:\s*"([^"]+)"/, 1]')
-          ARCHIVE_PATH="$RUNNER_TEMP/GhosttyKit.xcframework.zip"
+          ARCHIVE_PATH="$RUNNER_TEMP/$GHOSTTYKIT_ASSET_NAME"
           mkdir -p Frameworks
-          curl -L "$GHOSTTYKIT_URL" -o "$ARCHIVE_PATH"
+          gh release download "$GHOSTTYKIT_TAG" -p "$GHOSTTYKIT_ASSET_NAME" -D "$RUNNER_TEMP" --clobber
           echo "$GHOSTTYKIT_SHA256  $ARCHIVE_PATH" | shasum -a 256 -c -
           rm -rf Frameworks/GhosttyKit.xcframework
           ditto -x -k "$ARCHIVE_PATH" Frameworks
