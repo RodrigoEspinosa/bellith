@@ -68,6 +68,7 @@
 		941E77325C0B8A487B2CD650 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AF3EFCA4440E50031AF178C /* Logger.swift */; };
 		9477343A49D777786B2BC215 /* FeaturesPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31D854C894F2188BA1247C4A /* FeaturesPane.swift */; };
 		9BF5A978A5AACAB4DD91124B /* AboutPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C6683BF4D86DE5BB7318C3C /* AboutPane.swift */; };
+		9E0F1D2F80B626C817BF1488 /* UpdaterController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68E53AB085A993BDE55BBF92 /* UpdaterController.swift */; };
 		9EECDE6BE4882D41C3F53B22 /* SidebarPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = A33E81DDDC25CA709CD563AE /* SidebarPane.swift */; };
 		A0CFB54241CAA6006E58472C /* CommandRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B8A3CDE542974BFD639F6F0 /* CommandRegistry.swift */; };
 		A381D1C113C9D8039615BCA4 /* TerminalRuntimeInfoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6E1C3DB1ADB2A4903FA2FF2 /* TerminalRuntimeInfoService.swift */; };
@@ -105,6 +106,7 @@
 		F565B2256404B0E12F1759C5 /* AIToolSessionDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7761C9EFFC090C4726758B71 /* AIToolSessionDetector.swift */; };
 		F69A5712D6FEB3A92B9B645F /* ITermColorsImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 595A49A926D6775A52202AAD /* ITermColorsImporter.swift */; };
 		FA077AEA422D8D9128490402 /* FileActivityPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F223B58A0753766F0489D0B /* FileActivityPanel.swift */; };
+		FACF42B47E0B00B9B2D332EE /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 72854E215968962531FCDC84 /* Sparkle */; };
 		FE9D5CEE859363C51ADCC2CF /* KeyBindings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D391C65B83BEE0FDBEAE9ACC /* KeyBindings.swift */; };
 /* End PBXBuildFile section */
 
@@ -164,6 +166,7 @@
 		6246E34985DFC9EC1E6DB555 /* bellith-cli */ = {isa = PBXFileReference; includeInIndex = 0; path = "bellith-cli"; sourceTree = BUILT_PRODUCTS_DIR; };
 		64B019E37CE2B850357E2B7E /* TerminalSurfaceViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSurfaceViewTests.swift; sourceTree = "<group>"; };
 		6651B379E02056CE70DC9C84 /* BellithBranding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithBranding.swift; sourceTree = "<group>"; };
+		68E53AB085A993BDE55BBF92 /* UpdaterController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterController.swift; sourceTree = "<group>"; };
 		693A40251EB6453D78EFD8E9 /* TerminalTabModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalTabModel.swift; sourceTree = "<group>"; };
 		69849D6EC718E0BFF019C9D8 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
 		6A3BDD2B74A3A4A8B0869659 /* ProcessTreePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessTreePanel.swift; sourceTree = "<group>"; };
@@ -236,6 +239,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5DD63722AB2EE526EB096050 /* GhosttyKit.xcframework in Frameworks */,
+				FACF42B47E0B00B9B2D332EE /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -357,6 +361,7 @@
 			isa = PBXGroup;
 			children = (
 				D7F6C0E62F0D6DFD08E3A8E5 /* AppDelegate.swift */,
+				68E53AB085A993BDE55BBF92 /* UpdaterController.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -501,6 +506,7 @@
 			);
 			name = Bellith;
 			packageProductDependencies = (
+				72854E215968962531FCDC84 /* Sparkle */,
 			);
 			productName = Bellith;
 			productReference = 8DCCD398564B84A07E66F1B1 /* Bellith.app */;
@@ -549,6 +555,9 @@
 			);
 			mainGroup = E12192DE5116946EB1F3FA39;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				8436F3D46B9687271FA32D5C /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0F21FF6DBBF3414B1DECFEF4 /* Products */;
 			projectDirPath = "";
@@ -737,6 +746,7 @@
 				BAF7DA9CF2672F1E616A7F17 /* TitleBarView.swift in Sources */,
 				55B5329D0C164FDCBEE88A5D /* ToolActivityMonitor.swift in Sources */,
 				DAF1FF85E2B99E346EE83564 /* ToolActivityPanel.swift in Sources */,
+				9E0F1D2F80B626C817BF1488 /* UpdaterController.swift in Sources */,
 				3FE2152821D44C82B14D0338 /* WallpaperTint.swift in Sources */,
 				3A1174A2E3493312D0C43F2A /* WorkspaceDefinition.swift in Sources */,
 				EC22286AF20F181A9F1AB072 /* WorkspaceStore.swift in Sources */,
@@ -1056,6 +1066,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		8436F3D46B9687271FA32D5C /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		72854E215968962531FCDC84 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8436F3D46B9687271FA32D5C /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = D3BEACB9C7B8122AE78E354E /* Project object */;
 }

@@ -17,6 +17,7 @@ struct BellithApp {
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let dependencies: BellithDependencies
+    private let updater = UpdaterController()
     private var terminalApp: TerminalApp?
     private var windows: [WindowEntry] = []
     private var newWindowObserver: NSObjectProtocol?
@@ -448,6 +449,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // App menu
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "About Bellith", action: #selector(handleAbout), keyEquivalent: "")
+        let checkForUpdatesItem = NSMenuItem(title: "Check for Updates…", action: updater.menuAction, keyEquivalent: "")
+        checkForUpdatesItem.target = updater.menuTarget
+        appMenu.addItem(checkForUpdatesItem)
         appMenu.addItem(.separator())
         appMenu.addItem(configuredMenuItem(title: "Settings…", action: #selector(handlePreferences), shortcutID: "preferences"))
         appMenu.addItem(configuredMenuItem(title: "Open settings.json", action: #selector(handleOpenSettingsFile)))

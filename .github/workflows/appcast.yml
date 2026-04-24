@@ -1,0 +1,190 @@
+name: Publish appcast
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to re-publish (e.g. v0.2.0)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: appcast
+  cancel-in-progress: false
+
+jobs:
+  appcast:
+    runs-on: macos-14
+    steps:
+      - name: Resolve tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          TAG="${EVENT_TAG:-$INPUT_TAG}"
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) : ;;
+            *) echo "::error::invalid tag '$TAG'"; exit 1 ;;
+          esac
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout gh-pages branch (if it exists)
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: pages
+          fetch-depth: 1
+        continue-on-error: true
+
+      - name: Initialise gh-pages workspace if empty
+        run: |
+          set -euo pipefail
+          mkdir -p pages
+          cd pages
+          if [ ! -d .git ]; then
+            git init -b gh-pages
+            git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          fi
+          if [ ! -f index.html ]; then
+            cat > index.html <<'HTML'
+          <!doctype html>
+          <title>Bellith</title>
+          <h1>Bellith</h1>
+          <p>Release downloads live on <a href="https://github.com/RodrigoEspinosa/bellith/releases">GitHub Releases</a>.</p>
+          <p>Sparkle auto-update feed: <a href="./appcast.xml">appcast.xml</a>.</p>
+          HTML
+          fi
+
+      - name: Download DMG from the release
+        env:
+          TAG:      ${{ steps.tag.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh release download "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "Bellith-*.dmg" \
+            --dir dist
+
+      - name: Fetch Sparkle sign_update tool
+        env:
+          SPARKLE_VERSION: "2.6.4"
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz" -o sparkle.tar.xz
+          mkdir -p sparkle
+          tar -xJf sparkle.tar.xz -C sparkle
+          BIN=$(find sparkle -type f -name sign_update -perm -u+x | head -n 1)
+          test -n "$BIN" || { echo "::error::sign_update not found in Sparkle tarball"; exit 1; }
+          echo "SPARKLE_SIGN_UPDATE=$PWD/$BIN" >> "$GITHUB_ENV"
+
+      - name: Sign DMG with Sparkle EdDSA key
+        id: sign
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+          VERSION:                ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          DMG="dist/Bellith-$VERSION.dmg"
+          test -f "$DMG" || { echo "::error::$DMG not found among release assets"; exit 1; }
+          PRIV_KEY_FILE="$RUNNER_TEMP/sparkle-ed.key"
+          umask 077
+          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" > "$PRIV_KEY_FILE"
+          SIG_LINE=$("$SPARKLE_SIGN_UPDATE" --ed-key-file "$PRIV_KEY_FILE" "$DMG")
+          rm -f "$PRIV_KEY_FILE"
+          # sign_update prints: sparkle:edSignature="..." length="1234567"
+          SIZE=$(stat -f%z "$DMG")
+          {
+            echo "sig_line<<EOF"
+            echo "$SIG_LINE"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+
+      - name: Build appcast entry
+        id: entry
+        env:
+          TAG:        ${{ steps.tag.outputs.tag }}
+          VERSION:    ${{ steps.tag.outputs.version }}
+          SIG_LINE:   ${{ steps.sign.outputs.sig_line }}
+          SIZE:       ${{ steps.sign.outputs.size }}
+          RUN_NUMBER: ${{ github.run_number }}
+          REPO:       ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          PUBDATE=$(date -u "+%a, %d %b %Y %H:%M:%S +0000")
+          DMG_URL="https://github.com/$REPO/releases/download/$TAG/Bellith-$VERSION.dmg"
+          NOTES_URL="https://github.com/$REPO/releases/tag/$TAG"
+          ENTRY_FILE="$RUNNER_TEMP/entry.xml"
+          cat > "$ENTRY_FILE" <<XML
+              <item>
+                  <title>Bellith $VERSION</title>
+                  <link>$NOTES_URL</link>
+                  <sparkle:version>$RUN_NUMBER</sparkle:version>
+                  <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
+                  <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+                  <pubDate>$PUBDATE</pubDate>
+                  <enclosure url="$DMG_URL" type="application/octet-stream" length="$SIZE" $SIG_LINE />
+              </item>
+          XML
+          echo "path=$ENTRY_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Merge into appcast.xml
+        env:
+          ENTRY_PATH: ${{ steps.entry.outputs.path }}
+        run: |
+          set -euo pipefail
+          APPCAST="pages/appcast.xml"
+          if [ ! -f "$APPCAST" ]; then
+            cat > "$APPCAST" <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+              <channel>
+                  <title>Bellith</title>
+                  <link>https://github.com/RodrigoEspinosa/bellith</link>
+                  <description>Bellith release feed</description>
+                  <language>en</language>
+              </channel>
+          </rss>
+          XML
+          fi
+          python3 - "$APPCAST" "$ENTRY_PATH" <<'PY'
+          import sys
+          appcast_path, entry_path = sys.argv[1], sys.argv[2]
+          with open(appcast_path, "r", encoding="utf-8") as fh:
+              xml = fh.read()
+          with open(entry_path, "r", encoding="utf-8") as fh:
+              entry = fh.read()
+          anchor = "</language>"
+          if anchor not in xml:
+              raise SystemExit("appcast.xml is missing <language>; refusing to mutate")
+          new_xml = xml.replace(anchor, anchor + "\n" + entry, 1)
+          with open(appcast_path, "w", encoding="utf-8") as fh:
+              fh.write(new_xml)
+          PY
+
+      - name: Commit and push to gh-pages
+        env:
+          TAG:       ${{ steps.tag.outputs.tag }}
+          GH_TOKEN:  ${{ secrets.GITHUB_TOKEN }}
+          REPO:      ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          cd pages
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml index.html
+          if git diff --cached --quiet; then
+            echo "no changes to publish"
+            exit 0
+          fi
+          git commit -m "chore(appcast): publish $TAG"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" HEAD:gh-pages
