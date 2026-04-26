@@ -86,6 +86,9 @@ targets:
         SKIP_INSTALL: YES
         CODE_SIGN_STYLE: Automatic
         ENABLE_HARDENED_RUNTIME: YES
+      configs:
+        Release:
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
 
   BellithTests:
     type: bundle.unit-test
