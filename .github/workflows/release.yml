@@ -156,7 +156,6 @@ jobs:
             --icon-size 96 \
             --icon "$APP_NAME.app" 140 170 \
             --app-drop-link 400 170 \
-            --hide-extension "$APP_NAME.app" \
             --no-internet-enable \
             "$DMG_PATH" "$STAGING" || {
               # create-dmg occasionally exits non-zero even on success if hdiutil lingers.
@@ -164,6 +163,17 @@ jobs:
             }
           echo "path=$DMG_PATH" >> "$GITHUB_OUTPUT"
           echo "name=$DMG_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Verify app signature inside DMG
+        env:
+          DMG_PATH: ${{ steps.dmg.outputs.path }}
+        run: |
+          set -euo pipefail
+          MOUNT_DIR="$RUNNER_TEMP/dmg-verify"
+          mkdir -p "$MOUNT_DIR"
+          hdiutil attach "$DMG_PATH" -readonly -nobrowse -mountpoint "$MOUNT_DIR"
+          trap 'hdiutil detach "$MOUNT_DIR" || true' EXIT
+          codesign --verify --deep --strict --verbose=4 "$MOUNT_DIR/$APP_NAME.app"
 
       - name: Sign DMG
         id: sign_dmg
