@@ -126,9 +126,41 @@ jobs:
           test -d "$APP_PATH" || { echo "::error::built app not found at $APP_PATH"; exit 1; }
           echo "path=$APP_PATH" >> "$GITHUB_OUTPUT"
 
+      - name: Re-sign Sparkle helpers with Developer ID + timestamp
+        env:
+          APP_PATH: ${{ steps.app.outputs.path }}
+          DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_NAME }}
+        run: |
+          set -euo pipefail
+          # Sparkle ships its helper executables (Updater.app, Autoupdate, XPC services) pre-signed
+          # with the Sparkle project's identity and no secure timestamp. xcodebuild's signing of
+          # the outer .app does NOT recurse into already-signed nested bundles, so notarization
+          # rejects them. Re-sign innermost first, then the framework, then the outer app.
+          SPARKLE="$APP_PATH/Contents/Frameworks/Sparkle.framework"
+          ENTITLEMENTS="Bellith/Bellith.entitlements"
+
+          resign() {
+            codesign --force --options runtime --timestamp \
+              --sign "$DEVELOPER_ID_APPLICATION" \
+              --preserve-metadata=entitlements \
+              "$1"
+          }
+
+          resign "$SPARKLE/Versions/B/XPCServices/Downloader.xpc"
+          resign "$SPARKLE/Versions/B/XPCServices/Installer.xpc"
+          resign "$SPARKLE/Versions/B/Autoupdate"
+          resign "$SPARKLE/Versions/B/Updater.app"
+          resign "$SPARKLE"
+
+          codesign --force --options runtime --timestamp \
+            --sign "$DEVELOPER_ID_APPLICATION" \
+            --entitlements "$ENTITLEMENTS" \
+            "$APP_PATH"
+
       - name: Verify signature and runtime flags
         env:
           APP_PATH: ${{ steps.app.outputs.path }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
           codesign -dvvv "$APP_PATH"
@@ -136,6 +168,34 @@ jobs:
           codesign -dvvv "$APP_PATH" 2>&1 | grep -q "flags=0x10000(runtime)" || {
             echo "::error::Hardened Runtime flag missing from built app"; exit 1;
           }
+
+          # Notarization rejects any embedded executable missing a secure timestamp,
+          # signed with the wrong team, or missing hardened runtime. Walk every signed
+          # component (bundles + Mach-O executables) and assert all three.
+          fail=0
+          check() {
+            local item="$1"
+            local info
+            info=$(codesign -dvvv "$item" 2>&1) || return 0  # unsigned items: skip
+            grep -q "Signature=" <<<"$info" || return 0      # not actually signed
+            if ! grep -q "Timestamp=" <<<"$info"; then
+              echo "::error::Missing secure timestamp on $item"; fail=1
+            fi
+            if ! grep -q "TeamIdentifier=$TEAM_ID" <<<"$info"; then
+              echo "::error::Wrong/missing TeamIdentifier on $item (expected $TEAM_ID)"; fail=1
+            fi
+            if ! grep -q "flags=0x10000(runtime)" <<<"$info"; then
+              echo "::error::Hardened Runtime flag missing on $item"; fail=1
+            fi
+          }
+
+          while IFS= read -r -d '' item; do check "$item"; done < <(
+            find "$APP_PATH" \( -name "*.app" -o -name "*.framework" -o -name "*.xpc" \) -print0
+          )
+          while IFS= read -r -d '' item; do check "$item"; done < <(
+            find "$APP_PATH" -type f -perm -u+x -print0
+          )
+          [ "$fail" -eq 0 ] || exit 1
 
       - name: Create DMG
         id: dmg
@@ -177,17 +237,14 @@ jobs:
 
       - name: Sign DMG
         id: sign_dmg
-        continue-on-error: true
         env:
           DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_NAME }}
           DMG_PATH: ${{ steps.dmg.outputs.path }}
         run: |
           codesign --force --sign "$DEVELOPER_ID_APPLICATION" --timestamp --options runtime "$DMG_PATH"
 
-      - name: Notarize DMG
+      - name: Notarize and staple DMG
         id: notarize_dmg
-        if: steps.sign_dmg.outcome == 'success'
-        continue-on-error: true
         env:
           APPLE_ID:           ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID:      ${{ secrets.APPLE_TEAM_ID }}
@@ -195,11 +252,29 @@ jobs:
           DMG_PATH:           ${{ steps.dmg.outputs.path }}
         run: |
           set -euo pipefail
+
+          SUBMIT_JSON="$RUNNER_TEMP/notarize-submit.json"
           xcrun notarytool submit "$DMG_PATH" \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_APP_PASSWORD" \
-            --wait
+            --wait \
+            --output-format json | tee "$SUBMIT_JSON"
+
+          STATUS=$(jq -r '.status' "$SUBMIT_JSON")
+          SUB_ID=$(jq -r '.id'     "$SUBMIT_JSON")
+
+          if [ "$STATUS" != "Accepted" ]; then
+            echo "::error::Notarization failed with status '$STATUS' (submission $SUB_ID)"
+            echo "::group::Notarization log"
+            xcrun notarytool log "$SUB_ID" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_PASSWORD" || true
+            echo "::endgroup::"
+            exit 1
+          fi
+
           xcrun stapler staple "$DMG_PATH"
           xcrun stapler validate "$DMG_PATH"
 
@@ -252,10 +327,6 @@ jobs:
 
             **Integrity**
             SHA-256: `${{ steps.shasum.outputs.sha256 }}`
-
-            **Release validation**
-            - DMG signing: `${{ steps.sign_dmg.outcome }}`
-            - DMG notarization: `${{ steps.notarize_dmg.outcome }}`
 
       - name: Clean keychain
         if: always()
