@@ -4,9 +4,15 @@ import AppKit
 /// It mirrors the light-touch feel of the title/context strip and is meant for
 /// secondary metadata that the user explicitly wants at the bottom edge.
 final class StatusBarView: NSView {
-    static let height: CGFloat = 28
+    static let height: CGFloat = 26
 
     private let settings: BellithSettings
+
+    private let backgroundGradient = CAGradientLayer()
+    private let topHairline = CALayer()
+
+    // Left lead pill (mode indicator) — purely cosmetic, mirrors the v2 design's NORMAL chip.
+    private let modePill = NSTextField(labelWithString: "NORMAL")
 
     // Left items
     private let hostBadge = ContextBadgeView()
@@ -15,6 +21,7 @@ final class StatusBarView: NSView {
     private let cwdIcon = NSImageView()
     private let cwdLabel = NSTextField(labelWithString: "")
     private let separator1 = NSTextField(labelWithString: "·")
+    private let cleanDot = NSTextField(labelWithString: "●")
     private let gitIcon = NSImageView()
     private let gitLabel = NSTextField(labelWithString: "")
     private let separator2 = NSTextField(labelWithString: "·")
@@ -27,8 +34,9 @@ final class StatusBarView: NSView {
     private let ghLoadingIndicator = NSProgressIndicator()
     private let ghLoadingLabel = NSTextField(labelWithString: "loading…")
 
-    // Right item
+    // Right item: terminal size, plus shortcut hints.
     private let sizeLabel = NSTextField(labelWithString: "")
+    private let shortcutHintsLabel = NSTextField(labelWithString: "")
 
     private var currentContext: TerminalContext?
     private var currentCwd: String?
@@ -68,6 +76,39 @@ final class StatusBarView: NSView {
         self.settings = settings
         super.init(frame: frame)
         wantsLayer = true
+
+        layer?.addSublayer(backgroundGradient)
+        layer?.addSublayer(topHairline)
+
+        modePill.font = BellithFont.mono(10, weight: .medium)
+        modePill.textColor = Theme.textSecondary
+        modePill.alignment = .center
+        modePill.isEditable = false
+        modePill.isBezeled = false
+        modePill.drawsBackground = false
+        modePill.wantsLayer = true
+        modePill.layer?.cornerRadius = 3
+        modePill.layer?.cornerCurve = .continuous
+        addSubview(modePill)
+
+        cleanDot.font = BellithFont.mono(11, weight: .bold)
+        cleanDot.textColor = Theme.success
+        cleanDot.isEditable = false
+        cleanDot.isBezeled = false
+        cleanDot.drawsBackground = false
+        cleanDot.isHidden = true
+        addSubview(cleanDot)
+
+        shortcutHintsLabel.font = BellithFont.mono(10.5, weight: .regular)
+        shortcutHintsLabel.textColor = Theme.textTertiary
+        shortcutHintsLabel.isEditable = false
+        shortcutHintsLabel.isBezeled = false
+        shortcutHintsLabel.drawsBackground = false
+        shortcutHintsLabel.alignment = .right
+        shortcutHintsLabel.maximumNumberOfLines = 1
+        shortcutHintsLabel.lineBreakMode = .byTruncatingTail
+        shortcutHintsLabel.attributedStringValue = Self.makeShortcutHints()
+        addSubview(shortcutHintsLabel)
 
         hostBadge.isHidden = true
         addSubview(hostBadge)
@@ -657,6 +698,9 @@ final class StatusBarView: NSView {
     override func layout() {
         super.layout()
 
+        backgroundGradient.frame = bounds
+        topHairline.frame = NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1)
+
         hostBadge.frame = .zero
         environmentBadge.frame = .zero
         worktreeBadge.frame = .zero
@@ -675,6 +719,8 @@ final class StatusBarView: NSView {
         separator2.frame = .zero
         separator3.frame = .zero
         sizeLabel.frame = .zero
+        cleanDot.frame = .zero
+        cleanDot.isHidden = true
         separator1.isHidden = true
         separator2.isHidden = true
         separator3.isHidden = true
@@ -688,13 +734,29 @@ final class StatusBarView: NSView {
         let groupGap: CGFloat = 4
         let sepW: CGFloat = 8
 
+        // Right edge: shortcut hints, then size label.
+        let hintsSize = shortcutHintsLabel.attributedStringValue.size()
+        let hintsW: CGFloat = ceil(hintsSize.width)
+        let hintsX = bounds.width - hintsW - 12
+        shortcutHintsLabel.frame = NSRect(x: hintsX, y: labelY, width: hintsW, height: labelH)
+
         let sizeWidth: CGFloat = showsSize ? max(44, sizeLabel.attributedStringValue.size().width + 2) : 0
-        let trailingX = sizeWidth > 0 ? bounds.width - sizeWidth - 10 : bounds.width - 10
+        let trailingX: CGFloat = {
+            let stop = hintsX - 16
+            return sizeWidth > 0 ? stop - sizeWidth : stop
+        }()
         if sizeWidth > 0 {
             sizeLabel.frame = NSRect(x: trailingX, y: labelY, width: sizeWidth, height: labelH)
         }
 
-        var x: CGFloat = 14
+        // Mode pill on the far left.
+        let modeText = modePill.stringValue
+        let modeFontW = (modeText as NSString).size(withAttributes: [.font: modePill.font ?? NSFont.systemFont(ofSize: 10)]).width
+        let modePillW = ceil(modeFontW) + 12
+        let modePillH: CGFloat = 16
+        modePill.frame = NSRect(x: 10, y: floor((h - modePillH) / 2), width: modePillW, height: modePillH)
+
+        var x: CGFloat = modePill.frame.maxX + 10
         var hasContent = false
         let separators = [separator1, separator2, separator3]
         var separatorIndex = 0
@@ -743,6 +805,12 @@ final class StatusBarView: NSView {
 
         if showsGitBranch {
             placeSeparatorIfNeeded()
+            // Green clean-dot ahead of the branch, mirroring the v2 design's "● clean" cluster.
+            let dotW: CGFloat = 10
+            cleanDot.frame = NSRect(x: x, y: labelY, width: dotW, height: labelH)
+            cleanDot.isHidden = false
+            x += dotW + 5
+
             gitIcon.frame = NSRect(x: x, y: iconY, width: iconSize, height: iconSize)
             x += iconSize + gap
             let availableWidth = max(0, trailingX - x - 8)
@@ -812,6 +880,28 @@ final class StatusBarView: NSView {
         layer?.borderWidth = 0
         layer?.borderColor = NSColor.clear.cgColor
 
+        // Subtle top→bottom darkening gradient mirrors the v2 design statusbar.
+        let isLight = Theme.colors.isLight
+        let topColor = isLight
+            ? NSColor.white.withAlphaComponent(0.25).cgColor
+            : NSColor(white: 0.0, alpha: 0.18).cgColor
+        let bottomColor = isLight
+            ? NSColor.white.withAlphaComponent(0.05).cgColor
+            : NSColor(white: 0.0, alpha: 0.32).cgColor
+        backgroundGradient.colors = [topColor, bottomColor]
+        backgroundGradient.locations = [0, 1]
+        backgroundGradient.startPoint = CGPoint(x: 0.5, y: 1)
+        backgroundGradient.endPoint = CGPoint(x: 0.5, y: 0)
+
+        topHairline.backgroundColor = Theme.chromeHairline.withAlphaComponent(isLight ? 0.6 : 0.5).cgColor
+
+        modePill.layer?.backgroundColor = Theme.chromeElevated.withAlphaComponent(isLight ? 0.6 : 0.55).cgColor
+        modePill.textColor = Theme.textSecondary
+
+        cleanDot.textColor = Theme.success
+
+        shortcutHintsLabel.attributedStringValue = Self.makeShortcutHints()
+
         gitHubPopover.appearance = Theme.overlayAppearance
 
         hostBadge.refreshTheme()
@@ -849,6 +939,35 @@ final class StatusBarView: NSView {
         needsLayout = true
         updateTrackingAreas()
         reportVisibilityIfNeeded()
+    }
+
+    private static func makeShortcutHints() -> NSAttributedString {
+        let mono = BellithFont.mono(10.5, weight: .regular)
+        let accent = Theme.accent
+        let muted = Theme.textTertiary
+        let dim = Theme.textTertiary.withAlphaComponent(0.5)
+        let result = NSMutableAttributedString()
+        let pairs: [(kbd: String, label: String)] = [
+            ("⌘P", "PRs"),
+            ("⌘K", "palette"),
+        ]
+        for (idx, pair) in pairs.enumerated() {
+            if idx > 0 {
+                result.append(NSAttributedString(
+                    string: " · ",
+                    attributes: [.font: mono, .foregroundColor: dim]
+                ))
+            }
+            result.append(NSAttributedString(
+                string: pair.kbd,
+                attributes: [.font: mono, .foregroundColor: accent]
+            ))
+            result.append(NSAttributedString(
+                string: " " + pair.label,
+                attributes: [.font: mono, .foregroundColor: muted]
+            ))
+        }
+        return result
     }
 
     private func tone(for context: TerminalContext, preferEnvironment: Bool = false) -> ContextBadgeView.Tone {
