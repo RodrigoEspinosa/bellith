@@ -1000,30 +1000,55 @@ private final class GitHubStatusSegmentView: NSView {
 }
 
 private enum GitHubPopoverLayout {
-    static let gutterX: CGFloat = 20                // popover-level leading/trailing gutter
+    static let gutterX: CGFloat = 16                // popover-level leading/trailing gutter
     static let bodyX: CGFloat = 8                   // bodyFrame.x
     static let rowHoverInsetX: CGFloat = 4          // row hover background inset
-    // Derived: within the row's backgroundView coordinate space, gutterX - bodyX - rowHoverInsetX = 8
-    static let rowContentInsetX: CGFloat = 8
-    static let numColumnWidth: CGFloat = 36
+    static let rowContentInsetX: CGFloat = 4
+    static let statusColumnWidth: CGFloat = 18      // PR status glyph column (●/○/✗)
+    static let statusGap: CGFloat = 8
+    static let numColumnWidth: CGFloat = 38
     static let numToTitleGap: CGFloat = 12
-    static let ciIconWidth: CGFloat = 12
-    static let numToCIGap: CGFloat = 4
-    static let ciToTitleGap: CGFloat = 12
-    static let tailColumnWidth: CGFloat = 80        // right-most column (branch / date)
-    static let tailGap: CGFloat = 12                // space between title column and tail column
-    static let diffColumnWidth: CGFloat = 72        // second-line right column ("+1,284 -342")
+    static let ciIconWidth: CGFloat = 14
+    static let numToCIGap: CGFloat = 6
+    static let ciToTitleGap: CGFloat = 10
+    static let branchColumnWidth: CGFloat = 130     // PR head branch column
+    static let diffColumnWidth: CGFloat = 96        // "+1,284 −342"
+    static let tailGap: CGFloat = 10
 
     static func titleColumnX_bg(isPR: Bool) -> CGFloat {
-        rowContentInsetX + numColumnWidth
-            + (isPR ? numToCIGap + ciIconWidth + ciToTitleGap : numToTitleGap)
+        let statusOffset = isPR ? statusColumnWidth + statusGap : 0
+        let ciOffset = isPR ? numToCIGap + ciIconWidth + ciToTitleGap : numToTitleGap
+        return rowContentInsetX + statusOffset + numColumnWidth + ciOffset
     }
     static func titleColumnX_popover(isPR: Bool) -> CGFloat {
-        gutterX + numColumnWidth
-            + (isPR ? numToCIGap + ciIconWidth + ciToTitleGap : numToTitleGap)
+        let statusOffset = isPR ? statusColumnWidth + statusGap : 0
+        let ciOffset = isPR ? numToCIGap + ciIconWidth + ciToTitleGap : numToTitleGap
+        return gutterX + statusOffset + numColumnWidth + ciOffset
     }
     static func ciColumnX_popover() -> CGFloat {
-        gutterX + numColumnWidth + numToCIGap
+        gutterX + statusColumnWidth + statusGap + numColumnWidth + numToCIGap
+    }
+}
+
+private enum PRDisplayStatus {
+    case open
+    case draft
+    case conflict
+
+    var glyph: String {
+        switch self {
+        case .open:     return "●"
+        case .draft:    return "○"
+        case .conflict: return "✗"
+        }
+    }
+
+    func color() -> NSColor {
+        switch self {
+        case .open:     return Theme.success
+        case .draft:    return Theme.textTertiary
+        case .conflict: return Theme.destructive
+        }
     }
 }
 
@@ -1034,10 +1059,20 @@ private struct GitHubPopoverRowModel: Equatable {
     let typeTag: String?
     let title: String
     let author: String
-    let date: String
+    /// For PRs: head branch (shown in branch column). Nil for issues.
+    let branch: String?
+    /// Relative age, e.g. "2h ago". For issues, doubles as the right-column date.
+    let age: String
     let checkState: GitHubService.CheckState
     let additions: Int
     let deletions: Int
+
+    var prStatus: PRDisplayStatus {
+        guard isPullRequest else { return .open }
+        if isDraft { return .draft }
+        if checkState == .failure { return .conflict }
+        return .open
+    }
 }
 
 private enum ConventionalCommitParser {
@@ -1075,14 +1110,20 @@ private final class GitHubHoverPopoverViewController: NSViewController {
     private let contentView = GitHubPopoverContentView()
     private let commandLabel = NSTextField(labelWithString: "")
     private let countLabel = NSTextField(labelWithString: "")
+    private let columnStatusLabel = NSTextField(labelWithString: "")
     private let columnHashLabel = NSTextField(labelWithString: "#")
     private let columnCILabel = NSTextField(labelWithString: "CI")
     private let columnTitleLabel = NSTextField(labelWithString: "TITLE")
-    private let columnTailLabel = NSTextField(labelWithString: "BRANCH")
+    private let columnBranchLabel = NSTextField(labelWithString: "BRANCH")
+    private let columnDiffLabel = NSTextField(labelWithString: "DIFF")
     private let scrollView = NSScrollView()
     private let stackView = NSStackView()
     private let emptyStateLabel = NSTextField(labelWithString: "")
     private let loadingIndicator = NSProgressIndicator()
+    private let previewView = GitHubPopoverPreviewView()
+    private let footerKeymapView = GitHubPopoverFooterKeymapView()
+    private var rowViews: [GitHubPopoverRowView] = []
+    private var selectedIndex: Int = 0
     private var currentModel: Model?
 
     override func loadView() {
@@ -1099,12 +1140,12 @@ private final class GitHubHoverPopoverViewController: NSViewController {
         countLabel.alignment = .right
         view.addSubview(countLabel)
 
-        for label in [columnHashLabel, columnCILabel, columnTitleLabel, columnTailLabel] {
+        for label in [columnStatusLabel, columnHashLabel, columnCILabel, columnTitleLabel, columnBranchLabel, columnDiffLabel] {
             label.font = BellithFont.mono(9, weight: .regular)
             label.lineBreakMode = .byTruncatingTail
             view.addSubview(label)
         }
-        columnTailLabel.alignment = .right
+        columnDiffLabel.alignment = .right
 
         scrollView.drawsBackground = false
         scrollView.hasVerticalScroller = true
@@ -1130,6 +1171,12 @@ private final class GitHubHoverPopoverViewController: NSViewController {
         loadingIndicator.isDisplayedWhenStopped = false
         loadingIndicator.isHidden = true
         view.addSubview(loadingIndicator)
+
+        previewView.isHidden = true
+        view.addSubview(previewView)
+
+        footerKeymapView.isHidden = true
+        view.addSubview(footerKeymapView)
     }
 
     func update(
@@ -1151,50 +1198,109 @@ private final class GitHubHoverPopoverViewController: NSViewController {
         let bounds = view.bounds
 
         let countWidth = countLabel.isHidden ? 0 : ceil(countLabel.intrinsicContentSize.width)
-        let countX = bounds.width - countWidth - 20
+        let countX = bounds.width - countWidth - 16
         countLabel.frame = NSRect(x: countX, y: bounds.height - 30, width: countWidth, height: 16)
 
-        let commandRightInset = countLabel.isHidden ? 20 : (bounds.width - countX + 16)
+        let commandRightInset = countLabel.isHidden ? 16 : (bounds.width - countX + 16)
         commandLabel.frame = NSRect(
-            x: 20,
+            x: 16,
             y: bounds.height - 30,
-            width: bounds.width - 20 - commandRightInset,
+            width: bounds.width - 16 - commandRightInset,
             height: 18
         )
 
         let columnY = bounds.height - 52
         let L = GitHubPopoverLayout.self
         let isPR = (currentModel?.kind ?? .pullRequests) != .issues
-        let tailX = bounds.width - L.gutterX - L.tailColumnWidth
-        let titleX = L.titleColumnX_popover(isPR: isPR)
-        columnHashLabel.frame = NSRect(x: L.gutterX, y: columnY, width: L.numColumnWidth, height: 12)
-        columnCILabel.frame = NSRect(
-            x: L.ciColumnX_popover(),
-            y: columnY,
-            width: L.ciIconWidth + 8,
-            height: 12
-        )
+
+        var x = L.gutterX
+        if isPR {
+            columnStatusLabel.frame = NSRect(x: x, y: columnY, width: L.statusColumnWidth, height: 12)
+            x += L.statusColumnWidth + L.statusGap
+        } else {
+            columnStatusLabel.frame = .zero
+        }
+        columnStatusLabel.isHidden = !isPR || columnHashLabel.isHidden
+
+        columnHashLabel.frame = NSRect(x: x, y: columnY, width: L.numColumnWidth, height: 12)
+        columnHashLabel.alignment = .right
+        x += L.numColumnWidth
+
+        if isPR {
+            columnCILabel.frame = NSRect(
+                x: x + L.numToCIGap,
+                y: columnY,
+                width: L.ciIconWidth + 8,
+                height: 12
+            )
+            x += L.numToCIGap + L.ciIconWidth + L.ciToTitleGap
+            columnCILabel.alignment = .center
+        } else {
+            x += L.numToTitleGap
+        }
         columnCILabel.isHidden = !isPR || columnHashLabel.isHidden
+
+        // Right columns (PR only): branch + diff. Issues use a single date column.
+        var rightCursor = bounds.width - L.gutterX
+        if isPR {
+            columnDiffLabel.frame = NSRect(
+                x: rightCursor - L.diffColumnWidth,
+                y: columnY,
+                width: L.diffColumnWidth,
+                height: 12
+            )
+            rightCursor -= L.diffColumnWidth + L.tailGap
+            columnBranchLabel.frame = NSRect(
+                x: rightCursor - L.branchColumnWidth,
+                y: columnY,
+                width: L.branchColumnWidth,
+                height: 12
+            )
+            columnBranchLabel.stringValue = "BRANCH"
+            columnBranchLabel.alignment = .left
+            rightCursor -= L.branchColumnWidth + L.tailGap
+        } else {
+            // Issues: date moves into the sub-row, so we don't reserve a tail column.
+            columnDiffLabel.frame = .zero
+            columnBranchLabel.frame = .zero
+        }
+        columnDiffLabel.isHidden = !isPR || columnHashLabel.isHidden
+        columnBranchLabel.isHidden = !isPR || columnHashLabel.isHidden
+
         columnTitleLabel.frame = NSRect(
-            x: titleX,
+            x: x,
             y: columnY,
-            width: tailX - L.tailGap - titleX,
-            height: 12
-        )
-        columnTailLabel.frame = NSRect(
-            x: tailX,
-            y: columnY,
-            width: L.tailColumnWidth,
+            width: max(40, rightCursor - x),
             height: 12
         )
 
+        // Optional preview + footer for PR mode (when rows exist).
+        let showsPreview = !previewView.isHidden
+        let showsFooter = !footerKeymapView.isHidden
+        let footerHeight: CGFloat = 28
+        let previewHeight: CGFloat = 56
+        var bottomCursor: CGFloat = 0
+        if showsFooter {
+            footerKeymapView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: footerHeight)
+            bottomCursor += footerHeight
+        }
+        if showsPreview {
+            previewView.frame = NSRect(x: 0, y: bottomCursor, width: bounds.width, height: previewHeight)
+            bottomCursor += previewHeight
+        }
+
         let bodyTop: CGFloat = 64
-        let bodyFrame = NSRect(x: L.bodyX, y: 12, width: bounds.width - L.bodyX * 2, height: bounds.height - bodyTop - 12)
+        let bodyFrame = NSRect(
+            x: L.bodyX,
+            y: bottomCursor + 4,
+            width: bounds.width - L.bodyX * 2,
+            height: bounds.height - bodyTop - bottomCursor - 4
+        )
         scrollView.frame = bodyFrame
         stackView.frame = NSRect(origin: .zero, size: NSSize(width: bodyFrame.width, height: stackView.fittingSize.height))
 
         if !emptyStateLabel.isHidden {
-            let stateWidth = min(bodyFrame.width - 28, 230)
+            let stateWidth = min(bodyFrame.width - 28, 240)
             let stateHeight = emptyStateLabel.intrinsicContentSize.height
             emptyStateLabel.frame = NSRect(
                 x: floor((bounds.width - stateWidth) / 2),
@@ -1227,7 +1333,8 @@ private final class GitHubHoverPopoverViewController: NSViewController {
                     typeTag: tag,
                     title: cleanTitle,
                     author: "@\(pr.author)",
-                    date: pr.headBranch,
+                    branch: pr.headBranch,
+                    age: pr.createdAt,
                     checkState: pr.checkState,
                     additions: pr.additions,
                     deletions: pr.deletions
@@ -1265,7 +1372,8 @@ private final class GitHubHoverPopoverViewController: NSViewController {
                     typeTag: tag,
                     title: cleanTitle,
                     author: "@\(issue.author)",
-                    date: issue.createdAt,
+                    branch: nil,
+                    age: issue.createdAt,
                     checkState: .none,
                     additions: 0,
                     deletions: 0
@@ -1313,19 +1421,20 @@ private final class GitHubHoverPopoverViewController: NSViewController {
         countLabel.stringValue = Self.makeCountText(countText: model.countText, rows: model.rows)
         countLabel.isHidden = model.countText == nil
 
-        let tailTitle: String
-        switch model.kind {
-        case .pullRequests, .loading:
-            tailTitle = "BRANCH"
-        case .issues:
-            tailTitle = "DATE"
-        }
-        columnTailLabel.stringValue = tailTitle
+        let isPR = model.kind != .issues
+        columnStatusLabel.stringValue = isPR ? "" : ""
+        columnHashLabel.stringValue = "#"
+        columnCILabel.stringValue = "CI"
+        columnTitleLabel.stringValue = "TITLE"
+        columnDiffLabel.stringValue = "DIFF"
+
         let columnsVisible = !model.rows.isEmpty
+        columnStatusLabel.isHidden = !columnsVisible || !isPR
         columnHashLabel.isHidden = !columnsVisible
         columnTitleLabel.isHidden = !columnsVisible
-        columnTailLabel.isHidden = !columnsVisible
-        columnCILabel.isHidden = !columnsVisible || model.kind == .issues
+        columnBranchLabel.isHidden = !columnsVisible
+        columnCILabel.isHidden = !columnsVisible || !isPR
+        columnDiffLabel.isHidden = !columnsVisible || !isPR
 
         emptyStateLabel.stringValue = model.stateText ?? ""
         emptyStateLabel.isHidden = model.stateText == nil
@@ -1339,14 +1448,27 @@ private final class GitHubHoverPopoverViewController: NSViewController {
             loadingIndicator.isHidden = true
         }
 
-        rebuildRows(rows: model.rows, overflowText: model.overflowText, kind: model.kind)
+        // Preview + footer keymap show only for the PR popover when rows are visible.
+        let showsPRChrome = isPR && !model.rows.isEmpty
+        previewView.isHidden = !showsPRChrome
+        footerKeymapView.isHidden = !showsPRChrome
+        previewView.refreshTheme()
+        footerKeymapView.refreshTheme()
 
-        let width: CGFloat = 432
+        rebuildRows(rows: model.rows, overflowText: model.overflowText, kind: model.kind)
+        selectedIndex = 0
+        applySelection()
+
+        let width: CGFloat = 600
+        let chromeHeight: CGFloat = (previewView.isHidden ? 0 : 56) + (footerKeymapView.isHidden ? 0 : 28)
         let contentHeight: CGFloat
         if model.rows.isEmpty {
             contentHeight = 118
         } else {
-            contentHeight = min(max(CGFloat(model.rows.count) * 46 + (model.overflowText == nil ? 0 : 22) + 76, 152), 420)
+            let rowsHeight = CGFloat(model.rows.count) * 46
+            let overflowHeight: CGFloat = model.overflowText == nil ? 0 : 22
+            let bodyHeight = min(max(rowsHeight + overflowHeight + 76, 152), 420)
+            contentHeight = bodyHeight + chromeHeight
         }
         preferredContentSize = NSSize(width: width, height: contentHeight)
         view.needsLayout = true
@@ -1358,10 +1480,26 @@ private final class GitHubHoverPopoverViewController: NSViewController {
         countLabel.textColor = Theme.textTertiary
 
         let columnColor = Theme.textTertiary.withAlphaComponent(0.7)
+        columnStatusLabel.textColor = columnColor
         columnHashLabel.textColor = columnColor
         columnCILabel.textColor = columnColor
         columnTitleLabel.textColor = columnColor
-        columnTailLabel.textColor = columnColor
+        columnBranchLabel.textColor = columnColor
+        columnDiffLabel.textColor = columnColor
+    }
+
+    private func applySelection() {
+        guard !rowViews.isEmpty else {
+            previewView.update(with: nil)
+            return
+        }
+        let clamped = max(0, min(selectedIndex, rowViews.count - 1))
+        for (idx, rowView) in rowViews.enumerated() {
+            rowView.isSelected = (idx == clamped)
+        }
+        if let model = currentModel, clamped < model.rows.count {
+            previewView.update(with: model.rows[clamped])
+        }
     }
 
     private static func makeCountText(countText: String?, rows: [GitHubPopoverRowModel]) -> String {
@@ -1404,17 +1542,23 @@ private final class GitHubHoverPopoverViewController: NSViewController {
             stackView.removeArrangedSubview($0)
             $0.removeFromSuperview()
         }
+        rowViews.removeAll(keepingCapacity: true)
 
-        for row in rows {
-            stackView.addArrangedSubview(
-                GitHubPopoverRowView(
-                    row: row,
-                    kind: kind,
-                    onPress: { [weak self] row in
-                        self?.onOpenItem?(row)
-                    }
-                )
+        for (idx, row) in rows.enumerated() {
+            let rowView = GitHubPopoverRowView(
+                row: row,
+                kind: kind,
+                onPress: { [weak self] row in
+                    self?.onOpenItem?(row)
+                }
             )
+            rowView.onHoverChanged = { [weak self] hovering in
+                guard let self, hovering else { return }
+                self.selectedIndex = idx
+                self.applySelection()
+            }
+            stackView.addArrangedSubview(rowView)
+            rowViews.append(rowView)
         }
 
         if let overflowText {
@@ -1507,23 +1651,36 @@ private final class GitHubPopoverRowView: NSView {
     private let kind: GitHubPopoverKind
     private let onPress: (GitHubPopoverRowModel) -> Void
     private enum Metrics {
-        static let hoverInsetY: CGFloat = 2
+        static let hoverInsetY: CGFloat = 1
+        static let topRowY: CGFloat = 22
+        static let subRowY: CGFloat = 4
+        static let topRowHeight: CGFloat = 16
+        static let subRowHeight: CGFloat = 13
     }
     private let backgroundView = NSView()
     private let accentBar = NSView()
+    private let statusGlyphLabel = NSTextField(labelWithString: "")
     private let numberLabel = NSTextField(labelWithString: "")
     private let ciIconView = NSImageView()
     private let tagView = NSView()
     private let tagLabel = NSTextField(labelWithString: "")
     private let titleLabel = NSTextField(labelWithString: "")
-    private let authorLabel = NSTextField(labelWithString: "")
-    private let dateLabel = NSTextField(labelWithString: "")
+    private let subRowLabel = NSTextField(labelWithString: "")
+    private let branchLabel = NSTextField(labelWithString: "")
     private let diffLabel = NSTextField(labelWithString: "")
+    var onHoverChanged: ((Bool) -> Void)?
     private var trackingAreaRef: NSTrackingArea?
+    var isSelected = false {
+        didSet {
+            guard oldValue != isSelected else { return }
+            refreshTheme()
+        }
+    }
     private var isHovered = false {
         didSet {
             guard oldValue != isHovered else { return }
             refreshTheme()
+            onHoverChanged?(isHovered)
         }
     }
 
@@ -1543,9 +1700,19 @@ private final class GitHubPopoverRowView: NSView {
         accentBar.layer?.cornerRadius = 1
         backgroundView.addSubview(accentBar)
 
+        if row.isPullRequest {
+            statusGlyphLabel.stringValue = row.prStatus.glyph
+            statusGlyphLabel.font = BellithFont.mono(13, weight: .bold)
+            statusGlyphLabel.alignment = .center
+            statusGlyphLabel.textColor = row.prStatus.color()
+            backgroundView.addSubview(statusGlyphLabel)
+        } else {
+            statusGlyphLabel.isHidden = true
+        }
+
         numberLabel.stringValue = "#\(row.number)"
         numberLabel.font = BellithFont.mono(11, weight: .regular)
-        numberLabel.alignment = .left
+        numberLabel.alignment = .right
         numberLabel.lineBreakMode = .byTruncatingMiddle
         backgroundView.addSubview(numberLabel)
 
@@ -1559,27 +1726,26 @@ private final class GitHubPopoverRowView: NSView {
         tagView.isHidden = row.typeTag == nil
         backgroundView.addSubview(tagView)
 
-        tagLabel.stringValue = (row.typeTag ?? "").uppercased()
-        tagLabel.font = BellithFont.mono(9, weight: .medium)
+        tagLabel.stringValue = (row.typeTag ?? "")
+        tagLabel.font = BellithFont.mono(9.5, weight: .medium)
         tagLabel.alignment = .center
         tagView.addSubview(tagLabel)
 
         titleLabel.lineBreakMode = .byTruncatingTail
         backgroundView.addSubview(titleLabel)
 
-        authorLabel.stringValue = row.author
-        authorLabel.font = BellithFont.mono(9.5, weight: .regular)
-        authorLabel.lineBreakMode = .byTruncatingTail
-        backgroundView.addSubview(authorLabel)
+        subRowLabel.font = BellithFont.mono(10, weight: .regular)
+        subRowLabel.lineBreakMode = .byTruncatingTail
+        subRowLabel.alignment = .left
+        backgroundView.addSubview(subRowLabel)
 
-        let dateGlyph = row.isPullRequest ? "⎇ " : ""
-        dateLabel.stringValue = (dateGlyph + row.date).uppercased()
-        dateLabel.font = BellithFont.mono(10, weight: .regular)
-        dateLabel.alignment = .right
-        dateLabel.lineBreakMode = .byTruncatingMiddle
-        backgroundView.addSubview(dateLabel)
+        branchLabel.font = BellithFont.mono(10.5, weight: .regular)
+        branchLabel.lineBreakMode = .byTruncatingMiddle
+        branchLabel.alignment = .left
+        branchLabel.isHidden = !row.isPullRequest || (row.branch?.isEmpty ?? true)
+        backgroundView.addSubview(branchLabel)
 
-        diffLabel.font = BellithFont.mono(9.5, weight: .regular)
+        diffLabel.font = BellithFont.mono(10, weight: .regular)
         diffLabel.alignment = .right
         diffLabel.lineBreakMode = .byTruncatingTail
         diffLabel.isHidden = !row.isPullRequest || (row.additions == 0 && row.deletions == 0)
@@ -1631,82 +1797,114 @@ private final class GitHubPopoverRowView: NSView {
         backgroundView.frame = bounds.insetBy(dx: L.rowHoverInsetX, dy: Metrics.hoverInsetY)
 
         let contentWidth = backgroundView.bounds.width
-        let titleY: CGFloat = 20
+        let topY = Metrics.topRowY
+        let subY = Metrics.subRowY
 
         accentBar.frame = NSRect(x: 0, y: 6, width: 2, height: backgroundView.bounds.height - 12)
 
-        numberLabel.frame = NSRect(
-            x: L.rowContentInsetX,
-            y: titleY + 1,
-            width: L.numColumnWidth,
-            height: 16
-        )
+        var x = L.rowContentInsetX
 
         if row.isPullRequest {
+            statusGlyphLabel.frame = NSRect(
+                x: x,
+                y: topY,
+                width: L.statusColumnWidth,
+                height: Metrics.topRowHeight
+            )
+            x += L.statusColumnWidth + L.statusGap
+        }
+
+        numberLabel.frame = NSRect(
+            x: x,
+            y: topY + 1,
+            width: L.numColumnWidth,
+            height: Metrics.topRowHeight
+        )
+        x += L.numColumnWidth
+
+        if row.isPullRequest {
+            x += L.numToCIGap
             ciIconView.frame = NSRect(
-                x: L.rowContentInsetX + L.numColumnWidth + L.numToCIGap,
-                y: titleY + 2,
+                x: x,
+                y: topY + 2,
                 width: L.ciIconWidth,
                 height: 14
             )
+            x += L.ciIconWidth + L.ciToTitleGap
+        } else {
+            x += L.numToTitleGap
         }
 
-        let titleColumnX = L.titleColumnX_bg(isPR: row.isPullRequest)
-        let dateIntrinsicWidth = ceil(dateLabel.intrinsicContentSize.width)
-        let dateWidth = min(max(dateIntrinsicWidth, 40), L.tailColumnWidth)
-        let dateX = contentWidth - L.rowContentInsetX - dateWidth
-        dateLabel.frame = NSRect(
-            x: dateX,
-            y: titleY + 1,
-            width: dateWidth,
-            height: 14
-        )
+        let titleColumnX = x
 
+        // Right-side columns (PR only): branch then diff (rightmost).
+        let rightInset = L.rowContentInsetX
+        var rightCursor = contentWidth - rightInset
+        var diffWidth: CGFloat = 0
+        if !diffLabel.isHidden {
+            diffWidth = L.diffColumnWidth
+            diffLabel.frame = NSRect(
+                x: rightCursor - diffWidth,
+                y: topY + 1,
+                width: diffWidth,
+                height: Metrics.topRowHeight
+            )
+            rightCursor -= diffWidth + L.tailGap
+        }
+        var branchWidth: CGFloat = 0
+        if !branchLabel.isHidden {
+            branchWidth = L.branchColumnWidth
+            branchLabel.frame = NSRect(
+                x: rightCursor - branchWidth,
+                y: topY + 1,
+                width: branchWidth,
+                height: Metrics.topRowHeight
+            )
+            rightCursor -= branchWidth + L.tailGap
+        }
+
+        // Title row (with optional type label).
         var titleX = titleColumnX
         if !tagView.isHidden {
             let tagIntrinsic = ceil(tagLabel.intrinsicContentSize.width)
             let tagWidth = min(tagIntrinsic + 10, 64)
-            tagView.frame = NSRect(x: titleColumnX, y: titleY + 1, width: tagWidth, height: 15)
+            tagView.frame = NSRect(x: titleColumnX, y: topY + 1, width: tagWidth, height: 15)
             tagLabel.frame = tagView.bounds
             titleX = titleColumnX + tagWidth + 8
         }
-
-        let titleMaxX = max(titleX + 40, dateX - L.tailGap)
+        let titleMaxX = max(titleX + 40, rightCursor)
         titleLabel.frame = NSRect(
             x: titleX,
-            y: titleY,
+            y: topY,
             width: titleMaxX - titleX,
             height: 18
         )
 
-        let diffWidth = diffLabel.isHidden ? 0 : L.diffColumnWidth
-        if !diffLabel.isHidden {
-            diffLabel.frame = NSRect(
-                x: contentWidth - L.rowContentInsetX - diffWidth,
-                y: 4,
-                width: diffWidth,
-                height: 13
-            )
-        }
-
-        let authorMaxWidth = contentWidth - titleColumnX - L.rowContentInsetX - (diffWidth > 0 ? diffWidth + 8 : 0)
-        authorLabel.frame = NSRect(
+        // Sub-row spans the title region.
+        let subMaxX: CGFloat = {
+            if !diffLabel.isHidden { return contentWidth - rightInset - diffWidth - L.tailGap }
+            if !branchLabel.isHidden { return contentWidth - rightInset - branchWidth - L.tailGap }
+            return contentWidth - rightInset
+        }()
+        subRowLabel.frame = NSRect(
             x: titleColumnX,
-            y: 4,
-            width: authorMaxWidth,
-            height: 13
+            y: subY,
+            width: subMaxX - titleColumnX,
+            height: Metrics.subRowHeight
         )
     }
 
     private func refreshTheme() {
-        backgroundView.layer?.backgroundColor = isHovered
+        let isActive = isSelected || isHovered
+        backgroundView.layer?.backgroundColor = isActive
             ? Theme.chromeElevated.withAlphaComponent(0.5).cgColor
             : NSColor.clear.cgColor
-        accentBar.layer?.backgroundColor = isHovered ? Theme.accent.cgColor : NSColor.clear.cgColor
+        accentBar.layer?.backgroundColor = isActive ? Theme.accent.cgColor : NSColor.clear.cgColor
+
+        statusGlyphLabel.textColor = row.prStatus.color()
         numberLabel.textColor = Theme.textTertiary
         titleLabel.attributedStringValue = Self.makeTitle(row.title, isDraft: row.isDraft)
-        authorLabel.textColor = Theme.textTertiary
-        dateLabel.textColor = Theme.textTertiary
+        subRowLabel.attributedStringValue = Self.makeSubRowString(row: row)
 
         let tagColors = Self.tagColors(for: row.typeTag)
         tagView.layer?.backgroundColor = tagColors.fill.cgColor
@@ -1718,6 +1916,10 @@ private final class GitHubPopoverRowView: NSView {
             let ci = Self.ciIconSpec(for: row.checkState)
             ciIconView.image = NSImage(systemSymbolName: ci.symbol, accessibilityDescription: nil)
             ciIconView.contentTintColor = ci.tint
+        }
+
+        if !branchLabel.isHidden, let branch = row.branch {
+            branchLabel.attributedStringValue = Self.makeBranchString(branch)
         }
 
         if !diffLabel.isHidden {
@@ -1736,21 +1938,57 @@ private final class GitHubPopoverRowView: NSView {
         }
     }
 
+    private static func makeBranchString(_ branch: String) -> NSAttributedString {
+        let font = BellithFont.mono(10.5, weight: .regular)
+        let result = NSMutableAttributedString()
+        result.append(NSAttributedString(
+            string: "⎇ ",
+            attributes: [.font: font, .foregroundColor: Theme.textTertiary.withAlphaComponent(0.7)]
+        ))
+        result.append(NSAttributedString(
+            string: branch,
+            attributes: [.font: font, .foregroundColor: Theme.textTertiary]
+        ))
+        return result
+    }
+
     private static func makeDiffString(additions: Int, deletions: Int) -> NSAttributedString {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         let plus = formatter.string(from: NSNumber(value: additions)) ?? "\(additions)"
         let minus = formatter.string(from: NSNumber(value: deletions)) ?? "\(deletions)"
-        let font = BellithFont.mono(9.5, weight: .regular)
+        let font = BellithFont.mono(10, weight: .regular)
         let result = NSMutableAttributedString()
         result.append(NSAttributedString(
             string: "+\(plus) ",
             attributes: [.font: font, .foregroundColor: Theme.success]
         ))
         result.append(NSAttributedString(
-            string: "-\(minus)",
+            string: "−\(minus)",
             attributes: [.font: font, .foregroundColor: Theme.destructive]
         ))
+        return result
+    }
+
+    private static func makeSubRowString(row: GitHubPopoverRowModel) -> NSAttributedString {
+        let font = BellithFont.mono(10, weight: .regular)
+        let secondary = Theme.textTertiary
+        let muted = Theme.textTertiary.withAlphaComponent(0.5)
+        let result = NSMutableAttributedString()
+        result.append(NSAttributedString(
+            string: row.author,
+            attributes: [.font: font, .foregroundColor: secondary]
+        ))
+        if !row.age.isEmpty {
+            result.append(NSAttributedString(
+                string: " · ",
+                attributes: [.font: font, .foregroundColor: muted]
+            ))
+            result.append(NSAttributedString(
+                string: row.age,
+                attributes: [.font: font, .foregroundColor: secondary]
+            ))
+        }
         return result
     }
 
@@ -1766,12 +2004,286 @@ private final class GitHubPopoverRowView: NSView {
 
     private static func tagColors(for tag: String?) -> (fill: NSColor, border: NSColor, text: NSColor) {
         switch tag {
-        case "feat":
-            return (Theme.success.withAlphaComponent(0.12), Theme.success.withAlphaComponent(0.28), Theme.success)
+        case "feat", "perf":
+            return (Theme.success.withAlphaComponent(0.14), Theme.success.withAlphaComponent(0.30), Theme.success)
         case "fix", "revert":
-            return (Theme.warning.withAlphaComponent(0.12), Theme.warning.withAlphaComponent(0.28), Theme.warning)
+            return (Theme.warning.withAlphaComponent(0.14), Theme.warning.withAlphaComponent(0.30), Theme.warning)
+        case "docs":
+            let blue = Theme.accent
+            return (blue.withAlphaComponent(0.14), blue.withAlphaComponent(0.30), blue)
+        case "refactor", "style":
+            // Magenta-ish: blend destructive + accent
+            let pink = NSColor(red: 0.86, green: 0.45, blue: 0.78, alpha: 1.0)
+            return (pink.withAlphaComponent(0.14), pink.withAlphaComponent(0.30), pink)
+        case "chore", "build", "ci", "test":
+            return (Theme.borderSubtle.withAlphaComponent(0.5), Theme.borderSubtle, Theme.textTertiary)
         default:
             return (NSColor.clear, Theme.borderSubtle, Theme.textTertiary)
         }
+    }
+}
+
+private final class GitHubPopoverPreviewView: NSView {
+    private let topDivider = CALayer()
+    private let branchLabel = NSTextField(labelWithString: "")
+    private let metaLabel = NSTextField(labelWithString: "")
+    private let actionsContainer = NSStackView()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+
+        layer?.addSublayer(topDivider)
+
+        branchLabel.font = BellithFont.mono(11, weight: .regular)
+        branchLabel.lineBreakMode = .byTruncatingMiddle
+        addSubview(branchLabel)
+
+        metaLabel.font = BellithFont.mono(10, weight: .regular)
+        metaLabel.lineBreakMode = .byTruncatingTail
+        addSubview(metaLabel)
+
+        actionsContainer.orientation = .horizontal
+        actionsContainer.spacing = 4
+        actionsContainer.alignment = .centerY
+        actionsContainer.distribution = .fill
+        addSubview(actionsContainer)
+
+        actionsContainer.addArrangedSubview(Self.makeAction(label: "Checkout", kbd: "⏎", primary: false))
+        actionsContainer.addArrangedSubview(Self.makeAction(label: "Diff", kbd: "d", primary: false))
+        actionsContainer.addArrangedSubview(Self.makeAction(label: "Open", kbd: "⇧⏎", primary: true))
+
+        refreshTheme()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func layout() {
+        super.layout()
+        topDivider.frame = NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1)
+        let inset: CGFloat = 14
+        let actionsSize = actionsContainer.fittingSize
+        let actionsX = bounds.width - inset - actionsSize.width
+        actionsContainer.frame = NSRect(
+            x: actionsX,
+            y: floor((bounds.height - actionsSize.height) / 2),
+            width: actionsSize.width,
+            height: actionsSize.height
+        )
+
+        let leftMaxX = actionsX - 12
+        branchLabel.frame = NSRect(
+            x: inset,
+            y: bounds.height - 24,
+            width: leftMaxX - inset,
+            height: 16
+        )
+        metaLabel.frame = NSRect(
+            x: inset,
+            y: 8,
+            width: leftMaxX - inset,
+            height: 14
+        )
+    }
+
+    func update(with row: GitHubPopoverRowModel?) {
+        guard let row else {
+            branchLabel.stringValue = ""
+            metaLabel.stringValue = ""
+            return
+        }
+        branchLabel.attributedStringValue = Self.makeBranchString(row)
+        metaLabel.attributedStringValue = Self.makeMetaString(row)
+    }
+
+    func refreshTheme() {
+        layer?.backgroundColor = Theme.chromePanel.withAlphaComponent(0.6).cgColor
+        topDivider.backgroundColor = Theme.chromeHairline.cgColor
+    }
+
+    private static func makeBranchString(_ row: GitHubPopoverRowModel) -> NSAttributedString {
+        let font = BellithFont.mono(11, weight: .regular)
+        let result = NSMutableAttributedString()
+        result.append(NSAttributedString(
+            string: "main",
+            attributes: [.font: font, .foregroundColor: Theme.textTertiary]
+        ))
+        result.append(NSAttributedString(
+            string: "  ←  ",
+            attributes: [.font: font, .foregroundColor: Theme.textTertiary.withAlphaComponent(0.5)]
+        ))
+        result.append(NSAttributedString(
+            string: row.branch ?? "",
+            attributes: [.font: font, .foregroundColor: Theme.accent]
+        ))
+        return result
+    }
+
+    private static func makeMetaString(_ row: GitHubPopoverRowModel) -> NSAttributedString {
+        let font = BellithFont.mono(10, weight: .regular)
+        let muted = Theme.textTertiary
+        let dim = Theme.textTertiary.withAlphaComponent(0.5)
+        let result = NSMutableAttributedString()
+
+        if row.additions > 0 || row.deletions > 0 {
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .decimal
+            let plus = formatter.string(from: NSNumber(value: row.additions)) ?? "\(row.additions)"
+            let minus = formatter.string(from: NSNumber(value: row.deletions)) ?? "\(row.deletions)"
+            result.append(NSAttributedString(
+                string: "+\(plus) ",
+                attributes: [.font: font, .foregroundColor: Theme.success]
+            ))
+            result.append(NSAttributedString(
+                string: "−\(minus)",
+                attributes: [.font: font, .foregroundColor: Theme.destructive]
+            ))
+            if !row.age.isEmpty {
+                result.append(NSAttributedString(
+                    string: "   ·   ",
+                    attributes: [.font: font, .foregroundColor: dim]
+                ))
+            }
+        }
+        if !row.age.isEmpty {
+            result.append(NSAttributedString(
+                string: "updated ",
+                attributes: [.font: font, .foregroundColor: dim]
+            ))
+            result.append(NSAttributedString(
+                string: row.age,
+                attributes: [.font: font, .foregroundColor: muted]
+            ))
+        }
+        return result
+    }
+
+    private static func makeAction(label: String, kbd: String, primary: Bool) -> NSView {
+        let view = NSView()
+        view.wantsLayer = true
+        view.layer?.cornerRadius = 4
+        view.layer?.cornerCurve = .continuous
+        view.layer?.borderWidth = 1
+        let fill: NSColor
+        let border: NSColor
+        let textColor: NSColor
+        if primary {
+            fill = Theme.accent.withAlphaComponent(0.14)
+            border = Theme.accent.withAlphaComponent(0.34)
+            textColor = Theme.accent
+        } else {
+            fill = Theme.chromeElevated.withAlphaComponent(0.6)
+            border = Theme.chromeHairline
+            textColor = Theme.textSecondary
+        }
+        view.layer?.backgroundColor = fill.cgColor
+        view.layer?.borderColor = border.cgColor
+
+        let labelView = NSTextField(labelWithString: label)
+        labelView.font = BellithFont.mono(10.5, weight: .regular)
+        labelView.textColor = textColor
+        view.addSubview(labelView)
+
+        let kbdView = NSTextField(labelWithString: kbd)
+        kbdView.font = BellithFont.mono(9.5, weight: .regular)
+        kbdView.textColor = primary ? Theme.accent.withAlphaComponent(0.7) : Theme.textTertiary.withAlphaComponent(0.7)
+        view.addSubview(kbdView)
+
+        labelView.translatesAutoresizingMaskIntoConstraints = false
+        kbdView.translatesAutoresizingMaskIntoConstraints = false
+        view.translatesAutoresizingMaskIntoConstraints = false
+
+        NSLayoutConstraint.activate([
+            view.heightAnchor.constraint(equalToConstant: 22),
+            labelView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+            labelView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            kbdView.leadingAnchor.constraint(equalTo: labelView.trailingAnchor, constant: 6),
+            kbdView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            kbdView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+        ])
+        return view
+    }
+}
+
+private final class GitHubPopoverFooterKeymapView: NSView {
+    private let topDivider = CALayer()
+    private let stack = NSStackView()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.addSublayer(topDivider)
+
+        stack.orientation = .horizontal
+        stack.spacing = 14
+        stack.alignment = .centerY
+        addSubview(stack)
+
+        let entries: [(String, String)] = [
+            ("↑↓", "navigate"),
+            ("⏎",  "checkout"),
+            ("d",  "diff"),
+            ("r",  "review"),
+            ("m",  "merge"),
+            ("esc", "close"),
+        ]
+        for (kbd, label) in entries {
+            stack.addArrangedSubview(Self.makeEntry(kbd: kbd, label: label))
+        }
+        refreshTheme()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func layout() {
+        super.layout()
+        topDivider.frame = NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1)
+        let stackSize = stack.fittingSize
+        stack.frame = NSRect(
+            x: 14,
+            y: floor((bounds.height - stackSize.height) / 2),
+            width: bounds.width - 28,
+            height: stackSize.height
+        )
+    }
+
+    func refreshTheme() {
+        layer?.backgroundColor = Theme.chromePanel.withAlphaComponent(0.5).cgColor
+        topDivider.backgroundColor = Theme.chromeHairline.cgColor
+    }
+
+    private static func makeEntry(kbd: String, label: String) -> NSView {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.spacing = 5
+        row.alignment = .centerY
+
+        let kbdView = NSTextField(labelWithString: kbd)
+        kbdView.font = BellithFont.mono(9.5, weight: .regular)
+        kbdView.textColor = Theme.textSecondary
+        kbdView.wantsLayer = true
+        kbdView.layer?.cornerRadius = 3
+        kbdView.layer?.cornerCurve = .continuous
+        kbdView.layer?.borderWidth = 1
+        kbdView.layer?.borderColor = Theme.chromeHairline.cgColor
+        kbdView.layer?.backgroundColor = Theme.chromeElevated.withAlphaComponent(0.6).cgColor
+        kbdView.alignment = .center
+        let kbdSize = kbdView.intrinsicContentSize
+        let kbdWidth = max(kbdSize.width + 10, 18)
+        kbdView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            kbdView.widthAnchor.constraint(greaterThanOrEqualToConstant: kbdWidth),
+            kbdView.heightAnchor.constraint(equalToConstant: 16),
+        ])
+
+        let labelView = NSTextField(labelWithString: label)
+        labelView.font = BellithFont.mono(10, weight: .regular)
+        labelView.textColor = Theme.textTertiary
+
+        row.addArrangedSubview(kbdView)
+        row.addArrangedSubview(labelView)
+        return row
     }
 }
