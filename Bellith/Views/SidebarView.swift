@@ -4,7 +4,7 @@ import QuartzCore
 /// Monochrome utility sidebar with restrained chrome and strong type hierarchy.
 final class SidebarView: NSView, NSDraggingSource {
     override var mouseDownCanMoveWindow: Bool { false }
-    typealias TabModel = (id: UUID, title: String, kind: TerminalContainerView.TabKind)
+    typealias TabModel = (id: UUID, title: String, kind: TerminalContainerView.TabKind, paneCount: Int, hotkeyDigit: Int?)
 
     struct SettingsSnapshot: Equatable {
         let isPinned: Bool
@@ -22,7 +22,7 @@ final class SidebarView: NSView, NSDraggingSource {
         }
     }
 
-    static let expandedWidth: CGFloat = 216
+    static let expandedWidth: CGFloat = 56
 
     private var tabRows: [SidebarTabRow] = []
     private var tabRowSourceIndices: [Int] = []
@@ -81,6 +81,13 @@ final class SidebarView: NSView, NSDraggingSource {
     private var dragInsertionIndex: Int?
     private var isDropAccepted = false
     private let pinButton = NSButton()
+    private let newTabDashedBorder = CAShapeLayer()
+    private var newTabTrackingAreaForHover: NSTrackingArea?
+    private var isNewTabHovered: Bool = false {
+        didSet {
+            if isNewTabHovered != oldValue { applyNewTabHoverAppearance() }
+        }
+    }
     private var settingsObserver: NSObjectProtocol?
 
     init(
@@ -115,21 +122,11 @@ final class SidebarView: NSView, NSDraggingSource {
         noiseView.alphaValue = 0
         addSubview(noiseView)
 
-        headerLabel.stringValue = "WORKSPACE"
-        headerLabel.font = BellithFont.mono(11, weight: .regular)
-        headerLabel.textColor = Theme.textSecondary
-        headerLabel.isEditable = false
-        headerLabel.isBezeled = false
-        headerLabel.drawsBackground = false
-        addSubview(headerLabel)
-
-        toolsHeaderLabel.stringValue = "TOOLS"
-        toolsHeaderLabel.font = BellithFont.mono(11, weight: .regular)
-        toolsHeaderLabel.textColor = Theme.textSecondary
-        toolsHeaderLabel.isEditable = false
-        toolsHeaderLabel.isBezeled = false
-        toolsHeaderLabel.drawsBackground = false
-        addSubview(toolsHeaderLabel)
+        // PR Popover v2 rail: workspace/tools headers and the inline pin button are
+        // dropped in favor of a compact 56px rail. New-tab is a single + at the
+        // bottom; the pin toggle moves into settings.
+        headerLabel.isHidden = true
+        toolsHeaderLabel.isHidden = true
 
         newTabButton.title = ""
         newTabButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "New Tab")
@@ -137,15 +134,18 @@ final class SidebarView: NSView, NSDraggingSource {
         newTabButton.target = self
         newTabButton.action = #selector(handleNewTab)
         configureHeaderButton(newTabButton)
+        newTabButton.layer?.borderWidth = 0
+        newTabButton.toolTip = "New tab"
         addSubview(newTabButton)
 
+        // Dashed hairline around the + tile, mirroring the design's "add" affordance.
+        newTabDashedBorder.fillColor = NSColor.clear.cgColor
+        newTabDashedBorder.lineWidth = 1
+        newTabDashedBorder.lineDashPattern = [3, 3]
+        layer?.addSublayer(newTabDashedBorder)
+
         pinButton.title = ""
-        updatePinButtonIcon()
-        pinButton.contentTintColor = isPinned ? Theme.textPrimary : Theme.textMuted
-        pinButton.target = self
-        pinButton.action = #selector(handlePinToggle)
-        pinButton.toolTip = isPinned ? "Unpin sidebar" : "Pin sidebar"
-        configureHeaderButton(pinButton)
+        pinButton.isHidden = true
         addSubview(pinButton)
 
         // Start expanded if pinned
@@ -232,13 +232,14 @@ final class SidebarView: NSView, NSDraggingSource {
         noiseView.refreshTheme()
         newTabButton.contentTintColor = Theme.textSecondary
         newTabButton.layer?.backgroundColor = NSColor.clear.cgColor
-        newTabButton.layer?.borderColor = Theme.borderSubtle.cgColor
+        newTabButton.layer?.borderColor = NSColor.clear.cgColor
+        newTabDashedBorder.strokeColor = Theme.chromeHairline.withAlphaComponent(Theme.colors.isLight ? 0.55 : 0.45).cgColor
         pinButton.contentTintColor = isPinned ? Theme.textPrimary : Theme.textMuted
         pinButton.layer?.backgroundColor = (isPinned ? Theme.selectionFill.withAlphaComponent(0.65) : NSColor.clear).cgColor
         pinButton.layer?.borderColor = Theme.borderSubtle.cgColor
     }
 
-    func update(tabs: [(id: UUID, title: String, kind: TerminalContainerView.TabKind)], selectedIndex: Int) {
+    func update(tabs: [TabModel], selectedIndex: Int) {
         self.tabs = tabs
         self.selectedIndex = selectedIndex
         rebuildTabs()
@@ -267,6 +268,8 @@ final class SidebarView: NSView, NSDraggingSource {
                 kind: tab.kind,
                 smartPanelRegistry: smartPanelRegistry
             )
+            row.setPaneCount(tab.paneCount)
+            row.setHotkeyDigit(tab.hotkeyDigit)
             row.onSelect = { [weak self] in self?.onSelectTab?(sourceIndex) }
             row.onClose = { [weak self] in self?.onCloseTab?(sourceIndex) }
             row.onDragMoved = { [weak self, weak row] event in
@@ -417,107 +420,95 @@ final class SidebarView: NSView, NSDraggingSource {
 
     override func layout() {
         super.layout()
-        let sideInset: CGFloat = 14
-        let topBandHeight: CGFloat = 0
-        let headerTopInset: CGFloat = 42
-        let rowHeight: CGFloat = 34
-        let rowSpacing: CGFloat = 6
-        let toolItemSize: CGFloat = 28
-        let toolItemSpacing: CGFloat = 8
+        // PR Popover v2 rail layout: 56px column with 38x38 letter-glyph cards
+        // stacked from the top, + button + tools stacked at the bottom.
+        let cardSize: CGFloat = 38
+        let cardSpacing: CGFloat = 6
+        let topInset: CGFloat = 60   // leave room for traffic lights
+        let bottomInset: CGFloat = 14
+        let toolItemSize: CGFloat = 30
+        let toolItemSpacing: CGFloat = 4
+
         let layoutWidth = max(bounds.width, Self.expandedWidth)
         let layoutBounds = NSRect(x: 0, y: 0, width: layoutWidth, height: bounds.height)
 
         noiseView.frame = layoutBounds
-        topBand.frame = NSRect(x: 0, y: layoutBounds.height - topBandHeight, width: layoutBounds.width, height: topBandHeight)
+        topBand.frame = .zero
         trafficLightDock.frame = .zero
         trafficLightHalo.frame = .zero
-        topBandSeparator.frame = NSRect(
-            x: sideInset,
-            y: layoutBounds.height - topBandHeight,
-            width: max(0, layoutBounds.width - sideInset * 2),
-            height: 1
-        )
+        topBandSeparator.frame = .zero
         innerStroke.frame = layoutBounds.insetBy(dx: 1, dy: 1)
         innerStroke.cornerRadius = max(0, (layer?.cornerRadius ?? 12) - 1)
         topHighlight.frame = .zero
         edgeBlend.frame = .zero
 
-        let visibleTabCount = tabRows.count
-        headerLabel.stringValue = visibleTabCount > 0 ? "WORKSPACE (\(visibleTabCount))" : "WORKSPACE"
-        headerLabel.frame = NSRect(
-            x: sideInset,
-            y: layoutBounds.height - headerTopInset,
-            width: layoutBounds.width - sideInset * 2 - 68,
-            height: 14
-        )
+        headerLabel.frame = .zero
+        toolsHeaderLabel.frame = .zero
+        toolsSeparator.frame = .zero
+        pinButton.frame = .zero
 
-        newTabButton.frame = NSRect(
-            x: layoutBounds.width - sideInset - 50,
-            y: layoutBounds.height - headerTopInset - 6,
-            width: 24,
-            height: 24
-        )
-        pinButton.frame = NSRect(
-            x: layoutBounds.width - sideInset - 24,
-            y: layoutBounds.height - headerTopInset - 6,
-            width: 24,
-            height: 24
-        )
+        let cardX = floor((layoutBounds.width - cardSize) / 2)
 
+        // Bottom cluster: + button on top, tool icons stacked beneath.
         let showTools = settingsSnapshot.showTools && !enabledTools.isEmpty
-        let contentWidth = layoutBounds.width - sideInset * 2
+        var bottomCursor: CGFloat = bottomInset
 
-        let tabBottomLimit: CGFloat
         if showTools {
-            let toolsBottomInset: CGFloat = 18
-            let toolColumnCount = max(1, Int((contentWidth + toolItemSpacing) / (toolItemSize + toolItemSpacing)))
-            let toolRowCount = Int(ceil(Double(toolRows.count) / Double(toolColumnCount)))
-            let toolGridHeight = CGFloat(toolRowCount) * toolItemSize
-                + CGFloat(max(0, toolRowCount - 1)) * toolItemSpacing
-            let toolGridTopY = toolsBottomInset + toolGridHeight
-
-            for (index, row) in toolRows.enumerated() {
-                let gridRow = index / toolColumnCount
-                let gridColumn = index % toolColumnCount
-                let rowY = toolGridTopY
-                    - CGFloat(gridRow + 1) * toolItemSize
-                    - CGFloat(gridRow) * toolItemSpacing
-                let rowX = sideInset + CGFloat(gridColumn) * (toolItemSize + toolItemSpacing)
+            for row in toolRows.reversed() {
                 row.isHidden = false
-                row.frame = NSRect(x: rowX, y: rowY, width: toolItemSize, height: toolItemSize)
+                row.frame = NSRect(
+                    x: floor((layoutBounds.width - toolItemSize) / 2),
+                    y: bottomCursor,
+                    width: toolItemSize,
+                    height: toolItemSize
+                )
+                bottomCursor += toolItemSize + toolItemSpacing
             }
-
-            toolsHeaderLabel.frame = NSRect(
-                x: sideInset,
-                y: toolGridTopY + 10,
-                width: contentWidth,
-                height: 13
-            )
+            // Subtle divider between + and tools.
             toolsSeparator.frame = NSRect(
-                x: sideInset,
-                y: toolsHeaderLabel.frame.maxY + 9,
-                width: contentWidth,
+                x: floor((layoutBounds.width - 22) / 2),
+                y: bottomCursor + 4,
+                width: 22,
                 height: 1
             )
-            tabBottomLimit = toolsSeparator.frame.maxY + 18
+            bottomCursor += 12
         } else {
-            toolsSeparator.frame = .zero
-            toolsHeaderLabel.frame = .zero
-            for row in toolRows {
-                row.isHidden = true
-            }
-            tabBottomLimit = 16
+            for row in toolRows { row.isHidden = true }
         }
 
-        var y = headerLabel.frame.minY - 18
+        let addButtonHeight: CGFloat = 30
+        newTabButton.frame = NSRect(
+            x: floor((layoutBounds.width - cardSize) / 2),
+            y: bottomCursor,
+            width: cardSize,
+            height: addButtonHeight
+        )
+        // Dashed border traces the + tile.
+        let dashedRect = newTabButton.frame.insetBy(dx: 0.5, dy: 0.5)
+        newTabDashedBorder.frame = layoutBounds
+        newTabDashedBorder.path = CGPath(
+            roundedRect: dashedRect,
+            cornerWidth: 7,
+            cornerHeight: 7,
+            transform: nil
+        )
+        bottomCursor += addButtonHeight + 8
+
+        // Tab cards stacked from the top, clipping anything that runs into
+        // the bottom cluster.
+        let tabsTopY = layoutBounds.height - topInset
+        let tabsBottomLimit = bottomCursor + 4
+
+        var y = tabsTopY
         for row in tabRows {
-            if y - rowHeight < tabBottomLimit {
+            let cardBottom = y - cardSize
+            if cardBottom < tabsBottomLimit {
                 row.isHidden = true
             } else {
                 row.isHidden = false
-                row.frame = NSRect(x: sideInset, y: y - rowHeight, width: contentWidth, height: rowHeight)
+                row.frame = NSRect(x: cardX, y: cardBottom, width: cardSize, height: cardSize)
             }
-            y -= rowHeight + rowSpacing
+            y -= cardSize + cardSpacing
         }
     }
 
@@ -797,27 +788,17 @@ final class SidebarView: NSView, NSDraggingSource {
 
     override func mouseEntered(with event: NSEvent) {
         hideTimer?.invalidate()
-        let loc = convert(event.locationInWindow, from: nil)
-        if newTabButton.frame.insetBy(dx: -4, dy: -4).contains(loc) {
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = Theme.animFast
-                ctx.allowsImplicitAnimation = true
-                self.newTabButton.layer?.backgroundColor = Theme.hoverOverlay.cgColor
-                self.newTabButton.layer?.borderColor = Theme.border.cgColor
-                self.newTabButton.contentTintColor = Theme.textPrimary
-            }
+        if let info = event.trackingArea?.userInfo, info["target"] as? String == "newTab" {
+            isNewTabHovered = true
         }
     }
 
     override func mouseExited(with event: NSEvent) {
-        if isExpanded && shouldAutoHideWhenFloating { scheduleHide() }
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = Theme.animFast
-            ctx.allowsImplicitAnimation = true
-            self.newTabButton.layer?.backgroundColor = NSColor.clear.cgColor
-            self.newTabButton.layer?.borderColor = Theme.borderSubtle.cgColor
-            self.newTabButton.contentTintColor = Theme.textSecondary
+        if let info = event.trackingArea?.userInfo, info["target"] as? String == "newTab" {
+            isNewTabHovered = false
+            return
         }
+        if isExpanded && shouldAutoHideWhenFloating { scheduleHide() }
     }
 
     func hideAfterSelectionIfNeeded() {
@@ -833,6 +814,31 @@ final class SidebarView: NSView, NSDraggingSource {
             owner: self,
             userInfo: nil
         ))
+
+        // Dedicated tracking area for the + tile so we can flash a hover state
+        // without piggybacking on the sidebar-wide tracker.
+        if let area = newTabTrackingAreaForHover { removeTrackingArea(area) }
+        let area = NSTrackingArea(
+            rect: newTabButton.frame,
+            options: [.mouseEnteredAndExited, .activeAlways],
+            owner: self,
+            userInfo: ["target": "newTab"]
+        )
+        addTrackingArea(area)
+        newTabTrackingAreaForHover = area
+    }
+
+    private func applyNewTabHoverAppearance() {
+        let activeColor = isNewTabHovered ? Theme.textPrimary : Theme.textSecondary
+        let strokeColor: CGColor = isNewTabHovered
+            ? Theme.chromeHairline.withAlphaComponent(Theme.colors.isLight ? 0.95 : 0.78).cgColor
+            : Theme.chromeHairline.withAlphaComponent(Theme.colors.isLight ? 0.55 : 0.45).cgColor
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = Theme.animFast
+            ctx.allowsImplicitAnimation = true
+            newTabButton.contentTintColor = activeColor
+            newTabDashedBorder.strokeColor = strokeColor
+        }
     }
 
     @objc private func handleNewTab() {
@@ -862,19 +868,28 @@ fileprivate final class SidebarTabRow: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
 
     private let selectionIndicator = CALayer()
-    private let iconPlate = CALayer()
+    private let glyphLabel = NSTextField(labelWithString: "")
     private let iconView = NSImageView()
-    private let titleLabel = NSTextField(labelWithString: "")
-    private let closeButton = NSButton()
+    private let badgeContainer = CALayer()
+    private let badgeLabel = NSTextField(labelWithString: "")
+    private let title: String
     private let isSelected: Bool
     private let kind: TerminalContainerView.TabKind
     private let smartPanelRegistry: SmartPanelRegistry
     private var isHovered = false
+    private var hotkeyDigit: Int?
+    private var paneCount: Int = 1
+    private weak var hoverTipView: WorkspaceTipView?
+    private var hoverTipShowWorkItem: DispatchWorkItem?
 
     private var isSmartTab: Bool {
         if case .smart = kind { return true }
         return false
     }
+
+    /// PR Popover v2 hue per workspace, derived deterministically from the title.
+    /// Returns a hue value usable for tinted gradient.
+    private var workspaceHue: CGFloat { WorkspaceTint.hue(for: title) }
 
     init(
         title: String,
@@ -882,6 +897,7 @@ fileprivate final class SidebarTabRow: NSView {
         kind: TerminalContainerView.TabKind,
         smartPanelRegistry: SmartPanelRegistry
     ) {
+        self.title = title
         self.isSelected = isSelected
         self.kind = kind
         self.smartPanelRegistry = smartPanelRegistry
@@ -895,44 +911,46 @@ fileprivate final class SidebarTabRow: NSView {
         setAccessibilityRole(.button)
         setAccessibilityLabel("Tab: \(title)")
         setAccessibilityValue(isSelected ? "selected" : "")
+        toolTip = title
 
         selectionIndicator.cornerRadius = 1.5
         selectionIndicator.cornerCurve = .continuous
         layer?.addSublayer(selectionIndicator)
 
-        iconPlate.cornerRadius = 6
-        iconPlate.cornerCurve = .continuous
-        iconPlate.borderWidth = 1
-        layer?.addSublayer(iconPlate)
+        glyphLabel.font = BellithFont.mono(15, weight: .semibold)
+        glyphLabel.alignment = .center
+        glyphLabel.isEditable = false
+        glyphLabel.isBezeled = false
+        glyphLabel.drawsBackground = false
+        glyphLabel.maximumNumberOfLines = 1
+        addSubview(glyphLabel)
 
-        let symbolName: String
-        if case .smart(let pluginID) = kind,
-           let plugin = smartPanelRegistry.plugin(for: pluginID) {
-            symbolName = plugin.iconName
-        } else {
-            symbolName = "folder.fill"
-        }
-        iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
         iconView.imageScaling = .scaleProportionallyDown
+        iconView.isHidden = true
         addSubview(iconView)
 
-        titleLabel.stringValue = title
-        titleLabel.font = BellithFont.ui(12, weight: isSelected ? .semibold : .medium)
-        titleLabel.lineBreakMode = .byTruncatingTail
-        titleLabel.maximumNumberOfLines = 1
-        addSubview(titleLabel)
+        if case .smart(let pluginID) = kind,
+           let plugin = smartPanelRegistry.plugin(for: pluginID) {
+            iconView.image = NSImage(systemSymbolName: plugin.iconName, accessibilityDescription: nil)
+            iconView.isHidden = false
+            glyphLabel.stringValue = ""
+        } else {
+            glyphLabel.stringValue = Self.makeGlyph(from: title)
+        }
 
-        closeButton.isBordered = false
-        closeButton.title = ""
-        closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close")
-        closeButton.imageScaling = .scaleProportionallyDown
-        closeButton.target = self
-        closeButton.action = #selector(handleClose)
-        closeButton.alphaValue = 0
-        closeButton.wantsLayer = true
-        closeButton.layer?.cornerRadius = 6
-        closeButton.layer?.cornerCurve = .continuous
-        addSubview(closeButton)
+        badgeContainer.cornerRadius = 6
+        badgeContainer.cornerCurve = .continuous
+        badgeContainer.borderWidth = 1
+        layer?.addSublayer(badgeContainer)
+
+        badgeLabel.font = BellithFont.mono(8.5, weight: .semibold)
+        badgeLabel.alignment = .center
+        badgeLabel.isEditable = false
+        badgeLabel.isBezeled = false
+        badgeLabel.drawsBackground = false
+        badgeLabel.stringValue = ""
+        badgeLabel.maximumNumberOfLines = 1
+        addSubview(badgeLabel)
 
         updateAppearance()
     }
@@ -942,13 +960,66 @@ fileprivate final class SidebarTabRow: NSView {
 
     override func layout() {
         super.layout()
-        let h = bounds.height
-        selectionIndicator.frame = NSRect(x: 6, y: (h - 16) / 2, width: 3, height: 16)
-        iconPlate.frame = NSRect(x: 14, y: (h - 20) / 2, width: 20, height: 20)
-        let iconX: CGFloat = 18
-        iconView.frame = NSRect(x: iconX, y: (h - 12) / 2, width: 12, height: 12)
-        titleLabel.frame = NSRect(x: 42, y: (h - 16) / 2, width: bounds.width - 74, height: 16)
-        closeButton.frame = NSRect(x: bounds.width - 28, y: (h - 18) / 2, width: 18, height: 18)
+        let bounds = self.bounds
+
+        // 3px accent strip flush with the rail's left edge. Card is centered in
+        // the 56px rail (so card.x ≈ 9), so x = -9 puts the strip at rail.x = 0.
+        selectionIndicator.frame = NSRect(x: -9, y: 8, width: 3, height: max(0, bounds.height - 16))
+
+        let glyphSize = NSSize(width: bounds.width, height: 18)
+        glyphLabel.frame = NSRect(
+            x: 0,
+            y: floor((bounds.height - glyphSize.height) / 2),
+            width: glyphSize.width,
+            height: glyphSize.height
+        )
+
+        let iconSize: CGFloat = 16
+        iconView.frame = NSRect(
+            x: floor((bounds.width - iconSize) / 2),
+            y: floor((bounds.height - iconSize) / 2),
+            width: iconSize,
+            height: iconSize
+        )
+
+        // Pane-count badge anchored to bottom-right.
+        let badgeText = badgeLabel.stringValue
+        let badgeIntrinsic = badgeLabel.intrinsicContentSize
+        let badgeW = badgeText.isEmpty ? 0 : max(14, ceil(badgeIntrinsic.width) + 8)
+        let badgeH: CGFloat = 13
+        let badgeX = bounds.width - badgeW + 2
+        let badgeY: CGFloat = -2
+        badgeContainer.frame = NSRect(x: badgeX, y: badgeY, width: badgeW, height: badgeH)
+        badgeLabel.frame = NSRect(x: badgeX, y: badgeY, width: badgeW, height: badgeH)
+    }
+
+    func setPaneCount(_ count: Int) {
+        paneCount = count
+        if count <= 1 {
+            badgeLabel.stringValue = ""
+        } else {
+            badgeLabel.stringValue = "\(count)"
+        }
+        updateAppearance()
+        needsLayout = true
+    }
+
+    func setHotkeyDigit(_ digit: Int?) {
+        hotkeyDigit = digit
+        // System tooltip kept as a fallback (e.g. for VoiceOver) — the rich
+        // floating tip view replaces it visually on hover.
+        if let digit, (1...9).contains(digit) {
+            toolTip = "\(title)  ⌘\(digit)"
+        } else {
+            toolTip = title
+        }
+    }
+
+    private static func makeGlyph(from title: String) -> String {
+        guard let first = title.unicodeScalars.first(where: { $0.properties.isAlphabetic || ("0"..."9").contains(Character($0)) }) else {
+            return "•"
+        }
+        return String(first).uppercased()
     }
 
     override func updateTrackingAreas() {
@@ -961,24 +1032,64 @@ fileprivate final class SidebarTabRow: NSView {
     override func mouseEntered(with event: NSEvent) {
         isHovered = true
         updateAppearance()
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = Theme.animFast
-            closeButton.animator().alphaValue = 1
-        }
+        scheduleShowHoverTip()
     }
 
     override func mouseExited(with event: NSEvent) {
         isHovered = false
         updateAppearance()
+        hideHoverTip()
+    }
+
+    private func scheduleShowHoverTip() {
+        hoverTipShowWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.showHoverTip() }
+        hoverTipShowWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22, execute: work)
+    }
+
+    private func showHoverTip() {
+        guard isHovered, hoverTipView == nil, let window = window else { return }
+
+        let tip = WorkspaceTipView(
+            title: title,
+            hotkeyDigit: hotkeyDigit,
+            paneCount: paneCount,
+            tint: WorkspaceTint.accent(for: title)
+        )
+        tip.alphaValue = 0
+        window.contentView?.addSubview(tip)
+
+        // Position the tip just to the right of the card, vertically centered.
+        let cardOriginInWindow = convert(bounds, to: window.contentView)
+        let tipSize = tip.intrinsicContentSize
+        let tipX = cardOriginInWindow.maxX + 10
+        let tipY = cardOriginInWindow.midY - tipSize.height / 2
+        tip.frame = NSRect(x: tipX, y: tipY, width: tipSize.width, height: tipSize.height)
+
+        hoverTipView = tip
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = Theme.animFast
-            closeButton.animator().alphaValue = 0
+            ctx.allowsImplicitAnimation = true
+            tip.animator().alphaValue = 1
+        }
+    }
+
+    private func hideHoverTip() {
+        hoverTipShowWorkItem?.cancel()
+        hoverTipShowWorkItem = nil
+        guard let tip = hoverTipView else { return }
+        hoverTipView = nil
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = Theme.animFast
+            ctx.allowsImplicitAnimation = true
+            tip.animator().alphaValue = 0
+        } completionHandler: {
+            tip.removeFromSuperview()
         }
     }
 
     override func mouseDown(with event: NSEvent) {
-        let loc = convert(event.locationInWindow, from: nil)
-        if closeButton.frame.contains(loc) { onClose?(); return }
         mouseDownLocation = event.locationInWindow
         isDragging = false
     }
@@ -1006,62 +1117,74 @@ fileprivate final class SidebarTabRow: NSView {
         if event.buttonNumber == 2 { onClose?() }
     }
 
-    @objc private func handleClose() { onClose?() }
-
     private func updateAppearance() {
-        let backgroundColor: NSColor
-        let borderColor: NSColor
-        let iconPlateColor: NSColor
-        let iconPlateBorder: NSColor
+        let hue = workspaceHue
+        let backgroundColor: CGColor
+        let borderColor: CGColor
+        let glyphColor: NSColor
         let iconColor: NSColor
-        let titleColor: NSColor
-        let indicatorColor: NSColor
+        let indicatorColor: CGColor
+        let badgeFillColor: CGColor
+        let badgeBorderColor: CGColor
+        let badgeTextColor: NSColor
+        let shadowOpacity: Float
+
+        let isLight = Theme.colors.isLight
+        // Tinted bg pulled toward the surface gray so the active card glows
+        // gently rather than screaming. The saturated accent is reserved for
+        // the strip, border, glyph, and badge.
+        let huedTint = NSColor(deviceHue: hue / 360, saturation: 0.30, brightness: isLight ? 0.92 : 0.62, alpha: 1)
+        let huedAccent = WorkspaceTint.accent(for: title)
 
         if isSelected {
-            backgroundColor = NSColor(white: 1.0, alpha: 0.035)
-            borderColor = NSColor.clear
-            iconPlateColor = NSColor.clear
-            iconPlateBorder = NSColor.clear
-            iconColor = Theme.textPrimary
-            titleColor = Theme.textDisplay
-            indicatorColor = Theme.accent.withAlphaComponent(0.92)
-            layer?.shadowOpacity = 0
+            backgroundColor = huedTint.withAlphaComponent(isLight ? 0.16 : 0.20).cgColor
+            borderColor = huedAccent.withAlphaComponent(0.55).cgColor
+            glyphColor = huedAccent
+            iconColor = huedAccent
+            indicatorColor = huedAccent.cgColor
+            badgeFillColor = (isLight ? NSColor.white : Theme.frame).cgColor
+            badgeBorderColor = huedAccent.withAlphaComponent(0.7).cgColor
+            badgeTextColor = huedAccent
+            shadowOpacity = 0.35
         } else if isHovered {
-            backgroundColor = Theme.hoverOverlay
-            borderColor = NSColor.clear
-            iconPlateColor = NSColor.clear
-            iconPlateBorder = NSColor.clear
+            backgroundColor = Theme.chromeElevated.withAlphaComponent(isLight ? 0.55 : 0.55).cgColor
+            borderColor = Theme.chromeHairline.withAlphaComponent(0.4).cgColor
+            glyphColor = Theme.textPrimary
             iconColor = Theme.textPrimary
-            titleColor = Theme.textPrimary
-            indicatorColor = NSColor.clear
-            layer?.shadowOpacity = 0
+            indicatorColor = NSColor.clear.cgColor
+            badgeFillColor = Theme.frame.cgColor
+            badgeBorderColor = Theme.chromeHairline.cgColor
+            badgeTextColor = Theme.textSecondary
+            shadowOpacity = 0
         } else {
-            backgroundColor = NSColor.clear
-            borderColor = NSColor.clear
-            iconPlateColor = NSColor.clear
-            iconPlateBorder = NSColor.clear
+            backgroundColor = NSColor.clear.cgColor
+            borderColor = NSColor.clear.cgColor
+            glyphColor = Theme.textSecondary
             iconColor = Theme.textSecondary
-            titleColor = Theme.textSecondary
-            indicatorColor = NSColor.clear
-            layer?.shadowOpacity = 0
+            indicatorColor = NSColor.clear.cgColor
+            badgeFillColor = Theme.frame.cgColor
+            badgeBorderColor = Theme.chromeHairline.cgColor
+            badgeTextColor = Theme.textTertiary
+            shadowOpacity = 0
         }
 
-        closeButton.contentTintColor = isHovered ? Theme.textPrimary : Theme.textSecondary
-        closeButton.layer?.backgroundColor = NSColor.clear.cgColor
-        closeButton.layer?.borderColor = NSColor.clear.cgColor
-        closeButton.layer?.borderWidth = 0
+        layer?.shadowColor = huedAccent.withAlphaComponent(0.4).cgColor
+        layer?.shadowOpacity = shadowOpacity
+        layer?.shadowRadius = 10
+        layer?.shadowOffset = CGSize(width: 0, height: -2)
 
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = Theme.animFast
             ctx.allowsImplicitAnimation = true
-            self.layer?.backgroundColor = backgroundColor.cgColor
-            self.layer?.borderColor = borderColor.cgColor
-            self.selectionIndicator.backgroundColor = indicatorColor.cgColor
-            self.iconPlate.backgroundColor = iconPlateColor.cgColor
-            self.iconPlate.borderColor = iconPlateBorder.cgColor
+            self.layer?.backgroundColor = backgroundColor
+            self.layer?.borderColor = borderColor
+            self.selectionIndicator.backgroundColor = indicatorColor
+            self.glyphLabel.animator().textColor = glyphColor
             self.iconView.animator().contentTintColor = iconColor
-            self.titleLabel.animator().textColor = titleColor
-            self.closeButton.animator().contentTintColor = self.closeButton.contentTintColor
+            self.badgeContainer.backgroundColor = badgeFillColor
+            self.badgeContainer.borderColor = badgeBorderColor
+            self.badgeContainer.opacity = self.badgeLabel.stringValue.isEmpty ? 0 : 1
+            self.badgeLabel.animator().textColor = badgeTextColor
         }
     }
 }
@@ -1252,5 +1375,114 @@ fileprivate final class SidebarNoiseView: NSView {
         }
 
         return context.makeImage()
+    }
+}
+
+// MARK: - Workspace Card Hover Tip
+
+/// Floating tooltip view that mirrors the design's `.tip`: a dark glass pill with
+/// the workspace name, an aligned hotkey badge, and a sub-line for pane count.
+fileprivate final class WorkspaceTipView: NSView {
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let hotkeyKbd = KbdView()
+    private let subLabel = NSTextField(labelWithString: "")
+    private let borderLayer = CALayer()
+    private let backgroundLayer = CALayer()
+    private let tint: NSColor
+
+    init(title: String, hotkeyDigit: Int?, paneCount: Int, tint: NSColor) {
+        self.tint = tint
+        super.init(frame: .zero)
+        wantsLayer = true
+        shadow = NSShadow()
+        layer?.shadowColor = NSColor.black.withAlphaComponent(0.55).cgColor
+        layer?.shadowOpacity = 1
+        layer?.shadowRadius = 12
+        layer?.shadowOffset = CGSize(width: 0, height: -4)
+        layer?.masksToBounds = false
+
+        backgroundLayer.cornerRadius = 6
+        backgroundLayer.cornerCurve = .continuous
+        backgroundLayer.masksToBounds = true
+        layer?.addSublayer(backgroundLayer)
+
+        borderLayer.cornerRadius = 6
+        borderLayer.cornerCurve = .continuous
+        borderLayer.borderWidth = 1
+        borderLayer.borderColor = Theme.chromeHairline.withAlphaComponent(0.7).cgColor
+        layer?.addSublayer(borderLayer)
+
+        titleLabel.stringValue = title
+        titleLabel.font = BellithFont.mono(11.5, weight: .medium)
+        titleLabel.textColor = tint
+        titleLabel.isEditable = false
+        titleLabel.isBezeled = false
+        titleLabel.drawsBackground = false
+        titleLabel.maximumNumberOfLines = 1
+        addSubview(titleLabel)
+
+        if let digit = hotkeyDigit, (1...9).contains(digit) {
+            hotkeyKbd.text = "⌘\(digit)"
+            addSubview(hotkeyKbd)
+        }
+
+        let countText = paneCount > 1 ? "\(paneCount) panes" : "1 pane"
+        subLabel.stringValue = countText
+        subLabel.font = BellithFont.mono(10, weight: .regular)
+        subLabel.textColor = Theme.textTertiary
+        subLabel.isEditable = false
+        subLabel.isBezeled = false
+        subLabel.drawsBackground = false
+        addSubview(subLabel)
+
+        applyBackground()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    private func applyBackground() {
+        let isLight = Theme.colors.isLight
+        backgroundLayer.backgroundColor = (isLight
+            ? NSColor.white.withAlphaComponent(0.92)
+            : NSColor(white: 0.10, alpha: 0.96)).cgColor
+    }
+
+    override var intrinsicContentSize: NSSize {
+        let titleW = ceil(titleLabel.attributedStringValue.size().width)
+        let kbdW = hotkeyKbd.superview != nil ? ceil(hotkeyKbd.intrinsicContentSize.width) + 8 : 0
+        let subW = ceil(subLabel.attributedStringValue.size().width)
+        let topRow = titleW + kbdW
+        let width = max(topRow, subW) + 18
+        return NSSize(width: max(120, width), height: 38)
+    }
+
+    override func layout() {
+        super.layout()
+        backgroundLayer.frame = bounds
+        borderLayer.frame = bounds
+
+        let titleSize = titleLabel.attributedStringValue.size()
+        titleLabel.frame = NSRect(
+            x: 9,
+            y: bounds.height - 7 - 14,
+            width: ceil(titleSize.width) + 2,
+            height: 14
+        )
+        if hotkeyKbd.superview != nil {
+            let kbdSize = hotkeyKbd.intrinsicContentSize
+            hotkeyKbd.frame = NSRect(
+                x: bounds.width - kbdSize.width - 9,
+                y: bounds.height - 6 - kbdSize.height,
+                width: kbdSize.width,
+                height: kbdSize.height
+            )
+        }
+        subLabel.frame = NSRect(
+            x: 9,
+            y: 5,
+            width: bounds.width - 18,
+            height: 12
+        )
     }
 }

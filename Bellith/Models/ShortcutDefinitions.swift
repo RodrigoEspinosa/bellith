@@ -269,7 +269,8 @@ enum ShortcutDefinitionLibrary {
                 category: "Panes",
                 scope: .windowChrome,
                 discoverabilityText: "Split the active pane vertically",
-                primaryShortcut: shortcut("d", command: true, option: true),
+                primaryShortcut: shortcut("d", command: true),
+                alternateShortcuts: [shortcut("d", command: true, option: true)],
                 presetSource: preset
             ),
             KeyBindingEntry(
@@ -278,7 +279,8 @@ enum ShortcutDefinitionLibrary {
                 category: "Panes",
                 scope: .windowChrome,
                 discoverabilityText: "Split the active pane horizontally",
-                primaryShortcut: shortcut("d", command: true, shift: true, option: true),
+                primaryShortcut: shortcut("d", command: true, shift: true),
+                alternateShortcuts: [shortcut("d", command: true, shift: true, option: true)],
                 presetSource: preset
             ),
             KeyBindingEntry(

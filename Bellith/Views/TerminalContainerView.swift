@@ -81,6 +81,100 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private let contentStrokeLayer = CALayer()
     private let contentInnerStrokeLayer = CALayer()
     private let contentTopGlossLayer = CAGradientLayer()
+
+    /// When this view is embedded inside `RebrandShellView`, all of its own
+    /// chrome (title bar, sidebar rail, tab bar, status bar, decorative
+    /// backdrop layers) is suppressed so the parent shell owns the visible
+    /// chrome. The terminal session, splits, smart panels, and overlays still
+    /// run from this view — only the chrome is yielded.
+    var embedInRebrandShell: Bool = false {
+        didSet {
+            if embedInRebrandShell != oldValue { applyEmbeddedChromeVisibility() }
+        }
+    }
+
+    /// Fires whenever tabs are added/removed/renamed/reordered, the selected
+    /// tab changes, or split layout shifts. The rebrand shell observes this
+    /// to drive its own chrome (title bar, workspace rail, status bar).
+    var onEmbeddedStateChanged: (() -> Void)?
+
+    /// Lightweight projection of the active tabs for the rebrand shell. Kept
+    /// flat / immutable so consumers can't mutate internal state.
+    struct EmbeddedTabSummary {
+        let id: UUID
+        let title: String
+        let paneCount: Int
+        let isSmart: Bool
+        let sourceIndex: Int
+    }
+
+    struct EmbeddedStatusSummary {
+        let muxName: String?
+        let paneCount: Int
+        let focusedPaneIndex: Int
+        let cwdDisplay: String?
+        let gitBranch: String?
+        let processDisplay: String?
+        let isBroadcasting: Bool
+    }
+
+    /// Only terminal tabs land in the workspace rail — smart-panel tabs (file
+    /// activity, process tree, etc.) get their own tools cluster eventually.
+    var embeddedTabSummaries: [EmbeddedTabSummary] {
+        tabs.enumerated().compactMap { (idx, entry) -> EmbeddedTabSummary? in
+            if case .smart = entry.kind { return nil }
+            return EmbeddedTabSummary(
+                id: entry.id,
+                title: entry.title,
+                paneCount: entry.surfaces.count,
+                isSmart: false,
+                sourceIndex: idx
+            )
+        }
+    }
+    var embeddedSelectedTabIndex: Int { selectedTabIndex }
+    var embeddedActiveTabTitle: String? {
+        guard selectedTabIndex < tabs.count else { return nil }
+        return tabs[selectedTabIndex].title
+    }
+    var embeddedStatusSummary: EmbeddedStatusSummary? {
+        guard selectedTabIndex < tabs.count else { return nil }
+        let entry = tabs[selectedTabIndex]
+        guard entry.isTerminal else { return nil }
+        let surfaces = entry.surfaces
+        let focused = entry.focusedSurface ?? surfaces.first
+        let focusedIndex = focused.flatMap { surface in
+            surfaces.firstIndex { $0 === surface }.map { $0 + 1 }
+        } ?? 1
+        return EmbeddedStatusSummary(
+            muxName: entry.localSessionName == nil ? nil : "SESSION",
+            paneCount: max(1, surfaces.count),
+            focusedPaneIndex: focusedIndex,
+            cwdDisplay: Self.compactPath(focused?.currentCwd ?? entry.cwd),
+            gitBranch: activeGitInfo?.branch,
+            processDisplay: focused?.lastForegroundPresentation?.text,
+            isBroadcasting: isBroadcasting
+        )
+    }
+
+    private func applyEmbeddedChromeVisibility() {
+        let hidden = embedInRebrandShell
+        titleBar.isHidden = hidden
+        statusBar.isHidden = hidden
+        sidebar.isHidden = hidden
+        tabBar.isHidden = hidden
+        contentBackdropLayer.isHidden = hidden
+        contentStrokeLayer.isHidden = hidden
+        contentInnerStrokeLayer.isHidden = hidden
+        contentTopGlossLayer.isHidden = hidden
+        needsLayout = true
+    }
+
+    /// Internal — call from anywhere tab state mutates so the rebrand shell
+    /// can refresh its chrome.
+    func notifyEmbeddedStateChanged() {
+        onEmbeddedStateChanged?()
+    }
     private let sidebarGlowLayer = CAGradientLayer()
     private let sidebarBridgeLayer = CAGradientLayer()
 
@@ -307,7 +401,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     private func applyChrome(to root: NSView) {
         root.wantsLayer = true
-        root.layer?.cornerRadius = contentRadius
+        root.layer?.cornerRadius = embedInRebrandShell ? RebrandTokens.Layout.paneCornerRadius : contentRadius
         root.layer?.cornerCurve = .continuous
         root.layer?.maskedCorners = [
             .layerMinXMinYCorner,
@@ -315,12 +409,21 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             .layerMinXMaxYCorner,
             .layerMaxXMaxYCorner,
         ]
+        // Keep the outer rounded mask (for macOS-style window card) but don't
+        // clip rigidly — the focused-pane decoration's shadow/glow must extend
+        // outside the leaf when panes are split.
         root.layer?.masksToBounds = true
-        root.layer?.borderWidth = 0
-        root.layer?.borderColor = NSColor.clear.cgColor
-        root.layer?.backgroundColor = activeProfileIsTranslucent
-            ? NSColor.clear.cgColor
-            : Theme.surface.cgColor
+        root.layer?.borderWidth = embedInRebrandShell ? 1 : 0
+        root.layer?.borderColor = embedInRebrandShell
+            ? RebrandTokens.Color.line.cgColor
+            : NSColor.clear.cgColor
+        if embedInRebrandShell {
+            root.layer?.backgroundColor = RebrandTokens.Color.paneBg.cgColor
+        } else if activeProfileIsTranslucent {
+            root.layer?.backgroundColor = NSColor.clear.cgColor
+        } else {
+            root.layer?.backgroundColor = Theme.surface.cgColor
+        }
     }
 
     private var activeProfileIsTranslucent: Bool {
@@ -494,7 +597,12 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 self.overlayController.handleModifierFlagsChanged(
                     event.modifierFlags.intersection(.deviceIndependentFlagsMask)
                 )
-            case .keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown:
+            case .keyDown:
+                self.overlayController.handleKeyEventBegan()
+                if self.handlePaneKeyEquivalent(event) {
+                    return nil
+                }
+            case .leftMouseDown, .rightMouseDown, .otherMouseDown:
                 self.overlayController.handleKeyEventBegan()
             default:
                 break
@@ -504,6 +612,41 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
 
         eventMonitorTokens = [token]
+    }
+
+    private func handlePaneKeyEquivalent(_ event: NSEvent) -> Bool {
+        guard event.type == .keyDown,
+              selectedTabIndex < tabs.count,
+              tabs[selectedTabIndex].isTerminal,
+              dependencies.settings.legacyPaneSupport || dependencies.settings.useRebrandShell else {
+            return false
+        }
+
+        if matches(event, action: "splitRight") || Self.matchesShortcut(event, key: "d", command: true) {
+            splitPane(direction: .vertical)
+            return true
+        }
+        if matches(event, action: "splitDown") || Self.matchesShortcut(event, key: "d", command: true, shift: true) {
+            splitPane(direction: .horizontal)
+            return true
+        }
+        if matches(event, action: "closePane") {
+            closePane()
+            return true
+        }
+        return false
+    }
+
+    private static func matchesShortcut(
+        _ event: NSEvent,
+        key: String,
+        command: Bool = false,
+        shift: Bool = false,
+        option: Bool = false,
+        control: Bool = false
+    ) -> Bool {
+        let shortcut = KeyShortcut(key: key, command: command, shift: shift, option: option, control: control)
+        return shortcut.matches(event: event)
     }
 
     private func removeEventMonitors() {
@@ -534,6 +677,8 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 applyPaneDecoration(to: leaf, state: state)
             }
         }
+
+        refreshPaneHeaders()
     }
 
     private enum PaneDecorationState {
@@ -546,8 +691,11 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private enum PaneDecoration {
         static let border = "paneBorder"
         static let glow = "paneGlow"
-        static let inset: CGFloat = 5
-        static let cornerRadius: CGFloat = 10
+        // Border sits flush with the pane card (the PaneContainerView paints
+        // its own card hairline at the same edge). The hairline is replaced
+        // by the active border's color here when the pane is focused.
+        static let inset: CGFloat = 0
+        static let cornerRadius: CGFloat = 8
     }
 
     private func applyPaneDecoration(to leaf: NSView, state: PaneDecorationState) {
@@ -593,16 +741,19 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             glowLayer.shadowOpacity = 0
 
         case .active:
+            let tint = activeWorkspaceTint()
             borderLayer.opacity = 1
             borderLayer.borderWidth = 1.5
-            borderLayer.borderColor = Theme.accent.withAlphaComponent(0.6).cgColor
+            borderLayer.borderColor = tint.withAlphaComponent(0.34).cgColor
             glowLayer.opacity = 1
-            glowLayer.shadowColor = Theme.accent.withAlphaComponent(0.22).cgColor
-            glowLayer.shadowOpacity = 1
-            glowLayer.shadowRadius = 14
+            glowLayer.shadowColor = tint.withAlphaComponent(0.12).cgColor
+            glowLayer.shadowOpacity = 0.7
+            glowLayer.shadowRadius = 10
             glowLayer.shadowOffset = .zero
 
         case .broadcast:
+            // Broadcast keeps the global accent — it's a destructive/global mode
+            // that shouldn't be tinted by workspace identity.
             borderLayer.opacity = 1
             borderLayer.borderWidth = 1.5
             borderLayer.borderColor = Theme.accent.withAlphaComponent(0.52).cgColor
@@ -612,6 +763,11 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             glowLayer.shadowRadius = 8
             glowLayer.shadowOffset = .zero
         }
+    }
+
+    private func activeWorkspaceTint() -> NSColor {
+        guard selectedTabIndex < tabs.count else { return Theme.accent }
+        return WorkspaceTint.accent(for: tabs[selectedTabIndex].title)
     }
 
     private func paneDecorationLayer(named name: String, on parent: CALayer, frame: CGRect) -> CALayer {
@@ -634,8 +790,8 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     func applyTabMode() {
         let isSidebar = useSidebar
-        sidebar.isHidden = !isSidebar
-        tabBar.isHidden = isSidebar
+        sidebar.isHidden = embedInRebrandShell ? true : !isSidebar
+        tabBar.isHidden = embedInRebrandShell ? true : isSidebar
         syncTrafficLightDisplayMode()
         updateChromeFrames(animated: false)
         needsLayout = true
@@ -817,6 +973,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             refreshStatusBarAsync(cwd: initialCwd)
         }
 
+        openReferencePaneLayoutIfNeeded()
         return surface
     }
 
@@ -1220,6 +1377,8 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     /// Fetch shell context off the main thread.
     private func refreshStatusBarAsync(cwd: String) {
+        activeGitInfo = nil
+        notifyEmbeddedStateChanged()
         let pid = findShellPID()
         let activeSurface = activeSurface
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -1244,6 +1403,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 self.statusBar.updateGitBranch(gitInfo?.branch)
                 self.statusBar.updateGitWorktree(gitInfo?.worktreeName)
                 self.statusBar.updateProcess(runtimeStatus.foregroundProcess)
+                self.activeGitInfo = gitInfo
+                self.refreshPaneHeaders()
+                self.notifyEmbeddedStateChanged()
             }
         }
 
@@ -1252,9 +1414,24 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     private var lastGitHubCwd: String?
+    private var activeGitInfo: GitRepositoryInfo?
 
     private var shouldShowStatusBar: Bool {
         dependencies.settings.showStatusBar && statusBar.hasVisibleContent
+    }
+
+    private static func compactPath(_ path: String?) -> String? {
+        guard let path, !path.isEmpty else { return nil }
+        let home = NSHomeDirectory()
+        let normalized: String
+        if path.hasPrefix(home) {
+            normalized = "~" + path.dropFirst(home.count)
+        } else {
+            normalized = path
+        }
+        let pieces = normalized.split(separator: "/", omittingEmptySubsequences: false)
+        guard pieces.count > 3 else { return String(normalized) }
+        return pieces.suffix(3).joined(separator: "/")
     }
 
     private func refreshGitHubStatusAsync(cwd: String) {
@@ -1303,6 +1480,8 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 self.statusBar.updateContext(context)
                 self.titleBar.updateProcess(runtimeStatus.foregroundProcess)
                 self.statusBar.updateProcess(runtimeStatus.foregroundProcess)
+                self.refreshPaneHeaders()
+                self.notifyEmbeddedStateChanged()
             }
         }
     }
@@ -1349,20 +1528,93 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     private func refreshTabUI() {
-        let tabData = tabs.map { (id: $0.id, title: $0.title, kind: $0.kind) }
+        // Build a map from tab index to ⌘N digit for the first 9 terminal tabs.
+        let terminalIndices = Self.shortcutSelectableTerminalTabIndices(for: tabs.map(\.kind))
+        var hotkeyByTabIndex: [Int: Int] = [:]
+        for (visibleIndex, tabIndex) in terminalIndices.prefix(9).enumerated() {
+            hotkeyByTabIndex[tabIndex] = visibleIndex + 1
+        }
+        let tabData = tabs.enumerated().map { offset, entry in
+            (
+                id: entry.id,
+                title: entry.title,
+                kind: entry.kind,
+                paneCount: entry.surfaces.count,
+                hotkeyDigit: hotkeyByTabIndex[offset]
+            )
+        }
         sidebar.update(tabs: tabData, selectedIndex: selectedTabIndex)
 
         let barTabs = tabs.map { TabBarView.Tab(id: $0.id, title: $0.title, kind: $0.kind, isPinned: $0.isPinned) }
         tabBar.update(tabs: barTabs, selectedIndex: selectedTabIndex)
+
+        refreshWorkspaceTitle()
+        refreshPaneHeaders()
+        notifyEmbeddedStateChanged()
+    }
+
+    /// Push the active tab's name + pane count into the title bar's centered title.
+    private func refreshWorkspaceTitle() {
+        guard selectedTabIndex < tabs.count else {
+            titleBar.updateWorkspaceContext(shell: nil, name: nil, paneCount: 0)
+            return
+        }
+        let entry = tabs[selectedTabIndex]
+        guard entry.isTerminal else {
+            titleBar.updateWorkspaceContext(shell: nil, name: nil, paneCount: 0)
+            return
+        }
+        titleBar.updateWorkspaceContext(
+            shell: "zsh",
+            name: entry.title,
+            paneCount: entry.surfaces.count
+        )
     }
 
     // MARK: - Split Panes
 
     func splitPane(direction: SplitPaneView.Orientation) {
+        splitPane(direction: direction, animated: true)
+    }
+
+    func openReferencePaneLayoutIfNeeded() {
+        guard dependencies.settings.useRebrandShell,
+              dependencies.settings.openRebrandPanesByDefault,
+              selectedTabIndex < tabs.count,
+              tabs[selectedTabIndex].isTerminal,
+              tabs[selectedTabIndex].surfaces.count == 1,
+              let root = tabs[selectedTabIndex].splitRoot else {
+            return
+        }
+
+        let originalCwd = activeSurface?.currentCwd ?? tabs[selectedTabIndex].cwd
+        splitPane(direction: .vertical, animated: false)
+        root.adjustRatio(by: 0.12, animated: false)
+
+        splitPane(direction: .horizontal, animated: false)
+        root.second?.adjustRatio(by: -0.08, animated: false)
+
+        if let originalCwd {
+            for surface in tabs[selectedTabIndex].surfaces where surface.currentCwd == nil {
+                openWorkingDirectory(originalCwd, in: surface)
+            }
+        }
+
+        if let firstSurface = tabs[selectedTabIndex].surfaces.first {
+            tabs[selectedTabIndex].focusedSurface = firstSurface
+            window?.makeFirstResponder(firstSurface)
+        }
+        updateFocusIndicator()
+        refreshWorkspaceTitle()
+        refreshTabUI()
+    }
+
+    private func splitPane(direction: SplitPaneView.Orientation, animated: Bool) {
         guard selectedTabIndex < tabs.count, tabs[selectedTabIndex].isTerminal, let terminalApp else { return }
 
         let tabId = tabs[selectedTabIndex].id
         let inheritedContext = activeSurface?.terminalContext ?? .local
+        let inheritedCwd = activeSurface?.currentCwd ?? tabs[selectedTabIndex].cwd
         let surface = makeSurface(tabId: tabId, app: terminalApp, context: inheritedContext)
 
         guard let root = tabs[selectedTabIndex].splitRoot else { return }
@@ -1375,19 +1627,31 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
 
         tabs[selectedTabIndex].addSurface(surface)
+        tabs[selectedTabIndex].focusedSurface = surface
+        if let inheritedCwd {
+            openWorkingDirectory(inheritedCwd, in: surface)
+        }
         window?.makeFirstResponder(surface)
 
-        // Fade in the new pane while animating the split layout
-        newLeaf.alphaValue = 0
-        needsLayout = true
-        layoutSubtreeIfNeeded()
-        root.animateLayout(duration: Theme.animMedium)
+        if animated {
+            // Fade in the new pane while animating the split layout.
+            newLeaf.alphaValue = 0
+            needsLayout = true
+            layoutSubtreeIfNeeded()
+            root.animateLayout(duration: Theme.animMedium)
 
-        Theme.animate(duration: Theme.animMedium) { _ in
-            newLeaf.animator().alphaValue = 1
+            Theme.animate(duration: Theme.animMedium) { _ in
+                newLeaf.animator().alphaValue = 1
+            }
+        } else {
+            newLeaf.alphaValue = 1
+            root.needsLayout = true
         }
 
         updateFocusIndicator()
+        refreshWorkspaceTitle()
+        refreshPaneHeaders()
+        notifyEmbeddedStateChanged()
     }
 
     func closePane() {
@@ -1427,6 +1691,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 // Animate the remaining pane expanding into the freed space
                 root.animateLayout(duration: Theme.animMedium)
                 self.updateFocusIndicator()
+                self.refreshWorkspaceTitle()
             })
         } else if entry.surfaces.count == 1 {
             closeCurrentTab()
@@ -1522,6 +1787,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         isBroadcasting.toggle()
         updateFocusIndicator()
         updateBroadcastBadge()
+        notifyEmbeddedStateChanged()
     }
 
     private func updateBroadcastBadge() {
@@ -1859,6 +2125,12 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     private func contentRect(forSidebarWidth sidebarWidth: CGFloat, statusBarVisible: Bool = false) -> NSRect {
+        // When the rebrand shell hosts this view, it provides its own title
+        // bar / rail / status bar / outer padding, so this view is just the
+        // body and should fill its bounds completely.
+        if embedInRebrandShell {
+            return bounds
+        }
         let p = contentPadding
         let bottomOffset = p + statusBarHeight(for: statusBarVisible) + statusBarGap(for: statusBarVisible)
         let topOffset = p + titleBarHeight
@@ -1935,7 +2207,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
         let hasVisibleTrafficLights = !useSidebar
         titleBar.leadingInset = hasVisibleTrafficLights ? 92 : 0
-        titleBar.isHidden = false
+        titleBar.isHidden = embedInRebrandShell
         titleBar.frame = NSRect(
             x: contentLeft + 6,
             y: bounds.height - p - titleBarHeight + 1,
@@ -1943,7 +2215,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             height: titleBarHeight
         )
 
-        let statusBarVisible = shouldShowStatusBar
+        let statusBarVisible = shouldShowStatusBar && !embedInRebrandShell
         lastKnownStatusBarVisible = statusBarVisible
         statusBar.isHidden = !statusBarVisible
         statusBar.alphaValue = statusBarVisible ? 1 : 0
@@ -2026,7 +2298,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         let targetStatusBarX = targetContentLeft
         let targetStatusBarW = bounds.width - targetStatusBarX - p
 
-        if targetStatusBarVisible {
+        if targetStatusBarVisible && !embedInRebrandShell {
             statusBar.isHidden = false
             if !lastKnownStatusBarVisible {
                 statusBar.alphaValue = 0
@@ -2076,8 +2348,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }, completion: { [weak self] in
             guard let self else { return }
             self.lastKnownStatusBarVisible = targetStatusBarVisible
-            self.statusBar.isHidden = !targetStatusBarVisible
-            self.statusBar.alphaValue = targetStatusBarVisible ? 1 : 0
+            let hideForEmbed = self.embedInRebrandShell
+            self.statusBar.isHidden = hideForEmbed || !targetStatusBarVisible
+            self.statusBar.alphaValue = (hideForEmbed || !targetStatusBarVisible) ? 0 : 1
             self.isAnimatingLayout = false
             self.needsLayout = true
         })
@@ -2598,7 +2871,61 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     func makePaneContent(for surface: TerminalSurfaceView) -> NSView {
-        surface
+        let container = PaneContainerView(surface: surface)
+        return container
+    }
+
+    /// Walk up from a surface's view tree to find the wrapping `PaneContainerView`, if any.
+    private func paneContainer(for surface: NSView) -> PaneContainerView? {
+        var node: NSView? = surface
+        while let n = node {
+            if let container = n as? PaneContainerView { return container }
+            node = n.superview
+        }
+        return nil
+    }
+
+    /// Refresh every pane's header content (pid pill, title, cwd, status dot) for the active tab.
+    private func refreshPaneHeaders() {
+        guard selectedTabIndex < tabs.count else { return }
+        let entry = tabs[selectedTabIndex]
+        guard entry.isTerminal else { return }
+        let tint = WorkspaceTint.accent(for: entry.title)
+        let showsCard = entry.surfaces.count > 1
+        for (idx, surface) in entry.surfaces.enumerated() {
+            guard let container = paneContainer(for: surface) else { continue }
+            let cwd = surface.currentCwd ?? entry.cwd
+            let presentation = surface.lastForegroundPresentation
+            let title = Self.paneHeaderTitle(from: presentation)
+            let isRunning = Self.paneHeaderIsRunning(from: presentation)
+            container.configure(
+                paneIndex: "0:\(idx + 1)",
+                title: title,
+                cwd: cwd,
+                isFocused: surface === entry.focusedSurface,
+                isRunning: isRunning,
+                workspaceTint: tint,
+                showsCardChrome: showsCard
+            )
+        }
+    }
+
+    /// Compact pane title for the header — first word of the foreground process,
+    /// falling back to "zsh" so the header always has a label.
+    private static func paneHeaderTitle(from presentation: ForegroundProcessPresentation?) -> String {
+        guard let presentation else { return "zsh" }
+        let firstSegment = presentation.text.split(separator: " ").first.map(String.init) ?? presentation.text
+        return firstSegment.isEmpty ? "zsh" : firstSegment
+    }
+
+    /// A pane is "running" (warning-tinted dot) whenever a non-shell foreground
+    /// process is present — matches the design's distinction between idle shells
+    /// and active long-runners (dev servers, watchers, REPLs).
+    private static func paneHeaderIsRunning(from presentation: ForegroundProcessPresentation?) -> Bool {
+        guard let presentation else { return false }
+        let lower = presentation.text.lowercased()
+        let shellNames = ["zsh", "bash", "fish", "sh", "dash", "ksh"]
+        return !shellNames.contains(where: { lower == $0 || lower.hasPrefix("\($0) ") })
     }
 
     private func makeSurface(tabId: UUID, app: TerminalApp, context: TerminalContext) -> TerminalSurfaceView {

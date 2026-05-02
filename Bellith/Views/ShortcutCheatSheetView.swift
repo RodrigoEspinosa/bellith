@@ -11,7 +11,7 @@ final class ShortcutCheatSheetView: NSView {
     private let backdrop = NSVisualEffectView()
     private let titleLabel = NSTextField(labelWithString: "Keyboard Shortcuts")
     private let subtitleLabel = NSTextField(labelWithString: "")
-    private let dismissLabel = NSTextField(labelWithString: "ESC to close")
+    private let dismissHint = KbdHintView(key: "esc", hint: "close")
     private let scroll = NSScrollView()
     private let content = FlippedView()
 
@@ -44,9 +44,7 @@ final class ShortcutCheatSheetView: NSView {
         subtitleLabel.textColor = Theme.textSecondary
         addSubview(subtitleLabel)
 
-        dismissLabel.font = BellithFont.mono(10, weight: .regular)
-        dismissLabel.textColor = Theme.textMuted
-        addSubview(dismissLabel)
+        addSubview(dismissHint)
 
         scroll.drawsBackground = false
         scroll.hasVerticalScroller = true
@@ -68,7 +66,7 @@ final class ShortcutCheatSheetView: NSView {
         backdrop.layer?.backgroundColor = Theme.chromePanel.cgColor
         titleLabel.textColor = Theme.textDisplay
         subtitleLabel.textColor = Theme.textSecondary
-        dismissLabel.textColor = Theme.textMuted
+        dismissHint.refreshTheme()
         content.layer?.backgroundColor = NSColor.clear.cgColor
         sectionViews.forEach { $0.refreshTheme() }
     }
@@ -114,7 +112,13 @@ final class ShortcutCheatSheetView: NSView {
 
         titleLabel.frame = NSRect(x: 24, y: 18, width: bounds.width - 200, height: 28)
         subtitleLabel.frame = NSRect(x: 24, y: 50, width: bounds.width - 220, height: 14)
-        dismissLabel.frame = NSRect(x: bounds.width - 110, y: 22, width: 86, height: 12)
+        let hintSize = dismissHint.intrinsicContentSize
+        dismissHint.frame = NSRect(
+            x: bounds.width - hintSize.width - 24,
+            y: 22,
+            width: hintSize.width,
+            height: hintSize.height
+        )
         scroll.frame = NSRect(x: 16, y: 76, width: bounds.width - 32, height: bounds.height - 92)
 
         var y: CGFloat = 0
@@ -239,7 +243,7 @@ private final class ShortcutCheatSheetRow: NSView {
     private let binding: KeyBindingEntry
     private let titleLabel = NSTextField(labelWithString: "")
     private let detailLabel = NSTextField(labelWithString: "")
-    private let shortcutLabel = NSTextField(labelWithString: "")
+    private var kbdViews: [KbdView] = []
 
     init(binding: KeyBindingEntry) {
         self.binding = binding
@@ -255,11 +259,7 @@ private final class ShortcutCheatSheetRow: NSView {
         detailLabel.font = BellithFont.mono(10, weight: .regular)
         addSubview(detailLabel)
 
-        shortcutLabel.stringValue = binding.shortcutSummary
-        shortcutLabel.font = BellithFont.mono(12, weight: .regular)
-        shortcutLabel.alignment = .right
-        addSubview(shortcutLabel)
-
+        rebuildKbds()
         refreshTheme()
     }
 
@@ -269,14 +269,61 @@ private final class ShortcutCheatSheetRow: NSView {
         layer?.backgroundColor = Theme.surface.withAlphaComponent(0.45).cgColor
         titleLabel.textColor = Theme.textPrimary
         detailLabel.textColor = Theme.textMuted
-        shortcutLabel.textColor = Theme.textSecondary
+        kbdViews.forEach { $0.refreshTheme() }
+    }
+
+    /// Split a shortcut summary like `⌘⇧P` or `⌃a, p` into its component
+    /// keys, rendered as bordered <kbd> chips matching the popover footer.
+    private static func splitShortcut(_ summary: String) -> [String] {
+        guard !summary.isEmpty else { return [] }
+        let trimmed = summary.trimmingCharacters(in: .whitespaces)
+        // Two-key chord (e.g. `⌃a, p`) → ["⌃a", "p"]
+        if trimmed.contains(",") {
+            return trimmed.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        }
+        // Single key combo: split off modifier glyphs into one chip,
+        // letter/digit into a separate chip.
+        let modifierGlyphs: Set<Character> = ["⌘", "⌃", "⌥", "⇧", "⇪", "⌫", "⌦", "⏎", "⇥", "⎋", "↑", "↓", "←", "→"]
+        var modPart = ""
+        var keyPart = ""
+        for ch in trimmed {
+            if modifierGlyphs.contains(ch) {
+                modPart.append(ch)
+            } else {
+                keyPart.append(ch)
+            }
+        }
+        if modPart.isEmpty { return [keyPart] }
+        if keyPart.isEmpty { return [modPart] }
+        return [modPart, keyPart]
+    }
+
+    private func rebuildKbds() {
+        kbdViews.forEach { $0.removeFromSuperview() }
+        kbdViews.removeAll()
+        let parts = Self.splitShortcut(binding.shortcutSummary)
+        for part in parts {
+            let kbd = KbdView(text: part)
+            addSubview(kbd)
+            kbdViews.append(kbd)
+        }
     }
 
     override func layout() {
         super.layout()
         titleLabel.frame = NSRect(x: 12, y: 9, width: bounds.width - 220, height: 16)
         detailLabel.frame = NSRect(x: 12, y: 26, width: bounds.width - 220, height: 12)
-        shortcutLabel.frame = NSRect(x: bounds.width - 210, y: 14, width: 198, height: 18)
+
+        // Lay kbd chips right-aligned with a small gap between them.
+        let chipGap: CGFloat = 4
+        var x = bounds.width - 12
+        for kbd in kbdViews.reversed() {
+            let size = kbd.intrinsicContentSize
+            let chipY = floor((bounds.height - size.height) / 2)
+            x -= size.width
+            kbd.frame = NSRect(x: x, y: chipY, width: size.width, height: size.height)
+            x -= chipGap
+        }
     }
 }
 
@@ -294,16 +341,18 @@ final class ModifierShortcutHintsView: NSView {
     }
 
     fileprivate enum Metrics {
-        static let horizontalInset: CGFloat = 28
-        static let headerBlockHeight: CGFloat = 72
-        static let contentBottomInset: CGFloat = 22
-        static let sectionGap: CGFloat = 24
-        static let rowHeight: CGFloat = 44
-        static let categoryColumn: CGFloat = 88
-        static let keyColumn: CGFloat = 56
-        static let keyBadgeWidth: CGFloat = 42
-        static let keyBadgeHeight: CGFloat = 26
-        static let stateColumn: CGFloat = 60
+        // Terminal-native density — closer to the popover footer/keymap rather
+        // than a "settings" dashboard. Old metrics felt like a marketing page.
+        static let horizontalInset: CGFloat = 18
+        static let headerBlockHeight: CGFloat = 52
+        static let contentBottomInset: CGFloat = 14
+        static let sectionGap: CGFloat = 14
+        static let rowHeight: CGFloat = 34
+        static let categoryColumn: CGFloat = 82
+        static let keyColumn: CGFloat = 48
+        static let keyBadgeWidth: CGFloat = 36
+        static let keyBadgeHeight: CGFloat = 22
+        static let stateColumn: CGFloat = 56
     }
 
     private let backdrop = NSVisualEffectView()
@@ -329,12 +378,14 @@ final class ModifierShortcutHintsView: NSView {
         backdrop.layer?.masksToBounds = true
         addSubview(backdrop)
 
-        titleLabel.font = BellithFont.ui(22, weight: .medium)
+        // Mono 14 reads as terminal chrome rather than "dashboard headline" —
+        // the popover footer language uses mono throughout.
+        titleLabel.font = BellithFont.mono(14, weight: .medium)
         titleLabel.maximumNumberOfLines = 1
         titleLabel.lineBreakMode = .byTruncatingTail
         addSubview(titleLabel)
 
-        hintLabel.font = BellithFont.mono(10, weight: .regular)
+        hintLabel.font = BellithFont.mono(9.5, weight: .regular)
         hintLabel.alignment = .right
         addSubview(hintLabel)
 
@@ -409,7 +460,7 @@ final class ModifierShortcutHintsView: NSView {
         backdrop.frame = bounds
 
         let inset = Metrics.horizontalInset
-        let titleHeight: CGFloat = 26
+        let titleHeight: CGFloat = 18
         let titleY = bounds.height - inset - titleHeight + 2
         let hintHeight: CGFloat = 12
         let hintWidth: CGFloat = 260
@@ -581,9 +632,18 @@ private final class ModifierShortcutHintsRow: NSView {
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
     func refreshTheme() {
+        let isLight = Theme.colors.isLight
         categoryLabel.textColor = Theme.textMuted
-        keyBadge.layer?.backgroundColor = NSColor.clear.cgColor
-        keyBadge.layer?.borderColor = (item.isSelected ? Theme.accent.withAlphaComponent(0.5) : Theme.border).cgColor
+        // Subtle bg so the key cap reads as a key, not a hollow rectangle.
+        // Mirrors the KbdView styling used everywhere else in the chrome.
+        keyBadge.layer?.backgroundColor = (isLight
+            ? NSColor.white.withAlphaComponent(0.45)
+            : NSColor(white: 1, alpha: 0.06)
+        ).cgColor
+        keyBadge.layer?.borderColor = (item.isSelected
+            ? Theme.accent.withAlphaComponent(0.55)
+            : Theme.chromeHairline.withAlphaComponent(isLight ? 0.7 : 0.55)
+        ).cgColor
         keyLabel.textColor = item.isSelected ? Theme.accent : Theme.textPrimary
         titleLabel.textColor = Theme.textPrimary
         detailLabel.textColor = Theme.textMuted

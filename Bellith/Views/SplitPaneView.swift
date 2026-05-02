@@ -468,7 +468,30 @@ fileprivate final class SplitDividerView: NSView {
         let shadowOpacity: Float
         let shadowRadius: CGFloat
 
-        if isDragging {
+        if BellithSettings.shared.useRebrandShell {
+            if isDragging {
+                color = RebrandTokens.Color.hoverOverlay
+                borderColor = RebrandTokens.Color.lineStrong.cgColor
+                borderWidth = 1
+                shadowColor = RebrandTokens.Color.lineStrong.withAlphaComponent(0.22).cgColor
+                shadowOpacity = 1
+                shadowRadius = 8
+            } else if isHovered {
+                color = RebrandTokens.Color.hoverOverlay.withAlphaComponent(0.70)
+                borderColor = RebrandTokens.Color.line.withAlphaComponent(0.75).cgColor
+                borderWidth = 1
+                shadowColor = NSColor.clear.cgColor
+                shadowOpacity = 0
+                shadowRadius = 0
+            } else {
+                color = RebrandTokens.Color.windowBg
+                borderColor = RebrandTokens.Color.lineSoft.withAlphaComponent(0.45).cgColor
+                borderWidth = 0
+                shadowColor = NSColor.clear.cgColor
+                shadowOpacity = 0
+                shadowRadius = 0
+            }
+        } else if isDragging {
             color = Theme.accentSubtle.withAlphaComponent(Theme.colors.isLight ? 0.92 : 0.78)
             borderColor = Theme.dividerActive.cgColor
             borderWidth = 1

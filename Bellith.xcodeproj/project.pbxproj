@@ -14,6 +14,13 @@
 		03E8D582B225C22CCB11691B /* ShortcutDefinitions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17F1A89752C176F1F7719413 /* ShortcutDefinitions.swift */; };
 		06F9811AE726F42DEB32D418 /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C9D96FFF53397D45EA101F4 /* PreferencesWindowController.swift */; };
 		0AF8CB135FF10863D353566B /* AIToolSessionDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 850CD5C03E9934E94F040341 /* AIToolSessionDetectorTests.swift */; };
+		0CEDA7945B509941CCA5FDCF /* PaneContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA7FA478B7BF7F9FDA3280C8 /* PaneContainerView.swift */; };
+		C85B0E0D4F29523BC0ED947F /* KbdView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F336F9BFC4E7D044874026E5 /* KbdView.swift */; };
+		562B1B5F401D1A5B3117F72B /* RebrandTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08B3B04BBF1641F13214F787 /* RebrandTokens.swift */; };
+		8501C127BA7360352AADB8D2 /* RebrandShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F2E2A2F656B2951CEC3D884 /* RebrandShellView.swift */; };
+		F531A1C9BFAE9CDB3954E55C /* RebrandTitleBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 942ED6BE53F2A4BF6C84D071 /* RebrandTitleBar.swift */; };
+		731E0681695DCE64508CCE02 /* RebrandWorkspaceRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49A7F83315CA7D9A6DDC787C /* RebrandWorkspaceRail.swift */; };
+		8AE74C9222464D5A6F9C8B64 /* RebrandStatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 465F1DC29924FCB933C8D39D /* RebrandStatusBar.swift */; };
 		0FF0294C8F9B14B9DBB9051F /* SplitPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB50294EC30FB94671823CFA /* SplitPaneView.swift */; };
 		11073F73D52E0F9CEAFB4FB5 /* TerminalWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 973180A10E7387D33EBEA8DC /* TerminalWindow.swift */; };
 		114F10461A0D9F305FF71202 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */; };
@@ -210,6 +217,13 @@
 		C2EA413DA31A6997580EEAF8 /* SSHSessionDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHSessionDetectorTests.swift; sourceTree = "<group>"; };
 		C6D8A2F2C2B69B1DF8B695CA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C6E1C3DB1ADB2A4903FA2FF2 /* TerminalRuntimeInfoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalRuntimeInfoService.swift; sourceTree = "<group>"; };
+		CA7FA478B7BF7F9FDA3280C8 /* PaneContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaneContainerView.swift; sourceTree = "<group>"; };
+		F336F9BFC4E7D044874026E5 /* KbdView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KbdView.swift; sourceTree = "<group>"; };
+		08B3B04BBF1641F13214F787 /* RebrandTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RebrandTokens.swift; sourceTree = "<group>"; };
+		9F2E2A2F656B2951CEC3D884 /* RebrandShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RebrandShellView.swift; sourceTree = "<group>"; };
+		942ED6BE53F2A4BF6C84D071 /* RebrandTitleBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RebrandTitleBar.swift; sourceTree = "<group>"; };
+		49A7F83315CA7D9A6DDC787C /* RebrandWorkspaceRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RebrandWorkspaceRail.swift; sourceTree = "<group>"; };
+		465F1DC29924FCB933C8D39D /* RebrandStatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RebrandStatusBar.swift; sourceTree = "<group>"; };
 		CB50294EC30FB94671823CFA /* SplitPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitPaneView.swift; sourceTree = "<group>"; };
 		CD0B5E50A6BE76A1D3EDFE6D /* EnvironmentPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentPanel.swift; sourceTree = "<group>"; };
 		D1A6320778E024E8ABCDF2A6 /* SSHLaunchBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHLaunchBuilder.swift; sourceTree = "<group>"; };
@@ -328,6 +342,13 @@
 				0AF85C08BA2DF08A6A597C24 /* CommandFailureSuggestionView.swift */,
 				52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */,
 				7B6A4E8E8C5D7B65BB385570 /* ContextBadgeView.swift */,
+				CA7FA478B7BF7F9FDA3280C8 /* PaneContainerView.swift */,
+				F336F9BFC4E7D044874026E5 /* KbdView.swift */,
+				08B3B04BBF1641F13214F787 /* RebrandTokens.swift */,
+				9F2E2A2F656B2951CEC3D884 /* RebrandShellView.swift */,
+				942ED6BE53F2A4BF6C84D071 /* RebrandTitleBar.swift */,
+				49A7F83315CA7D9A6DDC787C /* RebrandWorkspaceRail.swift */,
+				465F1DC29924FCB933C8D39D /* RebrandStatusBar.swift */,
 				9C964FC62608F8FA41EE01B5 /* QuickTerminalController.swift */,
 				03168242417C9553954DD3F4 /* ScrollbackMinimapView.swift */,
 				EC69484808B270DA784451B1 /* SearchBarView.swift */,
@@ -702,6 +723,13 @@
 				941E77325C0B8A487B2CD650 /* Logger.swift in Sources */,
 				765D4B7FDA9B6F3ACD937BEF /* NetworkMonitor.swift in Sources */,
 				88DF13E98F4C5539EFBCF58F /* NetworkPanel.swift in Sources */,
+				0CEDA7945B509941CCA5FDCF /* PaneContainerView.swift in Sources */,
+				C85B0E0D4F29523BC0ED947F /* KbdView.swift in Sources */,
+				562B1B5F401D1A5B3117F72B /* RebrandTokens.swift in Sources */,
+				8501C127BA7360352AADB8D2 /* RebrandShellView.swift in Sources */,
+				F531A1C9BFAE9CDB3954E55C /* RebrandTitleBar.swift in Sources */,
+				731E0681695DCE64508CCE02 /* RebrandWorkspaceRail.swift in Sources */,
+				8AE74C9222464D5A6F9C8B64 /* RebrandStatusBar.swift in Sources */,
 				2428C55AF2B4DC0234E13B04 /* PerformancePanel.swift in Sources */,
 				D455B1DABDBE119547D39CE1 /* PreferencesComponents.swift in Sources */,
 				AA291915F73F4338FC1407C7 /* PreferencesPaneRegistry.swift in Sources */,

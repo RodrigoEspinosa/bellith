@@ -42,7 +42,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
 
         wantsLayer = true
-        layer?.isOpaque = true
+        updateLayerOpacity()
         registerForDraggedTypes([.fileURL, .png, .tiff])
 
         dropIndicatorLayer.borderWidth = 2
@@ -79,6 +79,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         settingsObserver = NotificationCenter.default.addObserver(
             forName: BellithSettings.didChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
+            self?.updateLayerOpacity()
             self?.applyMinimapPreference()
         }
     }
@@ -166,6 +167,12 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     }
 
     override var wantsUpdateLayer: Bool { true }
+
+    private func updateLayerOpacity() {
+        let opacity = min(max(BellithSettings.shared.backgroundOpacity, 0.0), 1.0)
+        layer?.isOpaque = BellithSettings.shared.useRebrandShell || opacity >= 0.999
+        layer?.backgroundColor = NSColor.clear.cgColor
+    }
 
     override func layout() {
         super.layout()

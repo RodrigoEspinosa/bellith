@@ -11,8 +11,7 @@ final class SearchBarView: NSView {
     private let caseSensitiveButton = NSButton()
     private let regexButton = NSButton()
     private var borderLayer: CALayer?
-    private let escBadge = NSView()
-    private let escLabel = NSTextField(labelWithString: "esc")
+    private let escKbd = KbdView(text: "esc")
     private var themeObserver: NSObjectProtocol?
 
     var onSearch: ((String) -> Void)?
@@ -128,19 +127,8 @@ final class SearchBarView: NSView {
         addSubview(prevButton)
         addSubview(nextButton)
 
-        // Esc key hint badge
-        escBadge.wantsLayer = true
-        escBadge.layer?.cornerRadius = 3
-        escBadge.layer?.backgroundColor = Theme.overlay.cgColor
-        addSubview(escBadge)
-
-        escLabel.font = .systemFont(ofSize: 9, weight: .semibold)
-        escLabel.textColor = Theme.textMuted
-        escLabel.isEditable = false
-        escLabel.isBezeled = false
-        escLabel.drawsBackground = false
-        escLabel.alignment = .center
-        escBadge.addSubview(escLabel)
+        // Esc key hint badge (shared kbd component for chrome consistency).
+        addSubview(escKbd)
 
         refreshTheme()
     }
@@ -193,8 +181,7 @@ final class SearchBarView: NSView {
         )
         prevButton.contentTintColor = Theme.textSecondary
         nextButton.contentTintColor = Theme.textSecondary
-        escBadge.layer?.backgroundColor = Theme.overlay.cgColor
-        escLabel.textColor = Theme.textMuted
+        escKbd.refreshTheme()
         updateToggleAppearance(caseSensitiveButton, isActive: isCaseSensitive)
         updateToggleAppearance(regexButton, isActive: isRegex)
         updateCount(selected: searchSelected, total: searchTotal)
@@ -208,9 +195,14 @@ final class SearchBarView: NSView {
         let h = bounds.height
         iconView.frame = NSRect(x: 10, y: (h - 16) / 2, width: 16, height: 16)
 
-        // Esc badge at far right
-        escBadge.frame = NSRect(x: bounds.width - 34, y: (h - 16) / 2, width: 28, height: 16)
-        escLabel.frame = escBadge.bounds
+        // Esc kbd chip at far right
+        let escSize = escKbd.intrinsicContentSize
+        escKbd.frame = NSRect(
+            x: bounds.width - escSize.width - 8,
+            y: (h - escSize.height) / 2,
+            width: escSize.width,
+            height: escSize.height
+        )
 
         let btnY = (h - 24) / 2
         nextButton.frame = NSRect(x: bounds.width - 66, y: btnY, width: 24, height: 24)

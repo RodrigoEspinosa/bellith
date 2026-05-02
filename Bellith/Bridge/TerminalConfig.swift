@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import GhosttyKit
 
@@ -132,12 +133,13 @@ final class TerminalConfig {
         let s = settings
         let file = paths.generatedConfigFile
         let themeReference = try ghosttyThemeReference(for: s.resolvedTheme, in: dir)
+        let backgroundOpacity = Self.formattedOpacity(Self.backgroundOpacity(for: s))
         var lines = [
             "font-family = \(s.fontFamily)",
             "font-size = \(s.fontSize)",
             "theme = \(themeReference)",
             "term = \(s.effectiveTerminalTerm)",
-            "background-opacity = 1.0",
+            "background-opacity = \(backgroundOpacity)",
             "background-blur-radius = \(Self.backgroundBlurRadius(for: s))",
             "window-padding-x = \(Self.windowPaddingXValue(for: s))",
             "window-padding-y = \(Self.windowPaddingYValue(for: s))",
@@ -155,6 +157,9 @@ final class TerminalConfig {
             "confirm-close-surface = \(s.confirmClose)",
             "keybind = clear",
         ]
+        if s.useRebrandShell {
+            lines.append(contentsOf: rebrandColorOverrides(for: s))
+        }
         if !s.shell.isEmpty {
             lines.append("command = \(s.shell)")
         }
@@ -247,10 +252,42 @@ final class TerminalConfig {
     /// `background-blur-radius`. 0 disables the native blur; 1 pins it to a
     /// heavy frost.
     private static func backgroundBlurRadius(for settings: BellithSettings) -> Int {
+        if settings.useRebrandShell { return 0 }
         let opacity = min(max(settings.backgroundOpacity, 0.0), 1.0)
         let intensity = 1.0 - opacity
         guard intensity > 0 else { return 0 }
         return max(1, Int((intensity * 40).rounded()))
+    }
+
+    private static func backgroundOpacity(for settings: BellithSettings) -> Double {
+        settings.useRebrandShell ? 1.0 : settings.backgroundOpacity
+    }
+
+    private static func rebrandColorOverrides(for settings: BellithSettings) -> [String] {
+        let isDark = settings.resolvedIsDark
+        let background = isDark
+            ? RebrandTokens.Color.oklch(0.108, 0.008, 260)
+            : RebrandTokens.Color.oklch(0.99, 0.004, 260)
+        let selection = isDark
+            ? RebrandTokens.Color.oklch(0.255, 0.012, 260)
+            : RebrandTokens.Color.oklch(0.90, 0.006, 260)
+        return [
+            "background = \(hex(background))",
+            "selection-background = \(hex(selection))",
+        ]
+    }
+
+    private static func formattedOpacity(_ value: Double) -> String {
+        let clamped = min(max(value, 0.0), 1.0)
+        return String(format: "%.3f", clamped)
+    }
+
+    private static func hex(_ color: NSColor) -> String {
+        let resolved = color.usingColorSpace(.sRGB) ?? color
+        let r = Int((resolved.redComponent * 255).rounded())
+        let g = Int((resolved.greenComponent * 255).rounded())
+        let b = Int((resolved.blueComponent * 255).rounded())
+        return String(format: "#%02X%02X%02X", r, g, b)
     }
 
     private static func windowPaddingXValue(for settings: BellithSettings) -> Int {

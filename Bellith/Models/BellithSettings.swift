@@ -89,6 +89,7 @@ final class BellithSettings {
             "showStatusBarGitWorktree", "showStatusBarGitBranch", "showStatusBarProcess",
             "showStatusBarGitHub", "showStatusBarSize",
             "fontLigaturesEnabled",
+            "useRebrandShell", "openRebrandPanesByDefault",
         ]
         static let stringArrayKeys: Set<String> = [
             "sidebarTools",
@@ -528,6 +529,31 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "showStatusBar"); notify() }
     }
 
+    /// Toggle for the from-scratch chrome rewrite. When true, windows render
+    /// `RebrandShellView` instead of the legacy chrome built into
+    /// `TerminalContainerView`. Default true while the rebrand is being
+    /// stood up — flip via `defaults write com.rec.bellith useRebrandShell -bool NO`
+    /// to fall back to the legacy chrome.
+    var useRebrandShell: Bool {
+        get {
+            if defaults.object(forKey: "useRebrandShell") != nil {
+                return defaults.bool(forKey: "useRebrandShell")
+            }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "useRebrandShell"); notify() }
+    }
+
+    var openRebrandPanesByDefault: Bool {
+        get {
+            if defaults.object(forKey: "openRebrandPanesByDefault") != nil {
+                return defaults.bool(forKey: "openRebrandPanesByDefault")
+            }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "openRebrandPanesByDefault"); notify() }
+    }
+
     var showStatusBarContext: Bool {
         get {
             if defaults.object(forKey: "showStatusBarContext") != nil {
@@ -619,7 +645,10 @@ final class BellithSettings {
     }
 
     var legacyPaneSupport: Bool {
-        get { defaults.bool(forKey: "legacyPaneSupport") }
+        get {
+            if useRebrandShell { return true }
+            return defaults.bool(forKey: "legacyPaneSupport")
+        }
         set { defaults.set(newValue, forKey: "legacyPaneSupport"); notify() }
     }
 

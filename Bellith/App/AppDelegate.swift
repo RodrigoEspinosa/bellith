@@ -237,8 +237,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             createInitialTab: createInitialTab,
             dependencies: dependencies
         )
-        let backdrop = BackdropView(container: container)
-        window.contentView = backdrop
+        if dependencies.settings.useRebrandShell {
+            // Rebrand path: hand off chrome to `RebrandShellView`, which hosts
+            // the legacy container with its own title bar / rail / status bar
+            // suppressed. Set as the window's content view directly — no
+            // BackdropView in the rebrand path because the shell paints its
+            // own background.
+            let shell = RebrandShellView(container: container)
+            window.contentView = shell
+        } else {
+            let backdrop = BackdropView(container: container)
+            window.contentView = backdrop
+        }
 
         let entry = WindowEntry(window: window, container: container)
         windows.append(entry)
@@ -247,6 +257,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             container.restoreSession(session)
         } else if let initialWorkingDirectory, !initialWorkingDirectory.isEmpty {
             container.openWorkingDirectory(initialWorkingDirectory)
+            container.openReferencePaneLayoutIfNeeded()
+        } else if createInitialTab {
+            container.openReferencePaneLayoutIfNeeded()
         }
 
         window.makeFirstResponder(container.activeSurface ?? container)
@@ -478,7 +491,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         shellMenu.addItem(configuredMenuItem(title: "New Tab", action: #selector(handleNewTab), shortcutID: "newTab"))
         shellMenu.addItem(configuredMenuItem(title: "New Window", action: #selector(handleNewWindow), shortcutID: "newWindow"))
         shellMenu.addItem(configuredMenuItem(title: "Connect Host…", action: #selector(handleConnectHost)))
-        if dependencies.settings.legacyPaneSupport {
+        if dependencies.settings.legacyPaneSupport || dependencies.settings.useRebrandShell {
             shellMenu.addItem(.separator())
             shellMenu.addItem(configuredMenuItem(title: "Split Right", action: #selector(handleSplitRight), shortcutID: "splitRight"))
             shellMenu.addItem(configuredMenuItem(title: "Split Down", action: #selector(handleSplitDown), shortcutID: "splitDown"))
