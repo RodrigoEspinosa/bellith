@@ -76,11 +76,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private var windowObservationCancellables = Set<AnyCancellable>()
     private var eventMonitorTokens: [Any] = []
 
-    private let noiseLayer = CALayer()
-    private let contentBackdropLayer = CALayer()
-    private let contentStrokeLayer = CALayer()
-    private let contentInnerStrokeLayer = CALayer()
-    private let contentTopGlossLayer = CAGradientLayer()
+    private let chromeLayers = TerminalChromeLayers()
 
     /// When this view is embedded inside `RebrandShellView`, all of its own
     /// chrome (title bar, sidebar rail, tab bar, status bar, decorative
@@ -143,10 +139,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         statusBar.isHidden = hidden
         sidebar.isHidden = hidden
         tabBar.isHidden = hidden
-        contentBackdropLayer.isHidden = hidden
-        contentStrokeLayer.isHidden = hidden
-        contentInnerStrokeLayer.isHidden = hidden
-        contentTopGlossLayer.isHidden = hidden
+        chromeLayers.setEmbeddedHidden(hidden)
         needsLayout = true
     }
 
@@ -155,9 +148,6 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     func notifyEmbeddedStateChanged() {
         onEmbeddedStateChanged?()
     }
-
-    private let sidebarGlowLayer = CAGradientLayer()
-    private let sidebarBridgeLayer = CAGradientLayer()
 
     init(
         terminalApp: TerminalApp,
@@ -290,94 +280,16 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// 256×256 monochrome noise tile, generated once and shared across all instances.
-    private static let noiseImage: CGImage? = {
-        let size = 256
-        let totalBytes = size * size
-        var pixels = [UInt8](repeating: 0, count: totalBytes)
-        for i in 0..<totalBytes {
-            pixels[i] = UInt8.random(in: 0...255)
-        }
-        guard let provider = CGDataProvider(data: Data(pixels) as CFData),
-              let image = CGImage(
-                  width: size, height: size,
-                  bitsPerComponent: 8, bitsPerPixel: 8,
-                  bytesPerRow: size,
-                  space: CGColorSpaceCreateDeviceGray(),
-                  bitmapInfo: CGBitmapInfo(rawValue: 0),
-                  provider: provider,
-                  decode: nil, shouldInterpolate: false,
-                  intent: .defaultIntent
-              ) else { return nil }
-        return image
-    }()
-
     private func configureChromeLayers() {
         guard let layer else { return }
-
-        // Noise texture overlay (Zen-style grain)
-        if let noiseImage = Self.noiseImage {
-            let nsImage = NSImage(cgImage: noiseImage, size: NSSize(width: noiseImage.width, height: noiseImage.height))
-            noiseLayer.backgroundColor = NSColor(patternImage: nsImage).cgColor
-        }
-        layer.addSublayer(noiseLayer)
+        chromeLayers.install(on: layer)
         applyFrameColor()
-
-        contentBackdropLayer.cornerCurve = .continuous
-        contentBackdropLayer.shadowOpacity = 1
-        contentBackdropLayer.shadowOffset = CGSize(width: 0, height: -2)
-
-        contentStrokeLayer.backgroundColor = NSColor.clear.cgColor
-        contentStrokeLayer.cornerCurve = .continuous
-        contentInnerStrokeLayer.backgroundColor = NSColor.clear.cgColor
-        contentInnerStrokeLayer.cornerCurve = .continuous
-        contentInnerStrokeLayer.borderWidth = 1
-
-        contentTopGlossLayer.startPoint = CGPoint(x: 0.5, y: 1)
-        contentTopGlossLayer.endPoint = CGPoint(x: 0.5, y: 0)
-        contentTopGlossLayer.cornerCurve = .continuous
-
-        sidebarGlowLayer.startPoint = CGPoint(x: 0, y: 0.5)
-        sidebarGlowLayer.endPoint = CGPoint(x: 1, y: 0.5)
-
-        sidebarBridgeLayer.startPoint = CGPoint(x: 0, y: 0.5)
-        sidebarBridgeLayer.endPoint = CGPoint(x: 1, y: 0.5)
-        sidebarBridgeLayer.cornerRadius = 12
-        sidebarBridgeLayer.cornerCurve = .continuous
-
-        layer.addSublayer(contentBackdropLayer)
-        layer.addSublayer(contentTopGlossLayer)
-        layer.addSublayer(sidebarGlowLayer)
-        layer.addSublayer(sidebarBridgeLayer)
-        layer.addSublayer(contentStrokeLayer)
-        layer.addSublayer(contentInnerStrokeLayer)
-
         applyChromeTheme()
         updateChromeFrames(animated: false)
     }
 
     private func applyChromeTheme() {
-        contentBackdropLayer.backgroundColor = activeProfileIsTranslucent
-            ? NSColor.clear.cgColor
-            : Theme.surface.cgColor
-        contentBackdropLayer.shadowColor = NSColor.clear.cgColor
-        contentBackdropLayer.shadowOpacity = 0
-        contentBackdropLayer.shadowRadius = 0
-
-        contentStrokeLayer.borderWidth = 0
-        contentStrokeLayer.borderColor = NSColor.clear.cgColor
-
-        contentInnerStrokeLayer.borderColor = NSColor.clear.cgColor
-        contentInnerStrokeLayer.borderWidth = 0
-
-        contentTopGlossLayer.colors = [NSColor.clear.cgColor, NSColor.clear.cgColor]
-        contentTopGlossLayer.locations = [0, 1]
-
-        sidebarGlowLayer.colors = [NSColor.clear.cgColor, NSColor.clear.cgColor]
-        sidebarGlowLayer.locations = [0, 1]
-
-        sidebarBridgeLayer.colors = [NSColor.clear.cgColor, NSColor.clear.cgColor]
-        sidebarBridgeLayer.locations = [0, 1]
+        chromeLayers.applyTheme(translucent: activeProfileIsTranslucent)
     }
 
     private func applyChrome(to root: NSView) {
@@ -414,67 +326,15 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private func updateChromeFrames(animated: Bool, sidebarWidth: CGFloat? = nil, statusBarVisible: Bool? = nil) {
         let resolvedSidebarWidth = sidebarWidth ?? ((useSidebar && sidebar.isExpanded) ? SidebarView.expandedWidth : 0)
         let resolvedStatusBarVisible = statusBarVisible ?? shouldShowStatusBar
-        let rect = contentRect(forSidebarWidth: resolvedSidebarWidth, statusBarVisible: resolvedStatusBarVisible)
-        let hasVisibleContent = selectedTabIndex < tabs.count || (isZoomed && zoomedSurface != nil)
-        let cornerMask: CACornerMask = [
-            .layerMinXMinYCorner,
-            .layerMaxXMinYCorner,
-            .layerMinXMaxYCorner,
-            .layerMaxXMaxYCorner,
-        ]
-
-        let updates = {
-            let chromeRect = rect.insetBy(dx: -1, dy: -1)
-
-            self.contentBackdropLayer.isHidden = !hasVisibleContent
-            self.contentStrokeLayer.isHidden = !hasVisibleContent
-            self.contentInnerStrokeLayer.isHidden = !hasVisibleContent
-            self.contentTopGlossLayer.isHidden = !hasVisibleContent
-
-            self.contentBackdropLayer.frame = chromeRect
-            self.contentBackdropLayer.cornerRadius = self.contentRadius + 2
-            self.contentBackdropLayer.maskedCorners = cornerMask
-
-            self.contentStrokeLayer.frame = chromeRect
-            self.contentStrokeLayer.cornerRadius = self.contentRadius + 2
-            self.contentStrokeLayer.maskedCorners = cornerMask
-
-            self.contentInnerStrokeLayer.frame = chromeRect.insetBy(dx: 1, dy: 1)
-            self.contentInnerStrokeLayer.cornerRadius = self.contentRadius + 1
-            self.contentInnerStrokeLayer.maskedCorners = cornerMask
-
-            let glossHeight = min(72, max(40, chromeRect.height * 0.16))
-            self.contentTopGlossLayer.frame = NSRect(
-                x: chromeRect.minX,
-                y: chromeRect.maxY - glossHeight,
-                width: chromeRect.width,
-                height: glossHeight
-            )
-            self.contentTopGlossLayer.cornerRadius = self.contentRadius + 2
-            self.contentTopGlossLayer.maskedCorners = cornerMask
-
-            let showsSidebarTransition = self.useSidebar && resolvedSidebarWidth > 0 && hasVisibleContent
-            self.sidebarGlowLayer.isHidden = !showsSidebarTransition
-            self.sidebarBridgeLayer.isHidden = !showsSidebarTransition
-
-            if showsSidebarTransition {
-                let glowRect = NSRect(
-                    x: self.contentPadding + resolvedSidebarWidth - 6,
-                    y: chromeRect.minY + 16,
-                    width: self.sidebarGap + 24,
-                    height: max(0, chromeRect.height - 32)
-                )
-                self.sidebarGlowLayer.frame = glowRect
-
-                let bridgeHeight = min(168, max(112, chromeRect.height * 0.38))
-                self.sidebarBridgeLayer.frame = NSRect(
-                    x: glowRect.minX,
-                    y: chromeRect.maxY - bridgeHeight - 6,
-                    width: glowRect.width - 2,
-                    height: bridgeHeight
-                )
-            }
-        }
+        let inputs = TerminalChromeLayers.FrameInputs(
+            rect: contentRect(forSidebarWidth: resolvedSidebarWidth, statusBarVisible: resolvedStatusBarVisible),
+            contentRadius: contentRadius,
+            contentPadding: contentPadding,
+            sidebarGap: sidebarGap,
+            resolvedSidebarWidth: resolvedSidebarWidth,
+            useSidebar: useSidebar,
+            hasVisibleContent: selectedTabIndex < tabs.count || (isZoomed && zoomedSurface != nil)
+        )
 
         CATransaction.begin()
         CATransaction.setDisableActions(!(animated && !Theme.prefersReducedMotion))
@@ -482,7 +342,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             CATransaction.setAnimationDuration(Theme.animSlow)
             CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1))
         }
-        updates()
+        chromeLayers.updateFrames(inputs)
         CATransaction.commit()
     }
 
@@ -2039,7 +1899,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         super.layout()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        noiseLayer.frame = bounds
+        chromeLayers.setNoiseFrame(bounds)
         CATransaction.commit()
         guard !isAnimatingLayout else { return }
 
@@ -2239,9 +2099,10 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         layer?.backgroundColor = activeProfileIsTranslucent
             ? NSColor.clear.cgColor
             : Theme.colors.frame.cgColor
-        // Slider 0–1 maps to 0–0.08 (dark) or 0–0.12 (light) actual opacity
-        let maxOpacity: Double = Theme.colors.isLight ? 0.12 : 0.08
-        noiseLayer.opacity = Float(dependencies.settings.noiseIntensity * maxOpacity)
+        chromeLayers.updateNoiseOpacity(
+            intensity: dependencies.settings.noiseIntensity,
+            isLightTheme: Theme.colors.isLight
+        )
     }
 
     private func handleThemeChange() {
