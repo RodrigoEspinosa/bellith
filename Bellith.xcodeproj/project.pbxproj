@@ -63,6 +63,7 @@
 		74262591A8DDBF6D4AF2E324 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D31E78EB4EBC7FC49C2F22FC /* main.swift */; };
 		765D4B7FDA9B6F3ACD937BEF /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB0C524BC98C2F0D18E7B327 /* NetworkMonitor.swift */; };
 		784226302741DD7113718E7E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D7B76343FF4883C7B0533EAB /* PrivacyInfo.xcprivacy */; };
+		792805DE05553C18DF2D63B7 /* StatusBadges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 581F39AA01EDD5DEBCAA8A98 /* StatusBadges.swift */; };
 		7B41F3CE5DB2BA28D89D339C /* SmartPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469D41729D62F6520EB09E3B /* SmartPanelView.swift */; };
 		7F18C8E24F67D3ECEEF7332C /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EAAEAFE7F888E5EFF104DCE /* FeatureFlags.swift */; };
 		7F77B0D9CD2EBB86D801E76B /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21183D4A7A9CA0A0013ED67A /* Theme.swift */; };
@@ -179,6 +180,7 @@
 		4FD22E965C6F1A921DC3AFFA /* BellithSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithSettingsTests.swift; sourceTree = "<group>"; };
 		5114C1EDE3291AA9D3DB9054 /* CommandFailureSuggestionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandFailureSuggestionServiceTests.swift; sourceTree = "<group>"; };
 		52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
+		581F39AA01EDD5DEBCAA8A98 /* StatusBadges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadges.swift; sourceTree = "<group>"; };
 		595A49A926D6775A52202AAD /* ITermColorsImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ITermColorsImporter.swift; sourceTree = "<group>"; };
 		5B639E55908BD9DDCD969BFE /* WorkspaceDefinition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceDefinition.swift; sourceTree = "<group>"; };
 		6246E34985DFC9EC1E6DB555 /* bellith-cli */ = {isa = PBXFileReference; includeInIndex = 0; path = "bellith-cli"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -369,6 +371,7 @@
 				BB30AA7FAF949D6830C55830 /* ShortcutCheatSheetView.swift */,
 				EA87F2112E9FD1A9C106D8F2 /* SidebarView.swift */,
 				CB50294EC30FB94671823CFA /* SplitPaneView.swift */,
+				581F39AA01EDD5DEBCAA8A98 /* StatusBadges.swift */,
 				F00EF9188ECCF6928DD41F54 /* StatusBarView.swift */,
 				69849D6EC718E0BFF019C9D8 /* TabBarView.swift */,
 				31C026A5F137597260D1B206 /* TerminalChromeLayers.swift */,
@@ -776,6 +779,7 @@
 				DAA8ECCB0288FD778CA430DD /* SidebarView.swift in Sources */,
 				7B41F3CE5DB2BA28D89D339C /* SmartPanelView.swift in Sources */,
 				0FF0294C8F9B14B9DBB9051F /* SplitPaneView.swift in Sources */,
+				792805DE05553C18DF2D63B7 /* StatusBadges.swift in Sources */,
 				A86738D1AB23F41A78A329D6 /* StatusBarView.swift in Sources */,
 				AAEC14C4379EFD86E0A0BCCE /* TabBarView.swift in Sources */,
 				448B3D29B0C3C5D8F8A35CC4 /* TabDragPayload.swift in Sources */,
