@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		00EC7090FE625A045A9BEF48 /* SSHProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 359237193DE4C0621F16BDD8 /* SSHProfile.swift */; };
+		025DB20805AED3518CD4D734 /* AppDelegate+WindowDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 107F4BD301646B468512E8C2 /* AppDelegate+WindowDelegate.swift */; };
 		02C8AD21D19DCE280556463E /* TerminalSurfaceViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64B019E37CE2B850357E2B7E /* TerminalSurfaceViewTests.swift */; };
 		0331E3E2063625C041EBDC40 /* TerminalConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 254770B950E6ED2A7FF2ED56 /* TerminalConfigTests.swift */; };
 		03D3A8DFD8754842670312F9 /* TerminalOverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0E3FC50C1923C38393AB64D /* TerminalOverlayController.swift */; };
@@ -24,6 +25,7 @@
 		17A84CE8AC3D862B81D96202 /* ShortcutCheatSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB30AA7FAF949D6830C55830 /* ShortcutCheatSheetView.swift */; };
 		18245BFE622B231108C45FFC /* ContextBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B6A4E8E8C5D7B65BB385570 /* ContextBadgeView.swift */; };
 		196EB5C6360D08B30D2E9D84 /* SSHLaunchBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2647B775021A2DA7887219B7 /* SSHLaunchBuilderTests.swift */; };
+		1E626A01B7AA1014BFF240F7 /* AppDelegate+MenuValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB53236B9667C9EAAAB97C8 /* AppDelegate+MenuValidation.swift */; };
 		1FE6195879EE4D4D65B24CC1 /* KeyShortcutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB945FE301FBB1B34329681 /* KeyShortcutTests.swift */; };
 		200E6504867615A7339BFBC6 /* QuickTerminalPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01AD6AF9F8A70A7E83B56C8C /* QuickTerminalPane.swift */; };
 		2428C55AF2B4DC0234E13B04 /* PerformancePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A192597C4552FB866CD46BC9 /* PerformancePanel.swift */; };
@@ -148,6 +150,7 @@
 		0EEBEEBB917B3F0D20CE7967 /* SessionBootstrapCommandBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionBootstrapCommandBuilder.swift; sourceTree = "<group>"; };
 		0F213E3F9567BEEC4B39A018 /* RebrandWorkspaceRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RebrandWorkspaceRail.swift; sourceTree = "<group>"; };
 		1055D889FA5B87C7B010166B /* ThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeTests.swift; sourceTree = "<group>"; };
+		107F4BD301646B468512E8C2 /* AppDelegate+WindowDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+WindowDelegate.swift"; sourceTree = "<group>"; };
 		119746785493DB8D887EFA4A /* RebrandTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RebrandTokens.swift; sourceTree = "<group>"; };
 		17F1A89752C176F1F7719413 /* ShortcutDefinitions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutDefinitions.swift; sourceTree = "<group>"; };
 		185BCA9A77D1E03020788D4D /* PreferencesComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesComponents.swift; sourceTree = "<group>"; };
@@ -225,6 +228,7 @@
 		ACC3C3A609AF5ECDE463F295 /* RebrandTitleBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RebrandTitleBar.swift; sourceTree = "<group>"; };
 		B8917D92D4F8962901183EEA /* ThemeGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeGridView.swift; sourceTree = "<group>"; };
 		BB30AA7FAF949D6830C55830 /* ShortcutCheatSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutCheatSheetView.swift; sourceTree = "<group>"; };
+		BBB53236B9667C9EAAAB97C8 /* AppDelegate+MenuValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+MenuValidation.swift"; sourceTree = "<group>"; };
 		BC1465B59AFD1A458C9669E1 /* BellithDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithDependencies.swift; sourceTree = "<group>"; };
 		C27A4F297624101EA6EA1124 /* BackdropView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackdropView.swift; sourceTree = "<group>"; };
 		C2EA413DA31A6997580EEAF8 /* SSHSessionDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHSessionDetectorTests.swift; sourceTree = "<group>"; };
@@ -394,6 +398,8 @@
 			isa = PBXGroup;
 			children = (
 				D7F6C0E62F0D6DFD08E3A8E5 /* AppDelegate.swift */,
+				BBB53236B9667C9EAAAB97C8 /* AppDelegate+MenuValidation.swift */,
+				107F4BD301646B468512E8C2 /* AppDelegate+WindowDelegate.swift */,
 				68E53AB085A993BDE55BBF92 /* UpdaterController.swift */,
 			);
 			path = App;
@@ -709,6 +715,8 @@
 			files = (
 				F565B2256404B0E12F1759C5 /* AIToolSessionDetector.swift in Sources */,
 				9BF5A978A5AACAB4DD91124B /* AboutPane.swift in Sources */,
+				1E626A01B7AA1014BFF240F7 /* AppDelegate+MenuValidation.swift in Sources */,
+				025DB20805AED3518CD4D734 /* AppDelegate+WindowDelegate.swift in Sources */,
 				A497CDCB9182E12C715A1A43 /* AppDelegate.swift in Sources */,
 				CF4A12A757D3355AEB4D159A /* AppearancePane.swift in Sources */,
 				E450123DFE8F0EBAD8050A69 /* BackdropView.swift in Sources */,

@@ -16,10 +16,10 @@ struct BellithApp {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    private let dependencies: BellithDependencies
+    let dependencies: BellithDependencies
     private let updater = UpdaterController()
-    private var terminalApp: TerminalApp?
-    private var windows: [WindowEntry] = []
+    var terminalApp: TerminalApp?
+    var windows: [WindowEntry] = []
     private var newWindowObserver: NSObjectProtocol?
     private var appearanceObserver: NSObjectProtocol?
     private var terminalConfigFailureObserver: NSObjectProtocol?
@@ -28,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var workspacesMenu = NSMenu(title: "Workspaces")
     private var workspaceStoreObserver: NSObjectProtocol?
 
-    private struct WindowEntry {
+    struct WindowEntry {
         let window: TerminalWindow
         let container: TerminalContainerView
     }
@@ -708,7 +708,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func handleToggleSidebar() { activeEntry?.container.sidebar.toggle() }
     @objc private func handleTogglePalette() { activeEntry?.container.toggleCommandPalette() }
     @objc private func handleShowKeyboardShortcuts() { activeEntry?.container.toggleShortcutCheatSheet() }
-    @objc private func handleToggleStatusBar() { dependencies.settings.showStatusBar.toggle() }
+    @objc func handleToggleStatusBar() { dependencies.settings.showStatusBar.toggle() }
 
     @objc private func handleFontBigger() { activeEntry?.container.adjustFontSizePublic(delta: 1) }
     @objc private func handleFontSmaller() { activeEntry?.container.adjustFontSizePublic(delta: -1) }
@@ -1224,33 +1224,3 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 }
 
-// MARK: - Menu Validation
-
-extension AppDelegate: NSMenuItemValidation {
-    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if menuItem.action == #selector(handleToggleStatusBar) {
-            menuItem.state = dependencies.settings.showStatusBar ? .on : .off
-        }
-        return true
-    }
-}
-
-// MARK: - NSWindowDelegate
-
-extension AppDelegate: NSWindowDelegate {
-    func windowDidBecomeKey(_ notification: Notification) {
-        guard let window = notification.object as? TerminalWindow,
-              let entry = windows.first(where: { $0.window === window }) else { return }
-        terminalApp?.setFocus(true)
-        window.makeFirstResponder(entry.container.activeSurface)
-    }
-
-    func windowDidResignKey(_ notification: Notification) {
-        terminalApp?.setFocus(false)
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        guard let window = notification.object as? TerminalWindow else { return }
-        windows.removeAll { $0.window === window }
-    }
-}
