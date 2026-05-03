@@ -7,8 +7,10 @@ import QuartzCore
 /// pane-count badge and uses the workspace's own hue when active.
 final class RebrandWorkspaceRail: NSView {
     private let rightHairline = CALayer()
+    private let bottomDivider = CALayer()
     private var cards: [RebrandWorkspaceCard] = []
     private let addTile = RebrandAddTile()
+    private let settingsButton = RebrandRailGlyphButton(symbolName: "sun.max", fallback: "*", tooltip: "Appearance")
 
     var workspaces: [Workspace] = [] {
         didSet { rebuildCards() }
@@ -31,9 +33,11 @@ final class RebrandWorkspaceRail: NSView {
         wantsLayer = true
         layer?.backgroundColor = RebrandTokens.Color.windowBg.cgColor
         layer?.addSublayer(rightHairline)
+        layer?.addSublayer(bottomDivider)
 
         addTile.onClick = { [weak self] in self?.onAdd?() }
         addSubview(addTile)
+        addSubview(settingsButton)
 
         applyTheme()
     }
@@ -74,15 +78,25 @@ final class RebrandWorkspaceRail: NSView {
             y -= L.railCardSize + L.railCardSpacing
         }
 
-        let addH: CGFloat = 34
-        addTile.frame = NSRect(x: cardX, y: L.railBottomInset, width: L.railCardSize, height: addH)
+        let addH: CGFloat = 38
+        let settingsSize: CGFloat = 28
+        settingsButton.frame = NSRect(
+            x: floor((bounds.width - settingsSize) / 2),
+            y: L.railBottomInset,
+            width: settingsSize,
+            height: settingsSize
+        )
+        bottomDivider.frame = NSRect(x: 16, y: settingsButton.frame.maxY + 12, width: bounds.width - 32, height: 1)
+        addTile.frame = NSRect(x: cardX, y: bottomDivider.frame.maxY + 12, width: L.railCardSize, height: addH)
     }
 
     func applyTheme() {
         layer?.backgroundColor = RebrandTokens.Color.windowBg.cgColor
         rightHairline.backgroundColor = RebrandTokens.Color.lineSoft.cgColor
+        bottomDivider.backgroundColor = RebrandTokens.Color.lineSoft.cgColor
         cards.forEach { $0.applyTheme() }
         addTile.applyTheme()
+        settingsButton.applyTheme()
     }
 }
 
@@ -109,16 +123,16 @@ final class RebrandWorkspaceCard: NSView {
         self.title = workspace.title
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = 9
+        layer?.cornerRadius = 12
         layer?.cornerCurve = .continuous
         layer?.borderWidth = 1
         layer?.masksToBounds = false
 
-        accentStrip.cornerRadius = 1.5
+        accentStrip.cornerRadius = 2
         layer?.addSublayer(accentStrip)
 
         glyphLabel.stringValue = Self.glyph(from: title)
-        glyphLabel.font = RebrandTokens.Typography.mono(13.5, weight: .semibold)
+        glyphLabel.font = RebrandTokens.Typography.mono(15, weight: .semibold)
         glyphLabel.alignment = .center
         glyphLabel.isEditable = false
         glyphLabel.isBezeled = false
@@ -185,7 +199,7 @@ final class RebrandWorkspaceCard: NSView {
             let w = max(14, ceil((badgeLabel.stringValue as NSString).size(withAttributes: attrs).width) + 8)
             let h: CGFloat = 13
             let x = bounds.width - w + 2
-            let y: CGFloat = -2
+            let y: CGFloat = -1
             badgeLayer.frame = NSRect(x: x, y: y, width: w, height: h)
             badgeLabel.frame = NSRect(x: x, y: y, width: w, height: h)
             badgeLayer.opacity = 1
@@ -194,7 +208,7 @@ final class RebrandWorkspaceCard: NSView {
         }
         // Accent strip is intentionally slim: enough to orient without making
         // the rail feel like a launcher dock.
-        accentStrip.frame = NSRect(x: -12, y: 9, width: 3, height: max(0, bounds.height - 18))
+        accentStrip.frame = NSRect(x: -15, y: 10, width: 4, height: max(0, bounds.height - 20))
     }
 
     func applyTheme() {
@@ -215,8 +229,8 @@ final class RebrandWorkspaceCard: NSView {
             badgeBorder = accent.withAlphaComponent(0.7).cgColor
             badgeText = accent
             layer?.shadowColor = accent.withAlphaComponent(0.28).cgColor
-            layer?.shadowOpacity = 0.26
-            layer?.shadowRadius = 8
+            layer?.shadowOpacity = 0.32
+            layer?.shadowRadius = 12
             layer?.shadowOffset = CGSize(width: 0, height: -1)
         } else if isHovered {
             bg = RebrandTokens.Color.hoverOverlay.withAlphaComponent(0.72).cgColor
@@ -244,6 +258,64 @@ final class RebrandWorkspaceCard: NSView {
         badgeLayer.backgroundColor = badgeFill
         badgeLayer.borderColor = badgeBorder
         badgeLabel.textColor = badgeText
+    }
+}
+
+final class RebrandRailGlyphButton: NSView {
+    private let imageView = NSImageView()
+    private let fallbackLabel = NSTextField(labelWithString: "")
+    private var tracking: NSTrackingArea?
+    private var isHovered = false { didSet { applyTheme() } }
+
+    init(symbolName: String, fallback: String, tooltip: String) {
+        super.init(frame: .zero)
+        wantsLayer = true
+        toolTip = tooltip
+
+        if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: tooltip) {
+            imageView.image = image
+            imageView.imageScaling = .scaleProportionallyDown
+            addSubview(imageView)
+        } else {
+            fallbackLabel.stringValue = fallback
+            fallbackLabel.font = RebrandTokens.Typography.mono(12, weight: .medium)
+            fallbackLabel.alignment = .center
+            fallbackLabel.isEditable = false
+            fallbackLabel.isBezeled = false
+            fallbackLabel.drawsBackground = false
+            addSubview(fallbackLabel)
+        }
+        applyTheme()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func updateTrackingAreas() {
+        if let tracking { removeTrackingArea(tracking) }
+        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
+        addTrackingArea(area)
+        tracking = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { isHovered = true }
+    override func mouseExited(with event: NSEvent) { isHovered = false }
+
+    override func layout() {
+        super.layout()
+        layer?.cornerRadius = bounds.height / 2
+        let frame = bounds.insetBy(dx: 6, dy: 6)
+        imageView.frame = frame
+        fallbackLabel.frame = frame
+    }
+
+    func applyTheme() {
+        layer?.backgroundColor = (isHovered
+            ? RebrandTokens.Color.hoverOverlay.withAlphaComponent(0.85)
+            : NSColor.clear).cgColor
+        let tint = isHovered ? RebrandTokens.Color.fg2 : RebrandTokens.Color.fg4
+        imageView.contentTintColor = tint
+        fallbackLabel.textColor = tint
     }
 }
 
@@ -313,7 +385,7 @@ final class RebrandAddTile: NSView {
 /// Hue derivation for the rebrand chrome — kept separate from the legacy
 /// `WorkspaceTint` so the rebrand can evolve its palette independently.
 enum RebrandWorkspaceTint {
-    private static let palette: [CGFloat] = [30, 200, 150, 280, 330, 100, 240, 0]
+    private static let palette: [CGFloat] = [18, 24, 30, 12]
 
     static func hue(for title: String) -> CGFloat {
         guard !title.isEmpty else { return 200 }
@@ -323,6 +395,6 @@ enum RebrandWorkspaceTint {
     }
 
     static func accent(for title: String) -> NSColor {
-        NSColor(deviceHue: hue(for: title) / 360, saturation: 0.55, brightness: 0.82, alpha: 1)
+        RebrandTokens.Color.copperGlow
     }
 }

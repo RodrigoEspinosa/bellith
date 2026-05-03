@@ -50,16 +50,13 @@ final class KbdView: NSView {
     }
 
     func refreshTheme() {
-        let isLight = Theme.colors.isLight
-        layer?.backgroundColor = (isLight
-            ? NSColor.white.withAlphaComponent(0.45)
-            : NSColor(white: 1, alpha: 0.06)).cgColor
-        layer?.borderColor = Theme.chromeHairline.withAlphaComponent(isLight ? 0.7 : 0.55).cgColor
+        layer?.backgroundColor = RebrandTokens.Color.hoverOverlay.withAlphaComponent(0.18).cgColor
+        layer?.borderColor = RebrandTokens.Color.lineStrong.withAlphaComponent(0.7).cgColor
         // Inset bottom shadow line — design has `box-shadow: inset 0 -1px 0 oklch(0.15);`
         // CALayer can't natively render inset shadows, so we approximate with a
         // sublayer at the bottom edge.
         ensureBottomInset()
-        label.textColor = Theme.textSecondary
+        label.textColor = RebrandTokens.Color.fg3
     }
 
     private static let bottomInsetKey = "kbd.bottomInset"

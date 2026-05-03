@@ -125,7 +125,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             if case .smart = entry.kind { return nil }
             return EmbeddedTabSummary(
                 id: entry.id,
-                title: entry.title,
+                title: Self.rebrandDisplayTitle(for: entry),
                 paneCount: entry.surfaces.count,
                 isSmart: false,
                 sourceIndex: idx
@@ -135,7 +135,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     var embeddedSelectedTabIndex: Int { selectedTabIndex }
     var embeddedActiveTabTitle: String? {
         guard selectedTabIndex < tabs.count else { return nil }
-        return tabs[selectedTabIndex].title
+        return Self.rebrandDisplayTitle(for: tabs[selectedTabIndex])
     }
     var embeddedStatusSummary: EmbeddedStatusSummary? {
         guard selectedTabIndex < tabs.count else { return nil }
@@ -147,7 +147,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             surfaces.firstIndex { $0 === surface }.map { $0 + 1 }
         } ?? 1
         return EmbeddedStatusSummary(
-            muxName: entry.localSessionName == nil ? nil : "SESSION",
+            muxName: entry.localSessionBootstrap?.rawValue,
             paneCount: max(1, surfaces.count),
             focusedPaneIndex: focusedIndex,
             cwdDisplay: Self.compactPath(focused?.currentCwd ?? entry.cwd),
@@ -174,6 +174,33 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     /// can refresh its chrome.
     func notifyEmbeddedStateChanged() {
         onEmbeddedStateChanged?()
+    }
+
+    private static func rebrandDisplayTitle(for entry: TerminalTabEntry) -> String {
+        let trimmedTitle = entry.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedTitle.isEmpty, !isGenericShellTitle(trimmedTitle) {
+            return trimmedTitle
+        }
+
+        let cwd = entry.focusedSurface?.currentCwd ?? entry.cwd
+        if let cwd, let name = rebrandWorkspaceName(from: cwd) {
+            return name
+        }
+        return trimmedTitle.isEmpty ? "session" : trimmedTitle
+    }
+
+    private static func rebrandWorkspaceName(from cwd: String) -> String? {
+        let trimmed = cwd.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed == NSHomeDirectory() || trimmed == "~" { return "~" }
+        let normalized = trimmed.hasPrefix("~") ? NSString(string: trimmed).expandingTildeInPath : trimmed
+        let lastComponent = URL(fileURLWithPath: normalized).lastPathComponent
+        return lastComponent.isEmpty ? nil : lastComponent
+    }
+
+    private static func isGenericShellTitle(_ title: String) -> Bool {
+        let normalized = title.lowercased()
+        return ["zsh", "bash", "fish", "sh", "shell", "terminal"].contains(normalized)
     }
     private let sidebarGlowLayer = CAGradientLayer()
     private let sidebarBridgeLayer = CAGradientLayer()
@@ -832,7 +859,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         if matches(event, action: "showKeyboardShortcuts") { toggleShortcutCheatSheet(); return true }
         if matches(event, action: "toggleSidebar") { sidebar.toggle(); return true }
         if matches(event, action: "newTab") { createTab(); return true }
-        if matches(event, action: "closeTab") { closeCurrentTab(); return true }
+        if matches(event, action: "closeTab") { closeFocusedPaneOrTab(); return true }
         if matches(event, action: "nextTab") { advanceToNextTerminalTab(); return true }
         if matches(event, action: "prevTab") { advanceToPreviousTerminalTab(); return true }
 
@@ -1207,6 +1234,16 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     func closeCurrentTab() { closeTab(selectedTabIndex) }
+
+    func closeFocusedPaneOrTab() {
+        guard selectedTabIndex < tabs.count else { return }
+        let entry = tabs[selectedTabIndex]
+        if entry.isTerminal, entry.surfaces.count > 1 {
+            closePane()
+        } else {
+            closeCurrentTab()
+        }
+    }
 
     func reorderTab(from sourceIndex: Int, to destinationIndex: Int) {
         guard sourceIndex != destinationIndex,
@@ -2936,6 +2973,10 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     private func bindSurfaceCallbacks(for surface: TerminalSurfaceView, tabId: UUID) {
+        surface.shouldReportMousePosition = { [weak self, weak surface] in
+            guard let self, let surface else { return false }
+            return self.isSurfaceVisible(surface)
+        }
         surface.onFocus = { [weak self, weak surface] focusedSurface in
             guard let self, let surface, focusedSurface === surface else { return }
             guard let tabIndex = self.tabs.firstIndex(where: { tab in

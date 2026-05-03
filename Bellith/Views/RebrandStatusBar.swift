@@ -7,6 +7,7 @@ import QuartzCore
 final class RebrandStatusBar: NSView {
     private let topLine = CALayer()
     private let modePill = RebrandPillLabel(text: "NORMAL", emphasized: true)
+    private let muxPill = RebrandPillLabel(text: "ZELLIJ")
     private let muxInfo = NSTextField(labelWithString: "")
     private let centerInfo = NSTextField(labelWithString: "")
     private let trailing = NSTextField(labelWithString: "")
@@ -18,6 +19,7 @@ final class RebrandStatusBar: NSView {
         layer?.addSublayer(topLine)
 
         addSubview(modePill)
+        addSubview(muxPill)
 
         muxInfo.stringValue = ""
         configureLabel(muxInfo, color: RebrandTokens.Color.fg3)
@@ -51,6 +53,7 @@ final class RebrandStatusBar: NSView {
 
     func configure(_ summary: TerminalContainerView.EmbeddedStatusSummary?) {
         guard let summary else {
+            muxPill.isHidden = true
             muxInfo.stringValue = ""
             centerInfo.stringValue = ""
             trailing.stringValue = "⌘K palette"
@@ -60,15 +63,15 @@ final class RebrandStatusBar: NSView {
 
         let mode = summary.isBroadcasting ? "BROADCAST" : "NORMAL"
         modePill.text = mode
+        muxPill.text = summary.muxName?.uppercased() ?? ""
+        muxPill.isHidden = summary.muxName == nil
 
         let paneText = summary.paneCount > 1
             ? "pane \(summary.focusedPaneIndex)/\(summary.paneCount)"
             : "pane 1/1"
-        muxInfo.stringValue = [summary.muxName, paneText].compactMap { $0 }.joined(separator: "  ")
+        muxInfo.stringValue = [summary.cwdDisplay, paneText, summary.gitBranch].compactMap { $0 }.joined(separator: "  ·  ")
 
         var centerParts: [String] = []
-        if let cwd = summary.cwdDisplay { centerParts.append(cwd) }
-        if let branch = summary.gitBranch { centerParts.append(branch) }
         if let process = summary.processDisplay { centerParts.append(process) }
         centerInfo.stringValue = centerParts.joined(separator: "  ·  ")
 
@@ -92,7 +95,17 @@ final class RebrandStatusBar: NSView {
             height: pillSize.height
         )
 
-        let muxX = modePill.frame.maxX + 10
+        let muxPillSize = muxPill.isHidden ? .zero : muxPill.intrinsicContentSize
+        if !muxPill.isHidden {
+            muxPill.frame = NSRect(
+                x: modePill.frame.maxX + 8,
+                y: floor((bounds.height - muxPillSize.height) / 2),
+                width: muxPillSize.width,
+                height: muxPillSize.height
+            )
+        }
+
+        let muxX = (muxPill.isHidden ? modePill.frame.maxX : muxPill.frame.maxX) + 10
         let muxAttrs: [NSAttributedString.Key: Any] = [.font: muxInfo.font ?? RebrandTokens.Typography.mono(11)]
         let muxW = muxInfo.stringValue.isEmpty ? 0 : ceil((muxInfo.stringValue as NSString).size(withAttributes: muxAttrs).width)
         muxInfo.frame = NSRect(
@@ -125,6 +138,7 @@ final class RebrandStatusBar: NSView {
         layer?.backgroundColor = RebrandTokens.Color.statusBarBg.cgColor
         topLine.backgroundColor = RebrandTokens.Color.line.cgColor
         modePill.applyTheme()
+        muxPill.applyTheme()
         muxInfo.textColor = RebrandTokens.Color.fg3
         centerInfo.textColor = RebrandTokens.Color.fg4
         trailing.textColor = RebrandTokens.Color.fg3

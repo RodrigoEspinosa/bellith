@@ -88,6 +88,19 @@ final class PaneContainerView: NSView {
             applyCardChrome()
             needsLayout = true
         }
+        if showsCardChrome {
+            layer?.borderColor = (isFocused
+                ? RebrandTokens.Color.copperLine.withAlphaComponent(0.45)
+                : RebrandTokens.Color.lineSoft).cgColor
+            layer?.shadowColor = (isFocused
+                ? RebrandTokens.Color.copperGlow.withAlphaComponent(0.24)
+                : NSColor.black.withAlphaComponent(0.18)).cgColor
+            layer?.shadowOpacity = isFocused ? 1 : 0.35
+            layer?.shadowRadius = isFocused ? 14 : 8
+            layer?.shadowOffset = CGSize(width: 0, height: -1)
+        } else {
+            layer?.shadowOpacity = 0
+        }
     }
 
     /// Draw a per-pane card hairline + 8px corner only when there are multiple
@@ -95,7 +108,7 @@ final class PaneContainerView: NSView {
     /// look so we don't double up rounded layers.
     private func applyCardChrome() {
         if showsCardChrome {
-            layer?.cornerRadius = 8
+            layer?.cornerRadius = RebrandTokens.Layout.paneCornerRadius
             layer?.masksToBounds = true
             layer?.borderWidth = 1
         } else {
@@ -116,7 +129,7 @@ final class PaneContainerView: NSView {
 
 /// 24px header row above each pane with a pid pill, title, cwd, and status dot.
 final class PaneHeaderView: NSView {
-    static let height: CGFloat = 24
+    static let height: CGFloat = RebrandTokens.Layout.paneHeaderHeight
 
     private let backgroundLayer = CALayer()
     private let bottomLineLayer = CALayer()
@@ -154,7 +167,7 @@ final class PaneHeaderView: NSView {
         cwdLabel.lineBreakMode = .byTruncatingMiddle
         addSubview(cwdLabel)
 
-        statusDot.cornerRadius = 2.5
+        statusDot.cornerRadius = 3.5
         statusDot.cornerCurve = .continuous
 
         refreshTheme()
@@ -200,7 +213,7 @@ final class PaneHeaderView: NSView {
         let h = bounds.height
 
         // Status dot, anchored right.
-        let dotSize: CGFloat = 5
+        let dotSize: CGFloat = 7
         statusDot.frame = NSRect(
             x: bounds.width - pad - dotSize,
             y: floor((h - dotSize) / 2),
@@ -210,12 +223,12 @@ final class PaneHeaderView: NSView {
         let rightAvailable = statusDot.frame.minX - 8
 
         let pidSize = pidPill.intrinsicContentSize
-        let pidWidth = max(28, ceil(pidSize.width))
+        let pidWidth = max(30, ceil(pidSize.width))
         pidPill.frame = NSRect(
             x: pad,
-            y: floor((h - 14) / 2),
+            y: floor((h - 15) / 2),
             width: pidWidth,
-            height: 14
+            height: 15
         )
 
         let titleX = pidPill.frame.maxX + gap
@@ -228,18 +241,18 @@ final class PaneHeaderView: NSView {
         let titleWidth = max(26, min(rightAvailable - titleX - 4, titleIntrinsic))
         titleLabel.frame = NSRect(
             x: titleX,
-            y: floor((h - 14) / 2),
+            y: floor((h - 15) / 2),
             width: titleWidth,
-            height: 14
+            height: 15
         )
 
         let cwdX = titleLabel.frame.maxX + gap
         let cwdMaxWidth = max(0, rightAvailable - cwdX)
         cwdLabel.frame = NSRect(
             x: cwdX,
-            y: floor((h - 14) / 2),
+            y: floor((h - 15) / 2),
             width: cwdMaxWidth,
-            height: 14
+            height: 15
         )
     }
 

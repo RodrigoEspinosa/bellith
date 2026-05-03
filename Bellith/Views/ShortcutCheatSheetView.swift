@@ -9,6 +9,7 @@ final class ShortcutCheatSheetView: NSView {
 
     private let settings: BellithSettings
     private let backdrop = NSVisualEffectView()
+    private let borderLayer = CALayer()
     private let titleLabel = NSTextField(labelWithString: "Keyboard Shortcuts")
     private let subtitleLabel = NSTextField(labelWithString: "")
     private let dismissHint = KbdHintView(key: "esc", hint: "close")
@@ -34,14 +35,15 @@ final class ShortcutCheatSheetView: NSView {
         backdrop.wantsLayer = true
         backdrop.layer?.cornerRadius = Theme.radiusPanel
         backdrop.layer?.masksToBounds = true
+        backdrop.layer?.addSublayer(borderLayer)
         addSubview(backdrop)
 
-        titleLabel.font = BellithFont.display(26)
-        titleLabel.textColor = Theme.textDisplay
+        titleLabel.font = BellithFont.mono(16, weight: .medium)
+        titleLabel.textColor = RebrandTokens.Color.fg
         addSubview(titleLabel)
 
         subtitleLabel.font = BellithFont.mono(11, weight: .regular)
-        subtitleLabel.textColor = Theme.textSecondary
+        subtitleLabel.textColor = RebrandTokens.Color.fg4
         addSubview(subtitleLabel)
 
         addSubview(dismissHint)
@@ -63,9 +65,19 @@ final class ShortcutCheatSheetView: NSView {
 
     func refreshTheme() {
         backdrop.appearance = Theme.overlayAppearance
-        backdrop.layer?.backgroundColor = Theme.chromePanel.cgColor
-        titleLabel.textColor = Theme.textDisplay
-        subtitleLabel.textColor = Theme.textSecondary
+        backdrop.layer?.backgroundColor = RebrandTokens.Color.windowBg.withAlphaComponent(0.98).cgColor
+        backdrop.layer?.cornerRadius = 22
+        backdrop.layer?.shadowColor = NSColor.black.withAlphaComponent(0.35).cgColor
+        backdrop.layer?.shadowOpacity = 1
+        backdrop.layer?.shadowRadius = 28
+        backdrop.layer?.shadowOffset = CGSize(width: 0, height: -10)
+        borderLayer.borderWidth = 1
+        borderLayer.cornerRadius = 22
+        borderLayer.cornerCurve = .continuous
+        borderLayer.borderColor = RebrandTokens.Color.line.cgColor
+        borderLayer.backgroundColor = NSColor.clear.cgColor
+        titleLabel.textColor = RebrandTokens.Color.fg
+        subtitleLabel.textColor = RebrandTokens.Color.fg4
         dismissHint.refreshTheme()
         content.layer?.backgroundColor = NSColor.clear.cgColor
         sectionViews.forEach { $0.refreshTheme() }
@@ -78,8 +90,8 @@ final class ShortcutCheatSheetView: NSView {
     }
 
     func show(in parent: NSView) {
-        let width = min(760, parent.bounds.width - 80)
-        let height = min(560, parent.bounds.height - 80)
+        let width = min(840, parent.bounds.width - 160)
+        let height = min(500, parent.bounds.height - 140)
         let x = (parent.bounds.width - width) / 2
         let y = (parent.bounds.height - height) / 2
         frame = NSRect(x: x, y: y + 12, width: width, height: height)
@@ -109,17 +121,17 @@ final class ShortcutCheatSheetView: NSView {
     override func layout() {
         super.layout()
         backdrop.frame = bounds
-
-        titleLabel.frame = NSRect(x: 24, y: 18, width: bounds.width - 200, height: 28)
-        subtitleLabel.frame = NSRect(x: 24, y: 50, width: bounds.width - 220, height: 14)
+        borderLayer.frame = bounds
+        titleLabel.frame = NSRect(x: 28, y: 20, width: bounds.width - 220, height: 22)
+        subtitleLabel.frame = NSRect(x: 28, y: 48, width: bounds.width - 240, height: 14)
         let hintSize = dismissHint.intrinsicContentSize
         dismissHint.frame = NSRect(
-            x: bounds.width - hintSize.width - 24,
+            x: bounds.width - hintSize.width - 28,
             y: 22,
             width: hintSize.width,
             height: hintSize.height
         )
-        scroll.frame = NSRect(x: 16, y: 76, width: bounds.width - 32, height: bounds.height - 92)
+        scroll.frame = NSRect(x: 20, y: 80, width: bounds.width - 40, height: bounds.height - 100)
 
         var y: CGFloat = 0
         for sectionView in sectionViews {
@@ -219,6 +231,8 @@ private final class ShortcutCheatSheetSectionView: NSView {
     func refreshTheme() {
         card.refresh()
         rows.forEach { $0.refreshTheme() }
+        card.layer?.backgroundColor = RebrandTokens.Color.paneBg.withAlphaComponent(0.9).cgColor
+        card.layer?.borderColor = RebrandTokens.Color.lineSoft.cgColor
     }
 
     func preferredHeight(width: CGFloat) -> CGFloat {
@@ -249,7 +263,7 @@ private final class ShortcutCheatSheetRow: NSView {
         self.binding = binding
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = 8
+        layer?.cornerRadius = 10
 
         titleLabel.stringValue = binding.label
         titleLabel.font = BellithFont.ui(13, weight: .regular)
@@ -266,9 +280,9 @@ private final class ShortcutCheatSheetRow: NSView {
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
     func refreshTheme() {
-        layer?.backgroundColor = Theme.surface.withAlphaComponent(0.45).cgColor
-        titleLabel.textColor = Theme.textPrimary
-        detailLabel.textColor = Theme.textMuted
+        layer?.backgroundColor = RebrandTokens.Color.hoverOverlay.withAlphaComponent(0.12).cgColor
+        titleLabel.textColor = RebrandTokens.Color.fg2
+        detailLabel.textColor = RebrandTokens.Color.fg4
         kbdViews.forEach { $0.refreshTheme() }
     }
 

@@ -8,23 +8,23 @@ import AppKit
 enum RebrandTokens {
     // MARK: Layout
     enum Layout {
-        static let windowCornerRadius: CGFloat = 14
-        static let titleBarHeight: CGFloat = 40
-        static let statusBarHeight: CGFloat = 28
-        static let railWidth: CGFloat = 64
+        static let windowCornerRadius: CGFloat = 18
+        static let titleBarHeight: CGFloat = 44
+        static let statusBarHeight: CGFloat = 34
+        static let railWidth: CGFloat = 72
 
-        static let bodyPaddingTop: CGFloat = 10
-        static let bodyPaddingHorizontal: CGFloat = 10
+        static let bodyPaddingTop: CGFloat = 14
+        static let bodyPaddingHorizontal: CGFloat = 12
         static let bodyPaddingBottom: CGFloat = 0  // status bar joins flush
 
-        static let paneCornerRadius: CGFloat = 8
+        static let paneCornerRadius: CGFloat = 10
         static let paneGap: CGFloat = 8
-        static let paneHeaderHeight: CGFloat = 24
+        static let paneHeaderHeight: CGFloat = 26
 
-        static let railCardSize: CGFloat = 40
-        static let railCardSpacing: CGFloat = 8
-        static let railTopInset: CGFloat = 62     // traffic-lights gutter
-        static let railBottomInset: CGFloat = 16
+        static let railCardSize: CGFloat = 46
+        static let railCardSpacing: CGFloat = 10
+        static let railTopInset: CGFloat = 68     // traffic-lights gutter
+        static let railBottomInset: CGFloat = 20
     }
 
     // MARK: Color
@@ -33,17 +33,19 @@ enum RebrandTokens {
     /// near-white base.
     enum Color {
         // Core surfaces
-        static var windowBg: NSColor { adaptive(dark: oklch(0.118, 0.010, 260), light: oklch(0.97, 0.005, 260)) }
-        static var paneBg: NSColor { adaptive(dark: oklch(0.108, 0.008, 260), light: oklch(0.99, 0.004, 260)) }
-        static var paneHeaderBg: NSColor { adaptive(dark: oklch(0.148, 0.009, 260), light: oklch(0.96, 0.004, 260)) }
-        static var paneHeaderBgFocused: NSColor { adaptive(dark: oklch(0.168, 0.012, 260), light: oklch(0.99, 0.004, 260)) }
-        static var titleBarBg: NSColor { adaptive(dark: oklch(0.160, 0.010, 260), light: oklch(0.95, 0.004, 260)) }
-        static var statusBarBg: NSColor { adaptive(dark: oklch(0.112, 0.008, 260), light: oklch(0.95, 0.004, 260)) }
+        static var windowBg: NSColor { adaptive(dark: oklch(0.116, 0.010, 258), light: oklch(0.97, 0.005, 260)) }
+        static var paneBg: NSColor { adaptive(dark: oklch(0.102, 0.008, 258), light: oklch(0.99, 0.004, 260)) }
+        static var paneHeaderBg: NSColor { adaptive(dark: oklch(0.144, 0.009, 258), light: oklch(0.96, 0.004, 260)) }
+        static var paneHeaderBgFocused: NSColor { adaptive(dark: oklch(0.160, 0.014, 258), light: oklch(0.99, 0.004, 260)) }
+        static var titleBarBg: NSColor { adaptive(dark: oklch(0.152, 0.010, 258), light: oklch(0.95, 0.004, 260)) }
+        static var statusBarBg: NSColor { adaptive(dark: oklch(0.108, 0.008, 258), light: oklch(0.95, 0.004, 260)) }
 
         // Lines
-        static var line: NSColor { adaptive(dark: oklch(0.255, 0.012, 260), light: oklch(0.86, 0.006, 260)) }
-        static var lineSoft: NSColor { adaptive(dark: oklch(0.215, 0.012, 260), light: oklch(0.90, 0.006, 260)) }
-        static var lineStrong: NSColor { adaptive(dark: oklch(0.34, 0.014, 260), light: oklch(0.78, 0.008, 260)) }
+        static var line: NSColor { adaptive(dark: oklch(0.245, 0.012, 258), light: oklch(0.86, 0.006, 260)) }
+        static var lineSoft: NSColor { adaptive(dark: oklch(0.205, 0.011, 258), light: oklch(0.90, 0.006, 260)) }
+        static var lineStrong: NSColor { adaptive(dark: oklch(0.325, 0.014, 258), light: oklch(0.78, 0.008, 260)) }
+        static var copperLine: NSColor { adaptive(dark: oklch(0.46, 0.050, 26), light: oklch(0.76, 0.040, 26)) }
+        static var copperGlow: NSColor { adaptive(dark: oklch(0.70, 0.090, 26), light: oklch(0.78, 0.050, 26)) }
 
         // Text
         static var fg: NSColor { adaptive(dark: oklch(0.95, 0.005, 260), light: oklch(0.16, 0.008, 260)) }

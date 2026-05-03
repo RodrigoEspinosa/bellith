@@ -462,9 +462,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // App menu
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "About Bellith", action: #selector(handleAbout), keyEquivalent: "")
-        let checkForUpdatesItem = NSMenuItem(title: "Check for Updates…", action: updater.menuAction, keyEquivalent: "")
-        checkForUpdatesItem.target = updater.menuTarget
-        appMenu.addItem(checkForUpdatesItem)
+        if updater.isAvailable {
+            let checkForUpdatesItem = NSMenuItem(title: "Check for Updates…", action: updater.menuAction, keyEquivalent: "")
+            checkForUpdatesItem.target = updater.menuTarget
+            appMenu.addItem(checkForUpdatesItem)
+        }
         appMenu.addItem(.separator())
         appMenu.addItem(configuredMenuItem(title: "Settings…", action: #selector(handlePreferences), shortcutID: "preferences"))
         appMenu.addItem(configuredMenuItem(title: "Open settings.json", action: #selector(handleOpenSettingsFile)))
@@ -679,7 +681,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func handleFind() { activeEntry?.container.showSearch() }
     @objc private func handleClearBuffer() { activeEntry?.container.clearBuffer() }
     @objc private func handleNewTab() { activeEntry?.container.createTab() }
-    @objc private func handleCloseTab() { activeEntry?.container.closeCurrentTab() }
+    @objc private func handleCloseTab() { activeEntry?.container.closeFocusedPaneOrTab() }
     @objc private func handleCloseWindow() { NSApp.keyWindow?.close() }
     @objc private func handleClosePane() { activeEntry?.container.closePane() }
     @objc private func handleNewWindow() { createWindow() }
@@ -1061,6 +1063,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return true
 
         case GHOSTTY_ACTION_MOUSE_SHAPE:
+            guard mouseActionCanAffectCursor(target: target) else { return true }
             let shape = action.action.mouse_shape
             switch shape {
             case GHOSTTY_MOUSE_SHAPE_DEFAULT: NSCursor.arrow.set()
@@ -1072,6 +1075,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return true
 
         case GHOSTTY_ACTION_MOUSE_VISIBILITY:
+            guard mouseActionCanAffectCursor(target: target) else { return true }
             if action.action.mouse_visibility == GHOSTTY_MOUSE_HIDDEN {
                 NSCursor.hide()
             } else {
@@ -1198,6 +1202,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         default:
             return false
         }
+    }
+
+    private func mouseActionCanAffectCursor(target: ghostty_target_s) -> Bool {
+        guard let surfaceView = surfaceView(for: target),
+              let container = container(for: surfaceView) else {
+            return false
+        }
+        return container.isSurfaceVisible(surfaceView)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

@@ -9,6 +9,7 @@ final class RebrandShellView: NSView {
     private let outerStroke = CALayer()
     private let railDivider = CALayer()
     private let bodyTopShadow = CAGradientLayer()
+    private let topHighlight = CAGradientLayer()
     private let titleBar = RebrandTitleBar()
     private let rail = RebrandWorkspaceRail()
     private let body = RebrandBodyView()
@@ -29,6 +30,7 @@ final class RebrandShellView: NSView {
         layer?.addSublayer(outerStroke)
         layer?.addSublayer(railDivider)
         layer?.addSublayer(bodyTopShadow)
+        layer?.addSublayer(topHighlight)
 
         addSubview(titleBar)
         addSubview(rail)
@@ -72,6 +74,7 @@ final class RebrandShellView: NSView {
         let workspaceName = (activeTitle?.isEmpty == false) ? activeTitle! : "session"
         titleBar.workspaceName = workspaceName
         titleBar.paneCount = active?.paneCount ?? 0
+        titleBar.muxLabel = container.embeddedStatusSummary?.muxName
         titleBar.workspaceTint = (activeTitle?.isEmpty == false)
             ? RebrandWorkspaceTint.accent(for: activeTitle!)
             : RebrandTokens.Color.fg2
@@ -127,6 +130,14 @@ final class RebrandShellView: NSView {
         ]
         bodyTopShadow.startPoint = CGPoint(x: 0.5, y: 1)
         bodyTopShadow.endPoint = CGPoint(x: 0.5, y: 0)
+
+        topHighlight.frame = NSRect(x: 1, y: h - 22, width: max(0, w - 2), height: 21)
+        topHighlight.colors = [
+            NSColor.white.withAlphaComponent(0.05).cgColor,
+            NSColor.clear.cgColor,
+        ]
+        topHighlight.startPoint = CGPoint(x: 0.5, y: 1)
+        topHighlight.endPoint = CGPoint(x: 0.5, y: 0)
     }
 }
 
@@ -172,7 +183,7 @@ final class RebrandBodyView: NSView {
             width: max(0, bounds.width - pad * 2),
             height: max(0, bounds.height - topPad)
         )
-        paneDock.frame = NSRect(x: pad + 14, y: 10, width: 104, height: 36)
+        paneDock.frame = NSRect(x: pad + 18, y: 18, width: 132, height: 44)
     }
 }
 
@@ -180,6 +191,8 @@ private final class RebrandPaneDock: NSView {
     private let backgroundLayer = CALayer()
     private let splitRight = RebrandPaneDockButton(symbolName: "rectangle.split.2x1", fallback: "▮▮")
     private let splitDown = RebrandPaneDockButton(symbolName: "rectangle.split.1x2", fallback: "▰")
+    private let pulse = RebrandPaneDockButton(symbolName: "waveform.path.ecg", fallback: "~")
+    private let branch = RebrandPaneDockButton(symbolName: "point.3.connected.trianglepath.dotted", fallback: "◎")
 
     var onSplitRight: (() -> Void)?
     var onSplitDown: (() -> Void)?
@@ -193,8 +206,12 @@ private final class RebrandPaneDock: NSView {
         splitDown.toolTip = "Split Down  ⇧⌘D"
         splitRight.onClick = { [weak self] in self?.onSplitRight?() }
         splitDown.onClick = { [weak self] in self?.onSplitDown?() }
+        pulse.isEnabled = false
+        branch.isEnabled = false
         addSubview(splitRight)
         addSubview(splitDown)
+        addSubview(pulse)
+        addSubview(branch)
         applyTheme()
     }
 
@@ -204,20 +221,24 @@ private final class RebrandPaneDock: NSView {
     override func layout() {
         super.layout()
         backgroundLayer.frame = bounds
-        let buttonSize: CGFloat = 28
+        let buttonSize: CGFloat = 30
         let y = floor((bounds.height - buttonSize) / 2)
-        splitRight.frame = NSRect(x: 6, y: y, width: buttonSize, height: buttonSize)
-        splitDown.frame = NSRect(x: 38, y: y, width: buttonSize, height: buttonSize)
+        splitRight.frame = NSRect(x: 8, y: y, width: buttonSize, height: buttonSize)
+        splitDown.frame = NSRect(x: 40, y: y, width: buttonSize, height: buttonSize)
+        pulse.frame = NSRect(x: 72, y: y, width: buttonSize, height: buttonSize)
+        branch.frame = NSRect(x: 104, y: y, width: buttonSize, height: buttonSize)
     }
 
     private func applyTheme() {
-        backgroundLayer.cornerRadius = 8
+        backgroundLayer.cornerRadius = 12
         backgroundLayer.cornerCurve = .continuous
         backgroundLayer.backgroundColor = RebrandTokens.Color.paneBg.withAlphaComponent(0.98).cgColor
         backgroundLayer.borderWidth = 1
         backgroundLayer.borderColor = RebrandTokens.Color.line.cgColor
         splitRight.applyTheme()
         splitDown.applyTheme()
+        pulse.applyTheme()
+        branch.applyTheme()
     }
 }
 
@@ -227,6 +248,7 @@ private final class RebrandPaneDockButton: NSView {
     private let fallbackLabel = NSTextField(labelWithString: "")
     private var tracking: NSTrackingArea?
     private var isHovered = false { didSet { applyTheme() } }
+    var isEnabled = true { didSet { applyTheme() } }
     var onClick: (() -> Void)?
 
     init(symbolName: String, fallback: String) {
@@ -263,7 +285,7 @@ private final class RebrandPaneDockButton: NSView {
     override func mouseEntered(with event: NSEvent) { isHovered = true }
     override func mouseExited(with event: NSEvent) { isHovered = false }
     override func mouseUp(with event: NSEvent) {
-        if bounds.contains(convert(event.locationInWindow, from: nil)) {
+        if isEnabled, bounds.contains(convert(event.locationInWindow, from: nil)) {
             onClick?()
         }
     }
@@ -276,10 +298,22 @@ private final class RebrandPaneDockButton: NSView {
     }
 
     func applyTheme() {
-        backgroundLayer.cornerRadius = 6
+        let fill: NSColor
+        let tint: NSColor
+        if !isEnabled {
+            fill = NSColor.clear
+            tint = RebrandTokens.Color.fg4.withAlphaComponent(0.55)
+        } else if isHovered {
+            fill = RebrandTokens.Color.hoverOverlay
+            tint = RebrandTokens.Color.fg
+        } else {
+            fill = NSColor.clear
+            tint = RebrandTokens.Color.fg3
+        }
+        backgroundLayer.cornerRadius = 8
         backgroundLayer.cornerCurve = .continuous
-        backgroundLayer.backgroundColor = (isHovered ? RebrandTokens.Color.hoverOverlay : NSColor.clear).cgColor
-        imageView.contentTintColor = isHovered ? RebrandTokens.Color.fg : RebrandTokens.Color.fg3
-        fallbackLabel.textColor = isHovered ? RebrandTokens.Color.fg : RebrandTokens.Color.fg3
+        backgroundLayer.backgroundColor = fill.cgColor
+        imageView.contentTintColor = tint
+        fallbackLabel.textColor = tint
     }
 }

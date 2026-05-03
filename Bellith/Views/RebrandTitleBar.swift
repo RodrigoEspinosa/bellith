@@ -12,7 +12,7 @@ final class RebrandTitleBar: NSView {
     private let titleLabel = NSTextField(labelWithString: "")
     private let panePill = RebrandPaneCountPill()
 
-    private let leadingTrafficLightInset: CGFloat = 92
+    private let leadingTrafficLightInset: CGFloat = 110
 
     var workspaceName: String = "session" {
         didSet { rebuildTitle() }
@@ -33,7 +33,7 @@ final class RebrandTitleBar: NSView {
         layer?.addSublayer(bgGradient)
         layer?.addSublayer(bottomLine)
 
-        titleLabel.font = RebrandTokens.Typography.mono(12.5, weight: .medium)
+        titleLabel.font = RebrandTokens.Typography.mono(13.5, weight: .medium)
         titleLabel.alignment = .left
         titleLabel.isEditable = false
         titleLabel.isBezeled = false
@@ -62,10 +62,10 @@ final class RebrandTitleBar: NSView {
         // returns 0 before AppKit has cached the run, which collapses the
         // title to nothing on first paint.
         let titleString = titleLabel.attributedStringValue.string
-        let titleAttrs: [NSAttributedString.Key: Any] = [.font: titleLabel.font ?? RebrandTokens.Typography.mono(12, weight: .medium)]
+        let titleAttrs: [NSAttributedString.Key: Any] = [.font: titleLabel.font ?? RebrandTokens.Typography.mono(13, weight: .medium)]
         let titleW = ceil((titleString as NSString).size(withAttributes: titleAttrs).width)
         let pillSize = panePill.isHidden ? .zero : panePill.intrinsicContentSize
-        let pillGap: CGFloat = panePill.isHidden ? 0 : 8
+        let pillGap: CGFloat = panePill.isHidden ? 0 : 12
         let groupW = titleW + pillGap + pillSize.width
         var groupX = floor((bounds.width - groupW) / 2)
         let leftLimit = leadingTrafficLightInset + 6
@@ -74,9 +74,9 @@ final class RebrandTitleBar: NSView {
 
         titleLabel.frame = NSRect(
             x: groupX,
-            y: floor((bounds.height - 18) / 2),
+            y: floor((bounds.height - 19) / 2),
             width: titleW + 2,
-            height: 18
+            height: 19
         )
         if !panePill.isHidden {
             panePill.frame = NSRect(
@@ -101,7 +101,7 @@ final class RebrandTitleBar: NSView {
     }
 
     private func rebuildTitle() {
-        let primaryFont = RebrandTokens.Typography.mono(12.5, weight: .medium)
+        let primaryFont = RebrandTokens.Typography.mono(13.5, weight: .medium)
         let result = NSMutableAttributedString()
         result.append(NSAttributedString(
             string: "zsh",
@@ -112,14 +112,14 @@ final class RebrandTitleBar: NSView {
             attributes: [.font: primaryFont, .foregroundColor: RebrandTokens.Color.fg4]
         ))
         result.append(NSAttributedString(
-            string: workspaceName,
+            string: workspaceName == "~" ? "home" : workspaceName,
             attributes: [.font: primaryFont, .foregroundColor: workspaceTint]
         ))
         titleLabel.attributedStringValue = result
         titleLabel.sizeToFit()
 
         if let muxLabel, paneCount > 0 {
-            panePill.text = "\(muxLabel) · \(paneCount) pane\(paneCount == 1 ? "" : "s")"
+            panePill.text = "\(muxLabel.lowercased()) · \(paneCount) pane\(paneCount == 1 ? "" : "s")"
             panePill.isHidden = false
         } else if paneCount > 1 {
             panePill.text = "\(paneCount) panes"
@@ -151,7 +151,7 @@ final class RebrandPaneCountPill: NSView {
         layer?.cornerCurve = .continuous
         layer?.borderWidth = 1
 
-        label.font = RebrandTokens.Typography.mono(10.5, weight: .regular)
+        label.font = RebrandTokens.Typography.mono(10.75, weight: .regular)
         label.alignment = .center
         label.isEditable = false
         label.isBezeled = false
@@ -165,9 +165,9 @@ final class RebrandPaneCountPill: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     override var intrinsicContentSize: NSSize {
-        let attrs: [NSAttributedString.Key: Any] = [.font: label.font ?? RebrandTokens.Typography.mono(10.5)]
+        let attrs: [NSAttributedString.Key: Any] = [.font: label.font ?? RebrandTokens.Typography.mono(10.75)]
         let textW = ceil((label.stringValue as NSString).size(withAttributes: attrs).width)
-        return NSSize(width: textW + 12, height: 16)
+        return NSSize(width: textW + 16, height: 18)
     }
 
     override func layout() {
@@ -181,7 +181,7 @@ final class RebrandPaneCountPill: NSView {
     }
 
     func applyTheme() {
-        layer?.backgroundColor = NSColor.clear.cgColor
+        layer?.backgroundColor = RebrandTokens.Color.hoverOverlay.withAlphaComponent(0.18).cgColor
         layer?.borderColor = RebrandTokens.Color.lineStrong.cgColor
         label.textColor = RebrandTokens.Color.fg4
     }

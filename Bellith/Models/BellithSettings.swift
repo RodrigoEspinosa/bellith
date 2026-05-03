@@ -90,6 +90,7 @@ final class BellithSettings {
             "showStatusBarGitHub", "showStatusBarSize",
             "fontLigaturesEnabled",
             "useRebrandShell", "openRebrandPanesByDefault",
+            "showModifierHints",
         ]
         static let stringArrayKeys: Set<String> = [
             "sidebarTools",
@@ -552,6 +553,19 @@ final class BellithSettings {
             return true
         }
         set { defaults.set(newValue, forKey: "openRebrandPanesByDefault"); notify() }
+    }
+
+    /// When true, holding modifier keys (⌘, ⌥, ⌃, ⇧) reveals the contextual
+    /// shortcut hint popover. Off by default — flip via
+    /// `defaults write com.rec.bellith showModifierHints -bool YES`.
+    var showModifierHints: Bool {
+        get {
+            if defaults.object(forKey: "showModifierHints") != nil {
+                return defaults.bool(forKey: "showModifierHints")
+            }
+            return false
+        }
+        set { defaults.set(newValue, forKey: "showModifierHints"); notify() }
     }
 
     var showStatusBarContext: Bool {
@@ -1054,6 +1068,7 @@ final class BellithSettings {
             "shellIntegrationSSHEnv": shellIntegrationSSHEnv,
             "shellIntegrationSSHTerminfo": shellIntegrationSSHTerminfo,
             "shellIntegrationTitle": shellIntegrationTitle,
+            "showModifierHints": showModifierHints,
             "showStatusBar": showStatusBar,
             "showStatusBarContext": showStatusBarContext,
             "showStatusBarGitBranch": showStatusBarGitBranch,

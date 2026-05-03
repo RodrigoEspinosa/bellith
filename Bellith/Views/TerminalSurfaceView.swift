@@ -36,6 +36,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     var onTextInserted: ((String, TerminalSurfaceView) -> Void)?
     var onSizeChanged: ((Int, Int) -> Void)?
     var onFocus: ((TerminalSurfaceView) -> Void)?
+    var shouldReportMousePosition: (() -> Bool)?
 
     init(app: TerminalApp, baseConfig: ghostty_surface_config_s? = nil) {
         self.terminalApp = app
@@ -672,6 +673,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
 
     private func sendMousePos(_ event: NSEvent) {
         guard let surface else { return }
+        guard shouldReportMousePosition?() ?? true else { return }
         let pos = convert(event.locationInWindow, from: nil)
         ghostty_surface_mouse_pos(surface, pos.x, frame.height - pos.y,
                                   InputHelpers.ghosttyMods(event.modifierFlags))
