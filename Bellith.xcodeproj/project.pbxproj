@@ -56,6 +56,7 @@
 		52B1FDB9448FF5D0B47C1C59 /* RebrandShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99DDF36AA678A0F79696B83E /* RebrandShellView.swift */; };
 		55B5329D0C164FDCBEE88A5D /* ToolActivityMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE6157DFCE204C3ADC26FA72 /* ToolActivityMonitor.swift */; };
 		5863C9295DF764ABD02BC958 /* HyperlinkRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CDC1927EB617093208667D9 /* HyperlinkRouterTests.swift */; };
+		5DD340BAFF37697DA02D10EF /* BellithSettings+Migration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 725E33225681395A506201CD /* BellithSettings+Migration.swift */; };
 		5DD63722AB2EE526EB096050 /* GhosttyKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1E2025F109793353C35658F9 /* GhosttyKit.xcframework */; };
 		6798D6E2D3D556D644A18E41 /* SSHProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879EFDEE63113B30DD38B6EA /* SSHProfileStore.swift */; };
 		696F6BCF502F546CDEA8F4DB /* CommandFailureSuggestionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5114C1EDE3291AA9D3DB9054 /* CommandFailureSuggestionServiceTests.swift */; };
@@ -198,6 +199,7 @@
 		707A2AF28DE5D2F8EA639BFB /* TerminalSessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSessionCoordinator.swift; sourceTree = "<group>"; };
 		70C30B5C38334EF708DC86AC /* LocalSessionLaunchBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSessionLaunchBuilder.swift; sourceTree = "<group>"; };
 		72367912169712669D03FD67 /* TerminalContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalContainerView.swift; sourceTree = "<group>"; };
+		725E33225681395A506201CD /* BellithSettings+Migration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BellithSettings+Migration.swift"; sourceTree = "<group>"; };
 		73194F397D25C2EE9F50FB0C /* BellithSettings+Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BellithSettings+Persistence.swift"; sourceTree = "<group>"; };
 		7393A784545840E1C8BE4312 /* PaneDecorator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaneDecorator.swift; sourceTree = "<group>"; };
 		772785F1920803E52A7235C8 /* TerminalProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalProfile.swift; sourceTree = "<group>"; };
@@ -457,6 +459,7 @@
 			children = (
 				BC1465B59AFD1A458C9669E1 /* BellithDependencies.swift */,
 				8B5E3E792593BBE98618983D /* BellithSettings.swift */,
+				725E33225681395A506201CD /* BellithSettings+Migration.swift */,
 				73194F397D25C2EE9F50FB0C /* BellithSettings+Persistence.swift */,
 				0B8A3CDE542974BFD639F6F0 /* CommandRegistry.swift */,
 				9EAAEAFE7F888E5EFF104DCE /* FeatureFlags.swift */,
@@ -735,6 +738,7 @@
 				26A609DD7125866A18244E1D /* BellithBranding.swift in Sources */,
 				A46704CAA2427B9557BE7973 /* BellithDependencies.swift in Sources */,
 				CCA0508AE25C077D19B7319C /* BellithFont.swift in Sources */,
+				5DD340BAFF37697DA02D10EF /* BellithSettings+Migration.swift in Sources */,
 				B6D8A98FAAC4279C06F3B269 /* BellithSettings+Persistence.swift in Sources */,
 				CE826D24B9117475F5BFB14B /* BellithSettings.swift in Sources */,
 				3A8626193F1471C659C10A4A /* BlurView.swift in Sources */,
