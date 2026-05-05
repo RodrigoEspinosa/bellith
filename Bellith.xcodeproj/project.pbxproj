@@ -122,6 +122,7 @@
 		F69A5712D6FEB3A92B9B645F /* ITermColorsImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 595A49A926D6775A52202AAD /* ITermColorsImporter.swift */; };
 		FA077AEA422D8D9128490402 /* FileActivityPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F223B58A0753766F0489D0B /* FileActivityPanel.swift */; };
 		FACF42B47E0B00B9B2D332EE /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 72854E215968962531FCDC84 /* Sparkle */; };
+		FC12D2770A608AD5B92A38A6 /* SidebarComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CD8C34B8C738FB9DC2176B8 /* SidebarComponents.swift */; };
 		FE9D5CEE859363C51ADCC2CF /* KeyBindings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D391C65B83BEE0FDBEAE9ACC /* KeyBindings.swift */; };
 /* End PBXBuildFile section */
 
@@ -202,6 +203,7 @@
 		7AF3EFCA4440E50031AF178C /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		7B6A4E8E8C5D7B65BB385570 /* ContextBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextBadgeView.swift; sourceTree = "<group>"; };
 		7B73776D795BE3450D431B7B /* NetworkPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPanel.swift; sourceTree = "<group>"; };
+		7CD8C34B8C738FB9DC2176B8 /* SidebarComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarComponents.swift; sourceTree = "<group>"; };
 		7CDC1927EB617093208667D9 /* HyperlinkRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyperlinkRouterTests.swift; sourceTree = "<group>"; };
 		84F589203C90A72C2C4DA09C /* SSHPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHPane.swift; sourceTree = "<group>"; };
 		850CD5C03E9934E94F040341 /* AIToolSessionDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIToolSessionDetectorTests.swift; sourceTree = "<group>"; };
@@ -372,6 +374,7 @@
 				03168242417C9553954DD3F4 /* ScrollbackMinimapView.swift */,
 				EC69484808B270DA784451B1 /* SearchBarView.swift */,
 				BB30AA7FAF949D6830C55830 /* ShortcutCheatSheetView.swift */,
+				7CD8C34B8C738FB9DC2176B8 /* SidebarComponents.swift */,
 				EA87F2112E9FD1A9C106D8F2 /* SidebarView.swift */,
 				CB50294EC30FB94671823CFA /* SplitPaneView.swift */,
 				581F39AA01EDD5DEBCAA8A98 /* StatusBadges.swift */,
@@ -779,6 +782,7 @@
 				7FCB885811D536605FBD9642 /* SettingsNavigation.swift in Sources */,
 				17A84CE8AC3D862B81D96202 /* ShortcutCheatSheetView.swift in Sources */,
 				03E8D582B225C22CCB11691B /* ShortcutDefinitions.swift in Sources */,
+				FC12D2770A608AD5B92A38A6 /* SidebarComponents.swift in Sources */,
 				9EECDE6BE4882D41C3F53B22 /* SidebarPane.swift in Sources */,
 				DAA8ECCB0288FD778CA430DD /* SidebarView.swift in Sources */,
 				7B41F3CE5DB2BA28D89D339C /* SmartPanelView.swift in Sources */,
