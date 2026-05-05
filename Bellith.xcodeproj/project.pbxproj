@@ -75,6 +75,7 @@
 		8504ED57A71B5C4492164E11 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C6D8A2F2C2B69B1DF8B695CA /* Assets.xcassets */; };
 		88DF13E98F4C5539EFBCF58F /* NetworkPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B73776D795BE3450D431B7B /* NetworkPanel.swift */; };
 		8F9C4F38ABE6542683C89C38 /* SplitPaneViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E385EC194464E8BF67BE47B /* SplitPaneViewTests.swift */; };
+		903CDF04BCFB0875225E31EF /* BellithSettings+Keybindings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D217E08365B0D699F1CEE922 /* BellithSettings+Keybindings.swift */; };
 		941E77325C0B8A487B2CD650 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AF3EFCA4440E50031AF178C /* Logger.swift */; };
 		9477343A49D777786B2BC215 /* FeaturesPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31D854C894F2188BA1247C4A /* FeaturesPane.swift */; };
 		9BF5A978A5AACAB4DD91124B /* AboutPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C6683BF4D86DE5BB7318C3C /* AboutPane.swift */; };
@@ -248,6 +249,7 @@
 		CB50294EC30FB94671823CFA /* SplitPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitPaneView.swift; sourceTree = "<group>"; };
 		CD0B5E50A6BE76A1D3EDFE6D /* EnvironmentPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentPanel.swift; sourceTree = "<group>"; };
 		D1A6320778E024E8ABCDF2A6 /* SSHLaunchBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHLaunchBuilder.swift; sourceTree = "<group>"; };
+		D217E08365B0D699F1CEE922 /* BellithSettings+Keybindings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BellithSettings+Keybindings.swift"; sourceTree = "<group>"; };
 		D31E78EB4EBC7FC49C2F22FC /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		D391C65B83BEE0FDBEAE9ACC /* KeyBindings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyBindings.swift; sourceTree = "<group>"; };
 		D589B7C0CC3E08F11671DDFA /* SettingsNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsNavigation.swift; sourceTree = "<group>"; };
@@ -459,6 +461,7 @@
 			children = (
 				BC1465B59AFD1A458C9669E1 /* BellithDependencies.swift */,
 				8B5E3E792593BBE98618983D /* BellithSettings.swift */,
+				D217E08365B0D699F1CEE922 /* BellithSettings+Keybindings.swift */,
 				725E33225681395A506201CD /* BellithSettings+Migration.swift */,
 				73194F397D25C2EE9F50FB0C /* BellithSettings+Persistence.swift */,
 				0B8A3CDE542974BFD639F6F0 /* CommandRegistry.swift */,
@@ -738,6 +741,7 @@
 				26A609DD7125866A18244E1D /* BellithBranding.swift in Sources */,
 				A46704CAA2427B9557BE7973 /* BellithDependencies.swift in Sources */,
 				CCA0508AE25C077D19B7319C /* BellithFont.swift in Sources */,
+				903CDF04BCFB0875225E31EF /* BellithSettings+Keybindings.swift in Sources */,
 				5DD340BAFF37697DA02D10EF /* BellithSettings+Migration.swift in Sources */,
 				B6D8A98FAAC4279C06F3B269 /* BellithSettings+Persistence.swift in Sources */,
 				CE826D24B9117475F5BFB14B /* BellithSettings.swift in Sources */,
