@@ -80,6 +80,7 @@
 		9E0F1D2F80B626C817BF1488 /* UpdaterController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68E53AB085A993BDE55BBF92 /* UpdaterController.swift */; };
 		9EECDE6BE4882D41C3F53B22 /* SidebarPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = A33E81DDDC25CA709CD563AE /* SidebarPane.swift */; };
 		A0CFB54241CAA6006E58472C /* CommandRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B8A3CDE542974BFD639F6F0 /* CommandRegistry.swift */; };
+		A0FBC60FC61A2C5D326E71DC /* GitHubPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00FEDDF168DA4CE8F871F262 /* GitHubPopover.swift */; };
 		A381D1C113C9D8039615BCA4 /* TerminalRuntimeInfoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6E1C3DB1ADB2A4903FA2FF2 /* TerminalRuntimeInfoService.swift */; };
 		A39350253246932A3A4CB068 /* KeybindingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26D1CA15561163656129EFFE /* KeybindingsPane.swift */; };
 		A4482FD8BE36A3CB5AB2CCC8 /* QuickTerminalController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C964FC62608F8FA41EE01B5 /* QuickTerminalController.swift */; };
@@ -142,6 +143,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		00FEDDF168DA4CE8F871F262 /* GitHubPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubPopover.swift; sourceTree = "<group>"; };
 		01AD6AF9F8A70A7E83B56C8C /* QuickTerminalPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickTerminalPane.swift; sourceTree = "<group>"; };
 		03168242417C9553954DD3F4 /* ScrollbackMinimapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollbackMinimapView.swift; sourceTree = "<group>"; };
 		0AF85C08BA2DF08A6A597C24 /* CommandFailureSuggestionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandFailureSuggestionView.swift; sourceTree = "<group>"; };
@@ -357,6 +359,7 @@
 				0AF85C08BA2DF08A6A597C24 /* CommandFailureSuggestionView.swift */,
 				52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */,
 				7B6A4E8E8C5D7B65BB385570 /* ContextBadgeView.swift */,
+				00FEDDF168DA4CE8F871F262 /* GitHubPopover.swift */,
 				F0E61264736576ACC52BA253 /* KbdView.swift */,
 				CA7FA478B7BF7F9FDA3280C8 /* PaneContainerView.swift */,
 				7393A784545840E1C8BE4312 /* PaneDecorator.swift */,
@@ -737,6 +740,7 @@
 				7F18C8E24F67D3ECEEF7332C /* FeatureFlags.swift in Sources */,
 				9477343A49D777786B2BC215 /* FeaturesPane.swift in Sources */,
 				FA077AEA422D8D9128490402 /* FileActivityPanel.swift in Sources */,
+				A0FBC60FC61A2C5D326E71DC /* GitHubPopover.swift in Sources */,
 				E90F976F4D03F92405690751 /* GitHubService.swift in Sources */,
 				4DDD96881F2A1409729CD580 /* HyperlinkRouter.swift in Sources */,
 				F69A5712D6FEB3A92B9B645F /* ITermColorsImporter.swift in Sources */,
