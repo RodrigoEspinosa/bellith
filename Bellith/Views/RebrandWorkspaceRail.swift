@@ -10,7 +10,7 @@ final class RebrandWorkspaceRail: NSView {
     private let bottomDivider = CALayer()
     private var cards: [RebrandWorkspaceCard] = []
     private let addTile = RebrandAddTile()
-    private let settingsButton = RebrandRailGlyphButton(symbolName: "sun.max", fallback: "*", tooltip: "Appearance")
+    private let settingsButton = RebrandRailGlyphButton(symbolName: "sun.max", fallback: "*", tooltip: "Switch to Light Mode")
 
     var workspaces: [Workspace] = [] {
         didSet { rebuildCards() }
@@ -20,6 +20,8 @@ final class RebrandWorkspaceRail: NSView {
     }
     var onSelect: ((UUID) -> Void)?
     var onAdd: (() -> Void)?
+    var onToggleAppearanceMode: (() -> Void)?
+    var onOpenAppearanceSettings: (() -> Void)?
 
     struct Workspace {
         let id: UUID
@@ -36,6 +38,16 @@ final class RebrandWorkspaceRail: NSView {
         layer?.addSublayer(bottomDivider)
 
         addTile.onClick = { [weak self] in self?.onAdd?() }
+        settingsButton.onClick = { [weak self] in
+            self?.onToggleAppearanceMode?()
+        }
+        settingsButton.onLongPress = { [weak self] in
+            if let handler = self?.onOpenAppearanceSettings {
+                handler()
+            } else {
+                PreferencesWindowController.shared.showWindow(selecting: "appearance")
+            }
+        }
         addSubview(addTile)
         addSubview(settingsButton)
 
@@ -96,6 +108,11 @@ final class RebrandWorkspaceRail: NSView {
         bottomDivider.backgroundColor = RebrandTokens.Color.lineSoft.cgColor
         cards.forEach { $0.applyTheme() }
         addTile.applyTheme()
+        settingsButton.configure(
+            symbolName: Theme.colors.isLight ? "moon" : "sun.max",
+            fallback: Theme.colors.isLight ? "D" : "L",
+            tooltip: Theme.colors.isLight ? "Switch to Dark Mode" : "Switch to Light Mode"
+        )
         settingsButton.applyTheme()
     }
 }
@@ -265,12 +282,19 @@ final class RebrandRailGlyphButton: NSView {
     private let imageView = NSImageView()
     private let fallbackLabel = NSTextField(labelWithString: "")
     private var tracking: NSTrackingArea?
+    private var longPressTimer: Timer?
+    private var didTriggerLongPress = false
+    private var isPressed = false { didSet { applyTheme() } }
     private var isHovered = false { didSet { applyTheme() } }
+    var onClick: (() -> Void)?
+    var onLongPress: (() -> Void)?
 
     init(symbolName: String, fallback: String, tooltip: String) {
         super.init(frame: .zero)
         wantsLayer = true
         toolTip = tooltip
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(tooltip)
 
         if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: tooltip) {
             imageView.image = image
@@ -291,6 +315,28 @@ final class RebrandRailGlyphButton: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    deinit {
+        longPressTimer?.invalidate()
+    }
+
+    func configure(symbolName: String, fallback: String, tooltip: String) {
+        if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: tooltip) {
+            imageView.image = image
+            fallbackLabel.stringValue = ""
+            imageView.isHidden = false
+            fallbackLabel.isHidden = true
+        } else {
+            imageView.image = nil
+            fallbackLabel.stringValue = fallback
+            imageView.isHidden = true
+            fallbackLabel.isHidden = false
+        }
+        toolTip = tooltip
+        setAccessibilityLabel(tooltip)
+        needsLayout = true
+        applyTheme()
+    }
+
     override func updateTrackingAreas() {
         if let tracking { removeTrackingArea(tracking) }
         let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
@@ -299,7 +345,36 @@ final class RebrandRailGlyphButton: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) { isHovered = true }
-    override func mouseExited(with event: NSEvent) { isHovered = false }
+    override func mouseExited(with event: NSEvent) {
+        isHovered = false
+        cancelLongPress()
+    }
+    override func mouseDown(with event: NSEvent) {
+        guard bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
+        didTriggerLongPress = false
+        isPressed = true
+        longPressTimer?.invalidate()
+        let timer = Timer(timeInterval: 0.45, repeats: false) { [weak self] _ in
+            guard let self, self.isPressed else { return }
+            self.didTriggerLongPress = true
+            self.onLongPress?()
+        }
+        longPressTimer = timer
+        RunLoop.current.add(timer, forMode: .eventTracking)
+        RunLoop.current.add(timer, forMode: .common)
+    }
+    override func mouseUp(with event: NSEvent) {
+        longPressTimer?.invalidate()
+        longPressTimer = nil
+        isPressed = false
+        if bounds.contains(convert(event.locationInWindow, from: nil)) {
+            if didTriggerLongPress {
+                didTriggerLongPress = false
+            } else {
+                onClick?()
+            }
+        }
+    }
 
     override func layout() {
         super.layout()
@@ -310,12 +385,19 @@ final class RebrandRailGlyphButton: NSView {
     }
 
     func applyTheme() {
-        layer?.backgroundColor = (isHovered
+        layer?.backgroundColor = ((isHovered || isPressed)
             ? RebrandTokens.Color.hoverOverlay.withAlphaComponent(0.85)
             : NSColor.clear).cgColor
-        let tint = isHovered ? RebrandTokens.Color.fg2 : RebrandTokens.Color.fg4
+        let tint = (isHovered || isPressed) ? RebrandTokens.Color.fg2 : RebrandTokens.Color.fg4
         imageView.contentTintColor = tint
         fallbackLabel.textColor = tint
+    }
+
+    private func cancelLongPress() {
+        longPressTimer?.invalidate()
+        longPressTimer = nil
+        isPressed = false
+        didTriggerLongPress = false
     }
 }
 

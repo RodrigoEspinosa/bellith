@@ -15,6 +15,7 @@
 		03E8D582B225C22CCB11691B /* ShortcutDefinitions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17F1A89752C176F1F7719413 /* ShortcutDefinitions.swift */; };
 		04147FAB56BE36CEBE3373E9 /* TerminalContainerView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B7BC01ACD0665FBA2265AAE /* TerminalContainerView+Helpers.swift */; };
 		06F9811AE726F42DEB32D418 /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C9D96FFF53397D45EA101F4 /* PreferencesWindowController.swift */; };
+		082B7F28B76404AE1F3010DA /* BellithDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58F3E62401FAA8F9A0237B8 /* BellithDesignSystem.swift */; };
 		0AF8CB135FF10863D353566B /* AIToolSessionDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 850CD5C03E9934E94F040341 /* AIToolSessionDetectorTests.swift */; };
 		0CEDA7945B509941CCA5FDCF /* PaneContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA7FA478B7BF7F9FDA3280C8 /* PaneContainerView.swift */; };
 		0FF0294C8F9B14B9DBB9051F /* SplitPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB50294EC30FB94671823CFA /* SplitPaneView.swift */; };
@@ -259,6 +260,7 @@
 		DB0C524BC98C2F0D18E7B327 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		DDFFF00A8FCA7C5D765650BD /* AppearancePane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearancePane.swift; sourceTree = "<group>"; };
 		E0E3FC50C1923C38393AB64D /* TerminalOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalOverlayController.swift; sourceTree = "<group>"; };
+		E58F3E62401FAA8F9A0237B8 /* BellithDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithDesignSystem.swift; sourceTree = "<group>"; };
 		E89FDA87579791818D3A6718 /* TerminalPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPane.swift; sourceTree = "<group>"; };
 		EA87F2112E9FD1A9C106D8F2 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		EC69484808B270DA784451B1 /* SearchBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchBarView.swift; sourceTree = "<group>"; };
@@ -395,6 +397,7 @@
 				973180A10E7387D33EBEA8DC /* TerminalWindow.swift */,
 				21183D4A7A9CA0A0013ED67A /* Theme.swift */,
 				8C5C94B09019221ED3984C56 /* TitleBarView.swift */,
+				8CCBD52A3DAB737E3A04EEB5 /* DesignSystem */,
 				C4D1B7F903B0FA0F371BC424 /* Preferences */,
 				E58C15B3E21D45C2DC32E21D /* SmartPanels */,
 			);
@@ -418,6 +421,14 @@
 				68E53AB085A993BDE55BBF92 /* UpdaterController.swift */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		8CCBD52A3DAB737E3A04EEB5 /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				E58F3E62401FAA8F9A0237B8 /* BellithDesignSystem.swift */,
+			);
+			path = DesignSystem;
 			sourceTree = "<group>";
 		};
 		B7C5F9564974A409DDCF64F2 /* Monitors */ = {
@@ -740,6 +751,7 @@
 				E450123DFE8F0EBAD8050A69 /* BackdropView.swift in Sources */,
 				26A609DD7125866A18244E1D /* BellithBranding.swift in Sources */,
 				A46704CAA2427B9557BE7973 /* BellithDependencies.swift in Sources */,
+				082B7F28B76404AE1F3010DA /* BellithDesignSystem.swift in Sources */,
 				CCA0508AE25C077D19B7319C /* BellithFont.swift in Sources */,
 				903CDF04BCFB0875225E31EF /* BellithSettings+Keybindings.swift in Sources */,
 				5DD340BAFF37697DA02D10EF /* BellithSettings+Migration.swift in Sources */,

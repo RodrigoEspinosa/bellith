@@ -88,13 +88,12 @@ enum RebrandTokens {
             return NSColor(srgbRed: r, green: g, blue: bl, alpha: 1)
         }
 
-        /// Returns the dark variant in dark appearance, light variant in light.
-        /// Wraps in NSColor(name:dynamicProvider:) so it adapts live.
+        /// Returns the dark or light variant from Bellith's resolved theme.
+        /// The rebrand shell is layer-backed, so resolving via AppKit's current
+        /// drawing appearance can lag behind the terminal color scheme during
+        /// explicit light/dark toggles.
         static func adaptive(dark: NSColor, light: NSColor) -> NSColor {
-            NSColor(name: nil) { appearance in
-                let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-                return isDark ? dark : light
-            }
+            Theme.colors.isLight ? light : dark
         }
     }
 

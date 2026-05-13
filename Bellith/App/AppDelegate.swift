@@ -1,7 +1,6 @@
 import AppKit
 import GhosttyKit
 import os
-import UniformTypeIdentifiers
 import UserNotifications
 
 @main
@@ -24,7 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var appearanceObserver: NSObjectProtocol?
     private var terminalConfigFailureObserver: NSObjectProtocol?
     private var settingsObserver: NSObjectProtocol?
-    private var themeMenu = NSMenu(title: "Theme")
+    private var appearanceAccentMenu = NSMenu(title: "Accent Color")
     private var workspacesMenu = NSMenu(title: "Workspaces")
     private var workspaceStoreObserver: NSObjectProtocol?
 
@@ -92,7 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         applyResolvedAppearanceAndTheme()
 
-        // Observe system appearance changes to switch themes
+        // Observe system appearance changes to update the derived appearance palette.
         appearanceObserver = DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
             object: nil, queue: .main
@@ -101,7 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         // Observe "Increase Contrast" accessibility toggle so we can promote
-        // to/from the high-contrast theme variant at runtime.
+        // to/from the high-contrast appearance variant at runtime.
         NSWorkspace.shared.notificationCenter.addObserver(
             self,
             selector: #selector(handleAccessibilityDisplayOptionsChanged),
@@ -453,7 +452,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // supermenu reference from the previous main-menu tree after the
         // first pass. `setSubmenu:` throws `NSInternalInconsistencyException`
         // if we attach it to a new item while it already has a parent — give
-        // it a fresh instance each rebuild. `themeMenu` is reassigned below
+        // it a fresh instance each rebuild. `appearanceAccentMenu` is reassigned below
         // for the same reason.
         workspacesMenu = NSMenu(title: "Workspaces")
 
@@ -552,14 +551,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         viewMenu.addItem(configuredMenuItem(title: "Reload Config", action: #selector(handleReloadConfig), shortcutID: "reloadConfig"))
         viewMenu.addItem(.separator())
 
-        // Theme submenu
-        themeMenu = NSMenu(title: "Theme")
-        themeMenu.delegate = self
-        rebuildThemeMenu()
-        let themeItem = NSMenuItem(title: "Theme", action: nil, keyEquivalent: "")
-        themeItem.submenu = themeMenu
-        viewMenu.addItem(themeItem)
-        viewMenu.addItem(configuredMenuItem(title: "Import iTerm2 Theme…", action: #selector(handleImportITermColors)))
+        appearanceAccentMenu = NSMenu(title: "Accent Color")
+        appearanceAccentMenu.delegate = self
+        rebuildAppearanceAccentMenu()
+        let accentItem = NSMenuItem(title: "Accent Color", action: nil, keyEquivalent: "")
+        accentItem.submenu = appearanceAccentMenu
+        viewMenu.addItem(accentItem)
 
         let viewMenuItem = NSMenuItem()
         viewMenuItem.submenu = viewMenu
@@ -735,52 +732,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.orderFrontStandardAboutPanel(options: BellithBranding.aboutPanelOptions())
         NSApp.activate(ignoringOtherApps: true)
     }
-    @objc private func handleImportITermColors() {
-        let panel = NSOpenPanel()
-        panel.title = "Import iTerm2 Theme"
-        panel.prompt = "Import"
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        if let type = UTType(filenameExtension: "itermcolors") {
-            panel.allowedContentTypes = [type]
-        }
-        guard panel.runModal() == .OK else { return }
-
-        var imported: [String] = []
-        var failures: [(URL, Error)] = []
-        for url in panel.urls {
-            do {
-                let def = try ITermColorsImporter.importFile(url: url)
-                imported.append(def.name)
-            } catch {
-                failures.append((url, error))
-            }
-        }
-
-        let alert = NSAlert()
-        if !imported.isEmpty && failures.isEmpty {
-            alert.messageText = "Imported \(imported.count) theme\(imported.count == 1 ? "" : "s")"
-            alert.informativeText = imported.joined(separator: ", ") + "\n\nOpen the Theme menu to apply."
-            alert.alertStyle = .informational
-        } else if imported.isEmpty {
-            alert.messageText = "Import failed"
-            alert.informativeText = failures.map { "\($0.0.lastPathComponent): \($0.1.localizedDescription)" }.joined(separator: "\n")
-            alert.alertStyle = .warning
-        } else {
-            alert.messageText = "Imported \(imported.count), \(failures.count) failed"
-            alert.informativeText = "Imported: \(imported.joined(separator: ", "))\n\nFailed:\n" +
-                failures.map { "\($0.0.lastPathComponent): \($0.1.localizedDescription)" }.joined(separator: "\n")
-            alert.alertStyle = .warning
-        }
-        alert.runModal()
-
-        // Rebuild theme menu so newly-imported themes appear immediately.
-        rebuildThemeMenu()
-    }
 
     @objc private func handleHelp() {
-        // Open help/documentation — for now open the custom themes folder as a basic help action
         guard let url = BellithBranding.repoURL else { return }
         NSWorkspace.shared.open(url)
     }
@@ -911,41 +864,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let pluginID = sender.representedObject as? String else { return }
         activeEntry?.container.createSmartTab(pluginID: pluginID)
     }
-    @objc private func handleThemeSelection(_ sender: NSMenuItem) {
-        guard let theme = sender.representedObject as? ThemeColors else { return }
-        if theme.isLight {
-            dependencies.settings.lightThemeName = theme.name
-        } else {
-            dependencies.settings.darkThemeName = theme.name
-        }
+    @objc private func handleAppearanceAccentSelection(_ sender: NSMenuItem) {
+        guard let palette = sender.representedObject as? AppearancePalette else { return }
+        dependencies.settings.appearancePaletteID = palette.id
         applyResolvedAppearanceAndTheme()
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
-        if menu === themeMenu { rebuildThemeMenu() }
+        if menu === appearanceAccentMenu { rebuildAppearanceAccentMenu() }
     }
 
-    private func rebuildThemeMenu() {
-        themeMenu.removeAllItems()
+    private func rebuildAppearanceAccentMenu() {
+        appearanceAccentMenu.removeAllItems()
         let settings = dependencies.settings
-        let darkHeader = NSMenuItem(title: "Dark", action: nil, keyEquivalent: "")
-        darkHeader.isEnabled = false
-        themeMenu.addItem(darkHeader)
-        for theme in ThemeColors.allThemes where !theme.isLight {
-            let item = NSMenuItem(title: "  " + theme.name, action: #selector(handleThemeSelection(_:)), keyEquivalent: "")
-            item.representedObject = theme
-            item.state = theme.name == settings.darkThemeName ? .on : .off
-            themeMenu.addItem(item)
-        }
-        themeMenu.addItem(.separator())
-        let lightHeader = NSMenuItem(title: "Light", action: nil, keyEquivalent: "")
-        lightHeader.isEnabled = false
-        themeMenu.addItem(lightHeader)
-        for theme in ThemeColors.allThemes where theme.isLight {
-            let item = NSMenuItem(title: "  " + theme.name, action: #selector(handleThemeSelection(_:)), keyEquivalent: "")
-            item.representedObject = theme
-            item.state = theme.name == settings.lightThemeName ? .on : .off
-            themeMenu.addItem(item)
+        for palette in AppearancePalette.all {
+            let item = NSMenuItem(title: palette.name, action: #selector(handleAppearanceAccentSelection(_:)), keyEquivalent: "")
+            item.representedObject = palette
+            item.state = palette.id == settings.appearancePaletteID ? .on : .off
+            appearanceAccentMenu.addItem(item)
         }
     }
 
@@ -1223,4 +1159,3 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return menu
     }
 }
-

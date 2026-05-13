@@ -30,7 +30,7 @@ final class RebrandStatusBar: NSView {
         centerInfo.alignment = .center
         addSubview(centerInfo)
 
-        trailing.stringValue = "⌘K palette"
+        trailing.stringValue = Self.paletteHint()
         configureLabel(trailing, color: RebrandTokens.Color.fg3)
         trailing.alignment = .right
         addSubview(trailing)
@@ -56,7 +56,7 @@ final class RebrandStatusBar: NSView {
             muxPill.isHidden = true
             muxInfo.stringValue = ""
             centerInfo.stringValue = ""
-            trailing.stringValue = "⌘K palette"
+            trailing.stringValue = Self.paletteHint()
             needsLayout = true
             return
         }
@@ -77,9 +77,14 @@ final class RebrandStatusBar: NSView {
 
         var trailingParts: [String] = []
         if summary.paneCount > 1 { trailingParts.append("⌃a prefix") }
-        trailingParts.append("⌘K palette")
+        trailingParts.append(Self.paletteHint())
         trailing.stringValue = trailingParts.joined(separator: "  ·  ")
         needsLayout = true
+    }
+
+    private static func paletteHint() -> String {
+        let shortcut = BellithSettings.shared.shortcutSummary(for: "commandPalette") ?? "⇧⌘P"
+        return "\(shortcut) palette"
     }
 
     override func layout() {
@@ -105,22 +110,23 @@ final class RebrandStatusBar: NSView {
             )
         }
 
-        let muxX = (muxPill.isHidden ? modePill.frame.maxX : muxPill.frame.maxX) + 10
-        let muxAttrs: [NSAttributedString.Key: Any] = [.font: muxInfo.font ?? RebrandTokens.Typography.mono(11)]
-        let muxW = muxInfo.stringValue.isEmpty ? 0 : ceil((muxInfo.stringValue as NSString).size(withAttributes: muxAttrs).width)
-        muxInfo.frame = NSRect(
-            x: muxX,
-            y: floor((bounds.height - 14) / 2),
-            width: muxW == 0 ? 0 : muxW + 4,
-            height: 14
-        )
-
         let trailAttrs: [NSAttributedString.Key: Any] = [.font: trailing.font ?? RebrandTokens.Typography.mono(11)]
         let trailW = ceil((trailing.stringValue as NSString).size(withAttributes: trailAttrs).width) + 4
         trailing.frame = NSRect(
             x: bounds.width - padX - trailW,
             y: floor((bounds.height - 14) / 2),
             width: trailW,
+            height: 14
+        )
+
+        let muxX = (muxPill.isHidden ? modePill.frame.maxX : muxPill.frame.maxX) + 10
+        let muxAttrs: [NSAttributedString.Key: Any] = [.font: muxInfo.font ?? RebrandTokens.Typography.mono(11)]
+        let muxMeasuredW = muxInfo.stringValue.isEmpty ? 0 : ceil((muxInfo.stringValue as NSString).size(withAttributes: muxAttrs).width) + 4
+        let muxAvailableW = max(0, trailing.frame.minX - muxX - 12)
+        muxInfo.frame = NSRect(
+            x: muxX,
+            y: floor((bounds.height - 14) / 2),
+            width: min(muxMeasuredW, muxAvailableW),
             height: 14
         )
 

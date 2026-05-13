@@ -17,6 +17,9 @@ final class RebrandTitleBar: NSView {
     var workspaceName: String = "session" {
         didSet { rebuildTitle() }
     }
+    var shellName: String = "shell" {
+        didSet { rebuildTitle() }
+    }
     var workspaceTint: NSColor = RebrandTokens.Color.fg2 {
         didSet { rebuildTitle() }
     }
@@ -66,16 +69,18 @@ final class RebrandTitleBar: NSView {
         let titleW = ceil((titleString as NSString).size(withAttributes: titleAttrs).width)
         let pillSize = panePill.isHidden ? .zero : panePill.intrinsicContentSize
         let pillGap: CGFloat = panePill.isHidden ? 0 : 12
-        let groupW = titleW + pillGap + pillSize.width
-        var groupX = floor((bounds.width - groupW) / 2)
         let leftLimit = leadingTrafficLightInset + 6
+        let maxGroupW = max(80, bounds.width - leftLimit - 12)
+        let titleFrameW = min(titleW + 2, max(40, maxGroupW - pillGap - pillSize.width))
+        let groupW = titleFrameW + pillGap + pillSize.width
+        var groupX = floor((bounds.width - groupW) / 2)
         if groupX < leftLimit { groupX = leftLimit }
         if groupX + groupW > bounds.width - 12 { groupX = max(leftLimit, bounds.width - 12 - groupW) }
 
         titleLabel.frame = NSRect(
             x: groupX,
             y: floor((bounds.height - 19) / 2),
-            width: titleW + 2,
+            width: titleFrameW,
             height: 19
         )
         if !panePill.isHidden {
@@ -104,7 +109,7 @@ final class RebrandTitleBar: NSView {
         let primaryFont = RebrandTokens.Typography.mono(13.5, weight: .medium)
         let result = NSMutableAttributedString()
         result.append(NSAttributedString(
-            string: "zsh",
+            string: shellName.isEmpty ? "shell" : shellName,
             attributes: [.font: primaryFont, .foregroundColor: RebrandTokens.Color.fg2]
         ))
         result.append(NSAttributedString(

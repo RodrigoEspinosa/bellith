@@ -133,23 +133,19 @@ final class TerminalWindow: NSWindow {
     /// wraps the terminal container is always present — it provides the
     /// material that shows through Ghostty's alpha.
     private func applyProfileAppearance() {
-        if settings.useRebrandShell {
-            alphaValue = 1.0
-            isOpaque = true
-            backgroundColor = RebrandTokens.Color.windowBg
-            invalidateShadow()
-            return
-        }
-
         let opacity = min(max(settings.backgroundOpacity, 0.0), 1.0)
         let wantsTranslucent = opacity < 1.0
 
         alphaValue = 1.0
         isOpaque = !wantsTranslucent
-        backgroundColor = wantsTranslucent ? .clear : Theme.colors.frame
+        backgroundColor = wantsTranslucent
+            ? .clear
+            : (settings.useRebrandShell ? RebrandTokens.Color.windowBg : Theme.colors.frame)
 
         if let backdrop = contentView as? BackdropView {
             backdrop.apply(settings: settings, screen: screen)
+        } else if let shell = contentView as? RebrandShellView {
+            shell.applyMaterialSettings()
         }
 
         invalidateShadow()

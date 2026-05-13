@@ -13,6 +13,7 @@ final class SplitPaneView: NSView {
 
     // Leaf state
     private(set) var contentView: NSView?
+    private var isInsideSplit = false
 
     // Branch state
     private(set) var orientation: Orientation?
@@ -59,8 +60,10 @@ final class SplitPaneView: NSView {
         self.ratio = Metrics.defaultSplitRatio
 
         let firstChild = SplitPaneView(content: existing)
+        firstChild.isInsideSplit = true
         firstChild.onFocusChanged = onFocusChanged
         let secondChild = SplitPaneView(content: newContent)
+        secondChild.isInsideSplit = true
         secondChild.onFocusChanged = onFocusChanged
 
         self.first = firstChild
@@ -346,6 +349,8 @@ final class SplitPaneView: NSView {
         node.ratio = ratio
         node.first = first
         node.second = second
+        first.isInsideSplit = true
+        second.isInsideSplit = true
         first.onFocusChanged = onFocusChanged
         second.onFocusChanged = onFocusChanged
         node.addSubview(first)
@@ -367,14 +372,39 @@ final class SplitPaneView: NSView {
 
     // MARK: - Layout
 
-    private let dividerThickness: CGFloat = 8
+    private let dividerThickness: CGFloat = 6
     private let dividerHitArea: CGFloat = 14
+    private let leafGutter: CGFloat = 3
+
+    /// Give the divider an expanded hit zone at the parent level. AppKit's
+    /// default `hitTest` only descends into a subview if the click lands
+    /// inside its actual frame — so the divider's own `hitTest` expansion
+    /// (which only fires once we've already descended) was unreachable. The
+    /// 8px divider was hard to grab as a result. We now claim a `±5px` /
+    /// `±4px` band on either side of the divider's frame for the divider
+    /// before falling through to the default.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if !isLeaf, let divider, let orientation {
+            let local = convert(point, from: superview)
+            let dFrame = divider.frame
+            let expanded: NSRect
+            switch orientation {
+            case .vertical:
+                expanded = dFrame.insetBy(dx: -5, dy: 0)
+            case .horizontal:
+                expanded = dFrame.insetBy(dx: 0, dy: -4)
+            }
+            if expanded.contains(local) { return divider }
+        }
+        return super.hitTest(point)
+    }
 
     override func layout() {
         super.layout()
 
         if isLeaf {
-            contentView?.frame = bounds
+            let gutter = isInsideSplit ? leafGutter : 0
+            contentView?.frame = bounds.insetBy(dx: gutter, dy: gutter)
             return
         }
 
@@ -484,7 +514,7 @@ fileprivate final class SplitDividerView: NSView {
                 shadowOpacity = 0
                 shadowRadius = 0
             } else {
-                color = RebrandTokens.Color.windowBg
+                color = RebrandTokens.Color.lineSoft.withAlphaComponent(0.22)
                 borderColor = RebrandTokens.Color.lineSoft.withAlphaComponent(0.45).cgColor
                 borderWidth = 0
                 shadowColor = NSColor.clear.cgColor
@@ -611,6 +641,13 @@ fileprivate final class SplitDividerView: NSView {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
+        // `point` is in the *superview's* coordinate space (per Apple's docs),
+        // but `bounds` is in our local space. The original implementation
+        // compared the two directly, which only "worked" when the divider
+        // happened to sit at origin (0,0) — which it never does. Convert
+        // first, then do the inset expansion check.
+        guard let superview else { return nil }
+        let local = convert(point, from: superview)
         let inset = dividerHitInset
         let expanded: NSRect
         switch orientation {
@@ -619,8 +656,7 @@ fileprivate final class SplitDividerView: NSView {
         case .horizontal:
             expanded = bounds.insetBy(dx: 0, dy: -inset)
         }
-        if expanded.contains(point) { return self }
-        return nil
+        return expanded.contains(local) ? self : nil
     }
 
     func refreshTheme() {

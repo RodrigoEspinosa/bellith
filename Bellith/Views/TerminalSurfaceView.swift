@@ -71,11 +71,6 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
             return
         }
 
-        // Monitor for key-up events that don't reach the responder chain
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyUp]) { [weak self] event in
-            self?.localKeyUp(event) ?? event
-        }
-
         applyMinimapPreference()
         settingsObserver = NotificationCenter.default.addObserver(
             forName: BellithSettings.didChangeNotification, object: nil, queue: .main
@@ -146,8 +141,8 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     override func becomeFirstResponder() -> Bool {
         let becameFirstResponder = super.becomeFirstResponder()
         guard becameFirstResponder else { return false }
-        focused = true
-        if let surface { ghostty_surface_set_focus(surface, true) }
+        setTerminalFocused(true)
+        installKeyUpMonitorIfNeeded()
         onFocus?(self)
         return true
     }
@@ -155,9 +150,28 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     override func resignFirstResponder() -> Bool {
         let resignedFirstResponder = super.resignFirstResponder()
         guard resignedFirstResponder else { return false }
-        focused = false
-        if let surface { ghostty_surface_set_focus(surface, false) }
+        setTerminalFocused(false)
+        removeKeyUpMonitor()
         return true
+    }
+
+    func setTerminalFocused(_ isFocused: Bool) {
+        guard focused != isFocused else { return }
+        focused = isFocused
+        if let surface { ghostty_surface_set_focus(surface, isFocused) }
+    }
+
+    private func installKeyUpMonitorIfNeeded() {
+        guard eventMonitor == nil else { return }
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyUp]) { [weak self] event in
+            self?.localKeyUp(event) ?? event
+        }
+    }
+
+    private func removeKeyUpMonitor() {
+        guard let eventMonitor else { return }
+        NSEvent.removeMonitor(eventMonitor)
+        self.eventMonitor = nil
     }
 
     override func viewDidMoveToWindow() {
@@ -171,7 +185,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
 
     private func updateLayerOpacity() {
         let opacity = min(max(BellithSettings.shared.backgroundOpacity, 0.0), 1.0)
-        layer?.isOpaque = BellithSettings.shared.useRebrandShell || opacity >= 0.999
+        layer?.isOpaque = opacity >= 0.999
         layer?.backgroundColor = NSColor.clear.cgColor
     }
 

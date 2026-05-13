@@ -7,6 +7,7 @@ import AppKit
 final class RebrandShellView: NSView {
     let container: TerminalContainerView
     private let outerStroke = CALayer()
+    private let noiseLayer = CALayer()
     private let railDivider = CALayer()
     private let bodyTopShadow = CAGradientLayer()
     private let topHighlight = CAGradientLayer()
@@ -14,6 +15,31 @@ final class RebrandShellView: NSView {
     private let rail = RebrandWorkspaceRail()
     private let body = RebrandBodyView()
     private let statusBar = RebrandStatusBar()
+    private var settingsObserver: NSObjectProtocol?
+    private var themeObserver: NSObjectProtocol?
+
+    private static let noiseImage: CGImage? = {
+        let size = 192
+        let totalBytes = size * size
+        var pixels = [UInt8](repeating: 0, count: totalBytes)
+        for i in 0..<totalBytes {
+            pixels[i] = UInt8.random(in: 0...255)
+        }
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData) else { return nil }
+        return CGImage(
+            width: size,
+            height: size,
+            bitsPerComponent: 8,
+            bitsPerPixel: 8,
+            bytesPerRow: size,
+            space: CGColorSpaceCreateDeviceGray(),
+            bitmapInfo: CGBitmapInfo(rawValue: 0),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+        )
+    }()
 
     init(container: TerminalContainerView) {
         self.container = container
@@ -28,6 +54,11 @@ final class RebrandShellView: NSView {
         layer?.borderColor = RebrandTokens.Color.line.cgColor
         layer?.masksToBounds = true
         layer?.addSublayer(outerStroke)
+        if let noiseImage = Self.noiseImage {
+            let image = NSImage(cgImage: noiseImage, size: NSSize(width: noiseImage.width, height: noiseImage.height))
+            noiseLayer.backgroundColor = NSColor(patternImage: image).cgColor
+            layer?.addSublayer(noiseLayer)
+        }
         layer?.addSublayer(railDivider)
         layer?.addSublayer(bodyTopShadow)
         layer?.addSublayer(topHighlight)
@@ -48,6 +79,26 @@ final class RebrandShellView: NSView {
             container?.splitPane(direction: .horizontal)
         }
         applyMaterialSettings()
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: BellithSettings.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.applyMaterialSettings()
+            self?.applyTheme()
+            self?.refreshFromContainer()
+        }
+        themeObserver = NotificationCenter.default.addObserver(
+            forName: ThemeManager.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.applyMaterialSettings()
+                self?.applyTheme()
+                self?.needsLayout = true
+            }
+        }
 
         rail.onSelect = { [weak container] id in
             guard let container else { return }
@@ -57,6 +108,18 @@ final class RebrandShellView: NSView {
         }
         rail.onAdd = { [weak container] in
             container?.createTab()
+        }
+        rail.onToggleAppearanceMode = {
+            let settings = BellithSettings.shared
+            settings.appearanceMode = settings.resolvedIsDark ? .light : .dark
+        }
+        rail.onOpenAppearanceSettings = { [weak container] in
+            SettingsNavigation.open(
+                selecting: "appearance",
+                in: container,
+                settings: BellithSettings.shared,
+                preferencesWindowController: .shared
+            )
         }
 
         container.onEmbeddedStateChanged = { [weak self] in
@@ -73,6 +136,7 @@ final class RebrandShellView: NSView {
         let activeTitle = active?.title.trimmingCharacters(in: .whitespaces)
         let workspaceName = (activeTitle?.isEmpty == false) ? activeTitle! : "session"
         titleBar.workspaceName = workspaceName
+        titleBar.shellName = container.embeddedStatusSummary?.processDisplay ?? Self.fallbackShellName()
         titleBar.paneCount = active?.paneCount ?? 0
         titleBar.muxLabel = container.embeddedStatusSummary?.muxName
         titleBar.workspaceTint = (activeTitle?.isEmpty == false)
@@ -90,12 +154,42 @@ final class RebrandShellView: NSView {
         statusBar.configure(container.embeddedStatusSummary)
     }
 
+    private static func fallbackShellName() -> String {
+        let configuredShell = BellithSettings.shared.shell.trimmingCharacters(in: .whitespacesAndNewlines)
+        let shellPath = configuredShell.isEmpty
+            ? ProcessInfo.processInfo.environment["SHELL"]
+            : configuredShell.components(separatedBy: .whitespaces).first
+        let candidate = shellPath?.split(separator: "/").last.map(String.init) ?? "shell"
+        return candidate.isEmpty ? "shell" : candidate
+    }
+
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    private func applyMaterialSettings() {
-        layer?.backgroundColor = RebrandTokens.Color.windowBg.cgColor
+    deinit {
+        if let settingsObserver {
+            NotificationCenter.default.removeObserver(settingsObserver)
+        }
+        if let themeObserver {
+            NotificationCenter.default.removeObserver(themeObserver)
+        }
+    }
+
+    func applyMaterialSettings() {
+        let opacity = CGFloat(min(max(BellithSettings.shared.backgroundOpacity, 0.0), 1.0))
+        let noise = Float(min(max(BellithSettings.shared.noiseIntensity, 0.0), 1.0))
+        let chromeOpacity = max(opacity, Theme.colors.isLight ? 0.92 : 0.88)
+        layer?.backgroundColor = RebrandTokens.Color.windowBg.withAlphaComponent(chromeOpacity).cgColor
+        noiseLayer.opacity = noise * (Theme.colors.isLight ? 0.08 : 0.06)
         body.applyMaterialOpacity()
+    }
+
+    private func applyTheme() {
+        layer?.borderColor = RebrandTokens.Color.line.cgColor
+        railDivider.backgroundColor = RebrandTokens.Color.lineSoft.cgColor
+        titleBar.applyTheme()
+        rail.applyTheme()
+        statusBar.applyTheme()
     }
 
     // MARK: Layout
@@ -119,6 +213,7 @@ final class RebrandShellView: NSView {
         outerStroke.borderWidth = 1
         outerStroke.borderColor = NSColor.white.withAlphaComponent(0.045).cgColor
         outerStroke.backgroundColor = NSColor.clear.cgColor
+        noiseLayer.frame = bounds
 
         railDivider.frame = NSRect(x: L.railWidth - 1, y: 0, width: 1, height: h - L.titleBarHeight)
         railDivider.backgroundColor = RebrandTokens.Color.lineSoft.cgColor
@@ -170,20 +265,24 @@ final class RebrandBodyView: NSView {
     }
 
     func applyMaterialOpacity() {
-        layer?.backgroundColor = RebrandTokens.Color.windowBg.cgColor
+        let opacity = CGFloat(min(max(BellithSettings.shared.backgroundOpacity, 0.0), 1.0))
+        layer?.backgroundColor = RebrandTokens.Color.windowBg
+            .withAlphaComponent(max(opacity, Theme.colors.isLight ? 0.90 : 0.84))
+            .cgColor
     }
 
     override func layout() {
         super.layout()
-        let pad: CGFloat = RebrandTokens.Layout.bodyPaddingHorizontal
-        let topPad: CGFloat = RebrandTokens.Layout.bodyPaddingTop
+        let pad: CGFloat = 8
+        let topPad: CGFloat = 8
+        let bottomPad: CGFloat = 8
         hostedContainer?.frame = NSRect(
             x: pad,
-            y: 0,
+            y: bottomPad,
             width: max(0, bounds.width - pad * 2),
-            height: max(0, bounds.height - topPad)
+            height: max(0, bounds.height - topPad - bottomPad)
         )
-        paneDock.frame = NSRect(x: pad + 18, y: 18, width: 132, height: 44)
+        paneDock.frame = NSRect(x: pad + 12, y: bottomPad + 12, width: 76, height: 44)
     }
 }
 
@@ -191,8 +290,6 @@ private final class RebrandPaneDock: NSView {
     private let backgroundLayer = CALayer()
     private let splitRight = RebrandPaneDockButton(symbolName: "rectangle.split.2x1", fallback: "▮▮")
     private let splitDown = RebrandPaneDockButton(symbolName: "rectangle.split.1x2", fallback: "▰")
-    private let pulse = RebrandPaneDockButton(symbolName: "waveform.path.ecg", fallback: "~")
-    private let branch = RebrandPaneDockButton(symbolName: "point.3.connected.trianglepath.dotted", fallback: "◎")
 
     var onSplitRight: (() -> Void)?
     var onSplitDown: (() -> Void)?
@@ -204,14 +301,12 @@ private final class RebrandPaneDock: NSView {
 
         splitRight.toolTip = "Split Right  ⌘D"
         splitDown.toolTip = "Split Down  ⇧⌘D"
+        splitRight.setAccessibilityLabel("Split Right")
+        splitDown.setAccessibilityLabel("Split Down")
         splitRight.onClick = { [weak self] in self?.onSplitRight?() }
         splitDown.onClick = { [weak self] in self?.onSplitDown?() }
-        pulse.isEnabled = false
-        branch.isEnabled = false
         addSubview(splitRight)
         addSubview(splitDown)
-        addSubview(pulse)
-        addSubview(branch)
         applyTheme()
     }
 
@@ -225,8 +320,6 @@ private final class RebrandPaneDock: NSView {
         let y = floor((bounds.height - buttonSize) / 2)
         splitRight.frame = NSRect(x: 8, y: y, width: buttonSize, height: buttonSize)
         splitDown.frame = NSRect(x: 40, y: y, width: buttonSize, height: buttonSize)
-        pulse.frame = NSRect(x: 72, y: y, width: buttonSize, height: buttonSize)
-        branch.frame = NSRect(x: 104, y: y, width: buttonSize, height: buttonSize)
     }
 
     private func applyTheme() {
@@ -237,8 +330,6 @@ private final class RebrandPaneDock: NSView {
         backgroundLayer.borderColor = RebrandTokens.Color.line.cgColor
         splitRight.applyTheme()
         splitDown.applyTheme()
-        pulse.applyTheme()
-        branch.applyTheme()
     }
 }
 
@@ -254,6 +345,7 @@ private final class RebrandPaneDockButton: NSView {
     init(symbolName: String, fallback: String) {
         super.init(frame: .zero)
         wantsLayer = true
+        setAccessibilityRole(.button)
         layer?.addSublayer(backgroundLayer)
 
         if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil) {

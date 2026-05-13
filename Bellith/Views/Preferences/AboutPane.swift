@@ -17,9 +17,9 @@ final class AboutPane: NSView {
     private let githubBtn = LinkButton(title: "GitHub Repository")
     private let docsBtn = LinkButton(title: "Documentation")
 
-    private let dataCard = SettingsCard(title: "Local Data", subtitle: "Custom themes live in Application Support")
+    private let dataCard = SettingsCard(title: "Local Data", subtitle: "Settings live in Application Support")
     private let dataIcon = NSImageView()
-    private let themeFolderBtn = LinkButton(title: "Open Custom Themes Folder")
+    private let themeFolderBtn = LinkButton(title: "Open Settings Folder")
     private let themeFolderPathLabel = AboutPane.makePathLabel()
     private let dataFootnote = AboutPane.makeCaptionLabel()
 
@@ -155,13 +155,13 @@ final class AboutPane: NSView {
         dataCard.addSubview(dataIcon)
 
         themeFolderBtn.onClick = {
-            if let dir = CustomThemeLoader.shared.themesDirectory {
+            if let dir = TerminalConfig.settingsConfigurationDirectory() {
                 try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                 NSWorkspace.shared.open(dir)
             }
         }
 
-        dataFootnote.stringValue = "Bellith reads custom JSON themes from this folder."
+        dataFootnote.stringValue = "Bellith stores generated terminal appearance files alongside settings."
 
         [themeFolderBtn, themeFolderPathLabel, dataFootnote].forEach {
             dataCard.addSubview($0)
@@ -171,7 +171,7 @@ final class AboutPane: NSView {
     }
 
     private func updateThemeFolderPath() {
-        let path = CustomThemeLoader.shared.themesDirectory?.path ?? "Unavailable"
+        let path = TerminalConfig.settingsConfigurationDirectory()?.path ?? "Unavailable"
         themeFolderPathLabel.stringValue = path
         themeFolderPathLabel.toolTip = path
     }

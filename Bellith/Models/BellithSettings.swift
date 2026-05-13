@@ -50,7 +50,7 @@ final class BellithSettings {
     static let defaultTerminalTerm = "xterm-ghostty"
     enum PersistedKeys {
         static let stringKeys: Set<String> = [
-            "fontFamily", "cursorStyle", "darkThemeName", "lightThemeName", "tabMode",
+            "fontFamily", "cursorStyle", "appearanceAccentColor", "appearancePaletteID", "darkThemeName", "lightThemeName", "tabMode",
             "shell", "terminalTerm", "visorPosition", "workingDirectory",
             "bellMode", "shortcutPreset", "localSessionBootstrap",
             "terminalOptionKeyBehavior", "appearanceMode",
@@ -148,11 +148,11 @@ final class BellithSettings {
     var backgroundOpacity: Double {
         get {
             if defaults.object(forKey: "backgroundOpacity") != nil {
-                return defaults.double(forKey: "backgroundOpacity")
+                return min(1.0, max(0.45, defaults.double(forKey: "backgroundOpacity")))
             }
             return 1.0
         }
-        set { defaults.set(newValue, forKey: "backgroundOpacity"); notify() }
+        set { defaults.set(min(1.0, max(0.45, newValue)), forKey: "backgroundOpacity"); notify() }
     }
 
     /// When true, a muted accent derived from the desktop wallpaper is overlaid
@@ -168,14 +168,71 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "cursorStyle"); notify() }
     }
 
+    var appearancePaletteID: String {
+        get {
+            if let id = defaults.string(forKey: "appearancePaletteID") {
+                return AppearancePalette.palette(for: id).id
+            }
+            if let legacyName = defaults.string(forKey: "darkThemeName") ?? defaults.string(forKey: "themeName"),
+               let migrated = Self.paletteID(forLegacyThemeName: legacyName) {
+                return migrated
+            }
+            return AppearancePalette.aurora.id
+        }
+        set {
+            let palette = AppearancePalette.palette(for: newValue)
+            defaults.set(palette.id, forKey: "appearancePaletteID")
+            defaults.set(palette.accent.bellithHexRGB, forKey: "appearanceAccentColor")
+            notify()
+        }
+    }
+
+    var appearanceAccentColorHex: String {
+        get {
+            if let color = defaults.string(forKey: "appearanceAccentColor"),
+               NSColor.bellithColor(fromHex: color) != nil {
+                return color.uppercased()
+            }
+            return AppearancePalette.palette(for: appearancePaletteID).accent.bellithHexRGB
+        }
+        set {
+            guard let color = NSColor.bellithColor(fromHex: newValue) else { return }
+            defaults.set(color.bellithHexRGB, forKey: "appearanceAccentColor")
+            notify()
+        }
+    }
+
+    var appearanceAccentColor: NSColor {
+        get {
+            NSColor.bellithColor(fromHex: appearanceAccentColorHex) ?? AppearancePalette.aurora.accent
+        }
+        set {
+            let resolved = newValue.usingColorSpace(.sRGB) ?? newValue
+            defaults.set(resolved.bellithHexRGB, forKey: "appearanceAccentColor")
+            notify()
+        }
+    }
+
     var darkThemeName: String {
-        get { defaults.string(forKey: "darkThemeName") ?? defaults.string(forKey: "themeName") ?? "Tokyo Night" }
-        set { defaults.set(newValue, forKey: "darkThemeName"); notify() }
+        get { resolvedIsDark ? resolvedTheme.name : ThemeColors.appearance(accent: appearanceAccentColor, isDark: true).name }
+        set {
+            if let id = Self.paletteID(forLegacyThemeName: newValue) {
+                let palette = AppearancePalette.palette(for: id)
+                defaults.set(palette.id, forKey: "appearancePaletteID")
+                appearanceAccentColor = palette.accent
+            }
+        }
     }
 
     var lightThemeName: String {
-        get { defaults.string(forKey: "lightThemeName") ?? "Tokyo Night Light" }
-        set { defaults.set(newValue, forKey: "lightThemeName"); notify() }
+        get { ThemeColors.appearance(accent: appearanceAccentColor, isDark: false).name }
+        set {
+            if let id = Self.paletteID(forLegacyThemeName: newValue) {
+                let palette = AppearancePalette.palette(for: id)
+                defaults.set(palette.id, forKey: "appearancePaletteID")
+                appearanceAccentColor = palette.accent
+            }
+        }
     }
 
     var tabMode: String {
@@ -697,12 +754,28 @@ final class BellithSettings {
         if NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast {
             return resolvedIsDark ? .highContrastDark : .highContrastLight
         }
-        let name = resolvedIsDark ? darkThemeName : lightThemeName
-        var theme = ThemeColors.allThemes.first { $0.name == name } ?? .tokyonight
-        if resolvedIsDark && !theme.isLight && oledChromeForDarkThemes {
-            theme.darkChromeStyle = .oled
+        return ThemeColors.appearance(
+            accent: appearanceAccentColor,
+            name: appearanceAccentThemeName,
+            id: appearanceAccentThemeID,
+            isDark: resolvedIsDark
+        )
+    }
+
+    private var appearanceAccentThemeName: String {
+        let color = appearanceAccentColor
+        if let palette = AppearancePalette.all.first(where: { $0.accent.isEqual(color) }) {
+            return palette.name
         }
-        return theme
+        return "Custom"
+    }
+
+    private var appearanceAccentThemeID: String {
+        let color = appearanceAccentColor
+        if let palette = AppearancePalette.all.first(where: { $0.accent.isEqual(color) }) {
+            return palette.id
+        }
+        return "custom-\(appearanceAccentColorHex.trimmingCharacters(in: CharacterSet(charactersIn: "#")))"
     }
 
     var shellIntegrationMode: String {
@@ -732,9 +805,52 @@ final class BellithSettings {
             .appendingPathComponent("settings.json", isDirectory: false)
     }
 
+    private static func paletteID(forLegacyThemeName name: String) -> String? {
+        switch name {
+        case "Midnight OLED", "Nord", "Solarized Dark", "Solarized Light":
+            return AppearancePalette.steel.id
+        case "Gruvbox Dark":
+            return AppearancePalette.ember.id
+        case "Rosé Pine", "Dracula", "Catppuccin Mocha", "Catppuccin Latte":
+            return AppearancePalette.iris.id
+        case "Kanagawa Wave":
+            return AppearancePalette.moss.id
+        case "One Light":
+            return AppearancePalette.mono.id
+        case "Tokyo Night", "Tokyo Night Light":
+            return AppearancePalette.aurora.id
+        default:
+            return AppearancePalette.all.first { $0.name == name || $0.id == name }?.id
+        }
+    }
+
     var storedFeatureFlags: [String: Bool] {
         guard let object = defaults.dictionary(forKey: PersistedKeys.featureFlags) else { return [:] }
         return Self.featureFlags(from: object)
     }
 
+}
+
+private extension NSColor {
+    static func bellithColor(fromHex hex: String) -> NSColor? {
+        var value = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.hasPrefix("#") { value.removeFirst() }
+        guard value.count == 6, let intValue = UInt64(value, radix: 16) else { return nil }
+        return NSColor(
+            srgbRed: CGFloat((intValue >> 16) & 0xFF) / 255,
+            green: CGFloat((intValue >> 8) & 0xFF) / 255,
+            blue: CGFloat(intValue & 0xFF) / 255,
+            alpha: 1
+        )
+    }
+
+    var bellithHexRGB: String {
+        let resolved = usingColorSpace(.sRGB) ?? self
+        return String(
+            format: "#%02X%02X%02X",
+            Int((resolved.redComponent * 255).rounded()),
+            Int((resolved.greenComponent * 255).rounded()),
+            Int((resolved.blueComponent * 255).rounded())
+        )
+    }
 }

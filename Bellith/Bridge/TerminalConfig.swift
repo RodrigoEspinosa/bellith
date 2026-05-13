@@ -252,7 +252,6 @@ final class TerminalConfig {
     /// `background-blur-radius`. 0 disables the native blur; 1 pins it to a
     /// heavy frost.
     private static func backgroundBlurRadius(for settings: BellithSettings) -> Int {
-        if settings.useRebrandShell { return 0 }
         let opacity = min(max(settings.backgroundOpacity, 0.0), 1.0)
         let intensity = 1.0 - opacity
         guard intensity > 0 else { return 0 }
@@ -260,7 +259,7 @@ final class TerminalConfig {
     }
 
     private static func backgroundOpacity(for settings: BellithSettings) -> Double {
-        settings.useRebrandShell ? 1.0 : settings.backgroundOpacity
+        settings.backgroundOpacity
     }
 
     private static func rebrandColorOverrides(for settings: BellithSettings) -> [String] {

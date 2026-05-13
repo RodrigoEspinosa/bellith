@@ -8,7 +8,7 @@ import os
 /// smart inspector tabs, a sidebar or tab bar, and the command palette.
 final class TerminalContainerView: NSView, TerminalOverlayControllerHost, TerminalSessionCoordinatorHost {
     private enum Metrics {
-        static let runtimeRefreshInterval: TimeInterval = 1.0
+        static let runtimeRefreshInterval: TimeInterval = 2.0
         static let minimumFontSize: Int = 8
         static let maximumFontSize: Int = 36
     }
@@ -75,6 +75,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private var observationCancellables = Set<AnyCancellable>()
     private var windowObservationCancellables = Set<AnyCancellable>()
     private var eventMonitorTokens: [Any] = []
+    private var isRefreshingRuntimeStatus = false
 
     private let chromeLayers = TerminalChromeLayers()
 
@@ -492,6 +493,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         let hasSplits = entry.surfaces.count > 1
 
         for surface in entry.surfaces {
+            surface.setTerminalFocused(surface === activeSurface && window?.firstResponder === surface)
             if let root = entry.splitRoot, let leaf = root.leaf(containing: surface) {
                 let state: PaneDecorationState
                 if !hasSplits {
@@ -1186,8 +1188,10 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     private func refreshActiveRuntimeStatusAsync() {
         guard selectedTabIndex < tabs.count,
-              let surface = activeSurface else { return }
+              let surface = activeSurface,
+              !isRefreshingRuntimeStatus else { return }
 
+        isRefreshingRuntimeStatus = true
         let tabID = tabs[selectedTabIndex].id
         let pid = findShellPID()
 
@@ -1195,10 +1199,14 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             let runtimeStatus = TerminalRuntimeInfoService.runtimeStatus(for: pid)
 
             DispatchQueue.main.async {
-                guard let self, let surface else { return }
+                guard let self else { return }
+                defer { self.isRefreshingRuntimeStatus = false }
+                guard let surface else { return }
                 guard self.selectedTabIndex < self.tabs.count,
                       self.tabs[self.selectedTabIndex].id == tabID,
                       self.activeSurface === surface else { return }
+                guard surface.detectedContext != runtimeStatus.detectedContext ||
+                        surface.lastForegroundPresentation != runtimeStatus.foregroundProcess else { return }
 
                 surface.detectedContext = runtimeStatus.detectedContext
                 surface.lastForegroundPresentation = runtimeStatus.foregroundProcess
@@ -2242,15 +2250,10 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             return
         }
 
-        let normalizedThemeName = cmd.lowercased()
-        if let theme = ThemeColors.allThemes.first(where: { $0.name.lowercased() == normalizedThemeName }) {
-            if theme.isLight {
-                dependencies.settings.lightThemeName = theme.name
-            } else {
-                dependencies.settings.darkThemeName = theme.name
-            }
-            let resolved = dependencies.settings.resolvedTheme
-            dependencies.themeManager.apply(resolved)
+        let normalizedPaletteName = cmd.lowercased()
+        if let palette = AppearancePalette.all.first(where: { $0.name.lowercased() == normalizedPaletteName || $0.id == normalizedPaletteName }) {
+            dependencies.settings.appearancePaletteID = palette.id
+            dependencies.themeManager.apply(dependencies.settings.resolvedTheme)
         } else {
             Logger.ui.warning("Unknown command: \(text)")
         }
@@ -2751,4 +2754,3 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
 }
-
