@@ -2,40 +2,42 @@ import XCTest
 @testable import Bellith
 
 final class ThemeTests: XCTestCase {
-    func testAllBuiltInThemesExist() {
-        let themes = ThemeColors.allThemes
-        XCTAssertGreaterThanOrEqual(themes.count, 6, "Expected at least 6 built-in themes")
+    func testAccentPalettesExist() {
+        let palettes = AppearancePalette.all
+        XCTAssertGreaterThanOrEqual(palettes.count, 6, "Expected accent palette choices")
     }
 
-    func testBuiltInThemeNames() {
-        let names = Set(ThemeColors.allThemes.map(\.name))
-        XCTAssertTrue(names.contains("Tokyo Night"))
-        XCTAssertTrue(names.contains("Midnight OLED"))
-        XCTAssertTrue(names.contains("Catppuccin Mocha"))
-        XCTAssertTrue(names.contains("Gruvbox Dark"))
-        XCTAssertTrue(names.contains("Nord"))
+    func testAccentPaletteNames() {
+        let names = Set(AppearancePalette.all.map(\.name))
+        XCTAssertTrue(names.contains("Aurora"))
+        XCTAssertTrue(names.contains("Ember"))
+        XCTAssertTrue(names.contains("Iris"))
+        XCTAssertTrue(names.contains("Moss"))
+        XCTAssertTrue(names.contains("Steel"))
     }
 
-    func testThemeHasGhosttyThemeName() {
-        for theme in ThemeColors.allThemes {
-            XCTAssertFalse(theme.ghosttyTheme.isEmpty, "Theme '\(theme.name)' has empty ghosttyTheme")
+    func testDerivedAppearanceHasGhosttyThemeDefinition() {
+        for palette in AppearancePalette.all {
+            let theme = ThemeColors.appearance(palette: palette, isDark: true)
+            XCTAssertFalse(theme.ghosttyTheme.isEmpty, "Appearance '\(theme.name)' has empty Ghostty theme")
+            XCTAssertNotNil(theme.ghosttyThemeDefinition, "Appearance '\(theme.name)' should generate a Ghostty theme")
         }
     }
 
     func testAccentSubtleHasLowAlpha() {
-        for theme in ThemeColors.allThemes {
-            // accentSubtle should have low alpha (0.08)
+        for palette in AppearancePalette.all {
+            let theme = ThemeColors.appearance(palette: palette, isDark: true)
             let subtle = theme.accentSubtle
-            XCTAssertNotNil(subtle, "Theme '\(theme.name)' accentSubtle should not be nil")
+            XCTAssertNotNil(subtle, "Appearance '\(theme.name)' accentSubtle should not be nil")
         }
     }
 
     func testThemeManagerApply() {
         let originalTheme = ThemeManager.shared.current
-        let nord = ThemeColors.allThemes.first { $0.name == "Nord" }!
+        let steel = ThemeColors.appearance(palette: .steel, isDark: true)
 
-        ThemeManager.shared.apply(nord)
-        XCTAssertEqual(ThemeManager.shared.current.name, "Nord")
+        ThemeManager.shared.apply(steel)
+        XCTAssertEqual(ThemeManager.shared.current.name, "Steel Dark")
 
         // Restore
         ThemeManager.shared.apply(originalTheme)
@@ -46,14 +48,14 @@ final class ThemeTests: XCTestCase {
             name: ThemeManager.didChangeNotification
         )
 
-        let gruvbox = ThemeColors.allThemes.first { $0.name == "Gruvbox Dark" }!
-        ThemeManager.shared.apply(gruvbox)
+        let ember = ThemeColors.appearance(palette: .ember, isDark: true)
+        ThemeManager.shared.apply(ember)
 
         wait(for: [expectation], timeout: 1.0)
     }
 
-    func testMidnightOLEDUsesOLEDChrome() throws {
-        let theme = try XCTUnwrap(ThemeColors.allThemes.first { $0.name == "Midnight OLED" })
+    func testDerivedDarkAppearanceUsesOLEDChrome() {
+        let theme = ThemeColors.appearance(palette: .aurora, isDark: true)
 
         XCTAssertTrue(theme.usesOLEDChrome)
         XCTAssertNotNil(theme.ghosttyThemeDefinition)

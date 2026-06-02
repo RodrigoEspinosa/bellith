@@ -33,6 +33,7 @@ final class TerminalWindow: NSWindow {
     private let settings: BellithSettings
     private var settingsObserver: NSObjectProtocol?
     private var wallpaperObserver: NSObjectProtocol?
+    var onKeyDownIntercept: ((NSEvent) -> Bool)?
 
     override init(
         contentRect: NSRect,
@@ -138,10 +139,14 @@ final class TerminalWindow: NSWindow {
 
         alphaValue = 1.0
         isOpaque = !wantsTranslucent
-        backgroundColor = wantsTranslucent ? .clear : Theme.colors.frame
+        backgroundColor = wantsTranslucent
+            ? .clear
+            : (settings.useRebrandShell ? RebrandTokens.Color.windowBg : Theme.colors.frame)
 
         if let backdrop = contentView as? BackdropView {
             backdrop.apply(settings: settings, screen: screen)
+        } else if let shell = contentView as? RebrandShellView {
+            shell.applyMaterialSettings()
         }
 
         invalidateShadow()
@@ -245,6 +250,15 @@ final class TerminalWindow: NSWindow {
         positionTrafficLights()
         setupTrafficLightTracking()
         applyProfileAppearance()
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown,
+           onKeyDownIntercept?(event) == true {
+            return
+        }
+
+        super.sendEvent(event)
     }
 
     private var lastTrackingHeight: CGFloat = 0

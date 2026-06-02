@@ -6,6 +6,8 @@ import GhosttyKit
 final class TerminalApp {
     private(set) var app: ghostty_app_t?
     private var tickTimer: Timer?
+    private let pendingTickLock = NSLock()
+    private var hasPendingWakeupTick = false
 
     /// Callback fired when libghostty requests an action (new tab, title change, etc.)
     var onAction: ((ghostty_target_s, ghostty_action_s) -> Bool)?
@@ -19,7 +21,7 @@ final class TerminalApp {
             wakeup_cb: { ud in
                 guard let ud else { return }
                 let app = Unmanaged<TerminalApp>.fromOpaque(ud).takeUnretainedValue()
-                DispatchQueue.main.async { app.tick() }
+                app.requestTick()
             },
             action_cb: { appPtr, target, action in
                 guard let appPtr, let ud = ghostty_app_userdata(appPtr) else { return false }
@@ -82,6 +84,24 @@ final class TerminalApp {
     deinit {
         tickTimer?.invalidate()
         if let app { ghostty_app_free(app) }
+    }
+
+    private func requestTick() {
+        pendingTickLock.lock()
+        guard !hasPendingWakeupTick else {
+            pendingTickLock.unlock()
+            return
+        }
+        hasPendingWakeupTick = true
+        pendingTickLock.unlock()
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.pendingTickLock.lock()
+            self.hasPendingWakeupTick = false
+            self.pendingTickLock.unlock()
+            self.tick()
+        }
     }
 
     func tick() {

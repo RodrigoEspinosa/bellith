@@ -7,8 +7,7 @@ final class CommandPaletteView: NSView {
     private let inputField = NSTextField()
     private let iconView = NSImageView()
     private let separatorLine = NSView()
-    private let escHint = NSTextField(labelWithString: "[ESC]")
-    private let escHintPill = NSView()
+    private let escKbd = KbdView(text: "esc")
     private var borderLayer: CALayer?
 
     // Results list
@@ -18,6 +17,14 @@ final class CommandPaletteView: NSView {
     private var isShowingResults = false
     private let commandRegistry: CommandRegistry
     private let settings: BellithSettings
+
+    // PR Popover v2 footer keymap row.
+    private let footerContainer = NSView()
+    private let footerLineLayer = CALayer()
+    private let footerNavHint = KbdHintView(key: "↑↓", hint: "navigate")
+    private let footerRunHint = KbdHintView(key: "⏎", hint: "run")
+    private let footerEscHint = KbdHintView(key: "esc", hint: "close")
+    private let footerHeight: CGFloat = 28
 
     var onSubmit: ((String) -> Void)?
     var onDismiss: (() -> Void)?
@@ -67,10 +74,12 @@ final class CommandPaletteView: NSView {
             ]
         )
         separatorLine.layer?.backgroundColor = Theme.chromeHairline.cgColor
-        escHintPill.layer?.backgroundColor = Theme.surface.cgColor
-        escHint.textColor = Theme.textSecondary
-        escHint.font = BellithFont.mono(10, weight: .regular)
+        escKbd.refreshTheme()
         backdrop.appearance = Theme.overlayAppearance
+        footerLineLayer.backgroundColor = Theme.chromeHairline.cgColor
+        footerNavHint.refreshTheme()
+        footerRunHint.refreshTheme()
+        footerEscHint.refreshTheme()
         resultRows.forEach { $0.refreshTheme() }
     }
 
@@ -134,25 +143,22 @@ final class CommandPaletteView: NSView {
         separatorLine.layer?.backgroundColor = Theme.chromeHairline.cgColor
         addSubview(separatorLine)
 
-        // Esc hint keycap badge
-        escHintPill.wantsLayer = true
-        escHintPill.layer?.backgroundColor = Theme.surface.cgColor
-        escHintPill.layer?.cornerRadius = 4
-        addSubview(escHintPill)
-
-        escHint.font = BellithFont.mono(10, weight: .regular)
-        escHint.textColor = Theme.textSecondary
-        escHint.isBezeled = false
-        escHint.drawsBackground = false
-        escHint.isEditable = false
-        escHint.isSelectable = false
-        escHint.sizeToFit()
-        addSubview(escHint)
+        // Esc kbd chip — shared component, consistent with footer/cheat sheet/search.
+        addSubview(escKbd)
 
         // Results container
         resultsContainer.wantsLayer = true
         resultsContainer.alphaValue = 0
         addSubview(resultsContainer)
+
+        // PR Popover v2 footer keymap (only visible when results are showing).
+        footerContainer.wantsLayer = true
+        footerContainer.alphaValue = 0
+        footerContainer.layer?.addSublayer(footerLineLayer)
+        footerContainer.addSubview(footerNavHint)
+        footerContainer.addSubview(footerRunHint)
+        footerContainer.addSubview(footerEscHint)
+        addSubview(footerContainer)
     }
 
     private let inputHeight: CGFloat = 44
@@ -167,21 +173,17 @@ final class CommandPaletteView: NSView {
         let iconX: CGFloat = 14
         iconView.frame = NSRect(x: iconX, y: bounds.height - inputHeight + (inputHeight - 18) / 2, width: 18, height: 18)
 
-        // Esc hint badge — positioned at right edge of input bar
-        let hintPadH: CGFloat = 6
-        let hintPadV: CGFloat = 2
-        let hintW = escHint.intrinsicContentSize.width + hintPadH * 2
-        let hintH = escHint.intrinsicContentSize.height + hintPadV * 2
-        let hintX = bounds.width - hintW - 14
-        let hintY = bounds.height - inputHeight + (inputHeight - hintH) / 2
-        escHintPill.frame = NSRect(x: hintX, y: hintY, width: hintW, height: hintH)
-        escHint.frame = NSRect(x: hintX + hintPadH, y: hintY + hintPadV, width: escHint.intrinsicContentSize.width, height: escHint.intrinsicContentSize.height)
+        // Esc kbd chip — positioned at right edge of input bar
+        let escSize = escKbd.intrinsicContentSize
+        let escX = bounds.width - escSize.width - 14
+        let escY = bounds.height - inputHeight + (inputHeight - escSize.height) / 2
+        escKbd.frame = NSRect(x: escX, y: escY, width: escSize.width, height: escSize.height)
 
         let inputX = iconX + 26
         inputField.frame = NSRect(
             x: inputX,
             y: bounds.height - inputHeight + (inputHeight - 22) / 2,
-            width: hintX - inputX - 8,
+            width: escX - inputX - 8,
             height: 22
         )
 
@@ -189,16 +191,30 @@ final class CommandPaletteView: NSView {
         let separatorY = bounds.height - inputHeight
         separatorLine.frame = NSRect(x: 14, y: separatorY, width: bounds.width - 28, height: 0.5)
 
-        // Results below the input area
-        let resultsH = bounds.height - inputHeight
-        resultsContainer.frame = NSRect(x: 0, y: 0, width: bounds.width, height: resultsH)
+        // Footer keymap (when results visible, occupies bottom 28pt).
+        let footerVisible = isShowingResults
+        let footerSpace = footerVisible ? footerHeight : 0
+        let resultsH = max(0, bounds.height - inputHeight - footerSpace)
+        resultsContainer.frame = NSRect(x: 0, y: footerSpace, width: bounds.width, height: resultsH)
 
-        // Layout result rows from top
+        // Layout result rows from top of resultsContainer
         var y = resultsH
         for row in resultRows {
             y -= rowHeight
             row.frame = NSRect(x: 8, y: y, width: bounds.width - 16, height: rowHeight)
         }
+
+        // Footer keymap layout
+        footerContainer.frame = NSRect(x: 0, y: 0, width: bounds.width, height: footerSpace)
+        footerLineLayer.frame = NSRect(x: 12, y: footerSpace - 0.5, width: bounds.width - 24, height: 0.5)
+
+        let navW = ceil(footerNavHint.intrinsicContentSize.width)
+        let runW = ceil(footerRunHint.intrinsicContentSize.width)
+        let escW = ceil(footerEscHint.intrinsicContentSize.width)
+        let footY = max(0, (footerSpace - 16) / 2)
+        footerNavHint.frame = NSRect(x: 14, y: footY, width: navW, height: 16)
+        footerRunHint.frame = NSRect(x: 14 + navW + 14, y: footY, width: runW, height: 16)
+        footerEscHint.frame = NSRect(x: bounds.width - escW - 14, y: footY, width: escW, height: 16)
     }
 
     // MARK: - Results
@@ -289,9 +305,11 @@ final class CommandPaletteView: NSView {
             }
         }
 
-        // Animate height change
-        let targetH = inputHeight + CGFloat(resultRows.count) * rowHeight + (resultRows.isEmpty ? 0 : 8)
+        // Animate height change. Footer joins the panel only when there are
+        // results to navigate — empty input shows just the prompt.
         let showResults = !resultRows.isEmpty
+        let footerSpace: CGFloat = showResults ? footerHeight : 0
+        let targetH = inputHeight + CGFloat(resultRows.count) * rowHeight + (resultRows.isEmpty ? 0 : 8) + footerSpace
 
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = Theme.animFast
@@ -304,6 +322,7 @@ final class CommandPaletteView: NSView {
             f.size.height = targetH
             self.animator().frame = f
             self.resultsContainer.animator().alphaValue = showResults ? 1 : 0
+            self.footerContainer.animator().alphaValue = showResults ? 1 : 0
         }
 
         isShowingResults = showResults

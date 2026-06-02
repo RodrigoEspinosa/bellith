@@ -206,7 +206,7 @@ final class PrefSidebar: NSView {
     private var bottomViews: [PrefSidebarItem] = []
     private let logoView = NSImageView()
     private let overlineLabel = NSTextField(labelWithString: "BELLITH")
-    private let titleLabel = NSTextField(labelWithString: "Preferences")
+    private let titleLabel = NSTextField(labelWithString: "Settings")
     private let versionLabel = NSTextField(labelWithString: "")
     private let separatorLine = NSView()
 
@@ -222,7 +222,7 @@ final class PrefSidebar: NSView {
         overlineLabel.textColor = Theme.textSecondary
         addSubview(overlineLabel)
 
-        titleLabel.font = BellithFont.ui(15, weight: .medium)
+        titleLabel.font = BellithFont.ui(16, weight: .semibold)
         titleLabel.textColor = Theme.textDisplay
         addSubview(titleLabel)
 
@@ -278,8 +278,8 @@ final class PrefSidebar: NSView {
     override func layout() {
         super.layout()
         let padding: CGFloat = 14
-        let itemH: CGFloat = 36
-        let itemGap: CGFloat = 6
+        let itemH: CGFloat = 34
+        let itemGap: CGFloat = 5
         let logoSize: CGFloat = 24
         let topSafeArea = max(safeAreaInsets.top, 28)
         let headerHeight: CGFloat = 56
@@ -287,11 +287,11 @@ final class PrefSidebar: NSView {
         let headerBottom = bounds.height - headerTopInset - headerHeight
         let headerIconX = padding + 14
         let headerTextX = padding + 38
-        let headerTextWidth = bounds.width - headerTextX - padding
+        let headerTextWidth = bounds.width - headerTextX - padding - 8
 
         logoView.frame = NSRect(x: headerIconX, y: headerBottom + 16, width: logoSize, height: logoSize)
         overlineLabel.frame = NSRect(x: headerTextX, y: headerBottom + 40, width: headerTextWidth, height: 14)
-        titleLabel.frame = NSRect(x: headerTextX, y: headerBottom + 18, width: headerTextWidth, height: 20)
+        titleLabel.frame = NSRect(x: headerTextX, y: headerBottom + 17, width: headerTextWidth, height: 21)
         versionLabel.frame = NSRect(x: headerTextX, y: headerBottom, width: headerTextWidth, height: 12)
 
         var y = headerBottom - 22
@@ -331,7 +331,7 @@ final class PrefSidebarItem: NSView {
         self.label = NSTextField(labelWithString: text.uppercased())
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = 10
+        layer?.cornerRadius = 8
 
         setAccessibilityRole(.button)
         setAccessibilityLabel(text)
@@ -341,7 +341,7 @@ final class PrefSidebarItem: NSView {
         iconView.imageScaling = .scaleProportionallyDown
         addSubview(iconView)
 
-        label.font = BellithFont.mono(11, weight: .regular)
+        label.font = BellithFont.mono(10.5, weight: .regular)
         label.textColor = Theme.textSecondary
         addSubview(label)
     }
@@ -361,21 +361,26 @@ final class PrefSidebarItem: NSView {
     override func layout() {
         super.layout()
         let h = bounds.height
-        iconView.frame = NSRect(x: 14, y: (h - 14) / 2, width: 14, height: 14)
-        label.frame = NSRect(x: 38, y: (h - 14) / 2, width: bounds.width - 50, height: 14)
+        iconView.frame = NSRect(x: 14, y: (h - 15) / 2, width: 15, height: 15)
+        label.frame = NSRect(x: 39, y: (h - 14) / 2, width: bounds.width - 50, height: 14)
     }
 
     override func draw(_ dirtyRect: NSRect) {
         let rect = bounds
         if isSelected {
-            Theme.chromeElevated.setFill()
-            NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
+            Theme.selectionFill.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 8, yRadius: 8).fill()
 
-            Theme.textDisplay.withAlphaComponent(0.9).setFill()
-            NSBezierPath(roundedRect: NSRect(x: 8, y: 8, width: 2, height: rect.height - 16), xRadius: 1, yRadius: 1).fill()
+            Theme.selectionStroke.setStroke()
+            let stroke = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: 8, yRadius: 8)
+            stroke.lineWidth = 1
+            stroke.stroke()
+
+            Theme.accent.withAlphaComponent(0.86).setFill()
+            NSBezierPath(roundedRect: NSRect(x: 7, y: 8, width: 2.5, height: rect.height - 16), xRadius: 1.25, yRadius: 1.25).fill()
         } else if isHovered {
             Theme.hoverOverlay.setFill()
-            NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
+            NSBezierPath(roundedRect: rect, xRadius: 8, yRadius: 8).fill()
         }
     }
 

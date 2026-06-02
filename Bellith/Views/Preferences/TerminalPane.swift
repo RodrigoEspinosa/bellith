@@ -408,7 +408,6 @@ final class TerminalPane: NSView {
         let labelW: CGFloat = 146
         let controlX = PreferencesLayout.cardPad + labelW
         let controlW = cardW - controlX - PreferencesLayout.cardPad
-        let trailingToggleX = PreferencesLayout.trailingToggleX(cardWidth: cardW)
         let trailingToggleLabelWidth = PreferencesLayout.labelWidth(toTrailingToggleIn: cardW)
 
         var y: CGFloat = PreferencesLayout.hPad
@@ -425,28 +424,27 @@ final class TerminalPane: NSView {
         heroMetaLabel.frame = NSRect(x: PreferencesLayout.cardPad + innerW * 0.48, y: 106, width: innerW * 0.48, height: 16)
         y += heroHeight + PreferencesLayout.sectionGap
 
-        let fontHeroBlockH: CGFloat = 52
-        let fontCardHeight = fontCard.headerHeight + fontHeroBlockH + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad + 10
+        let fontCardHeight = fontCard.headerHeight + 210
         fontCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: fontCardHeight)
-        let fontHeroTop = fontCardHeight - fontCard.headerHeight - 14
-        fontSummaryLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fontHeroTop - 18, width: innerW - 110, height: 16)
-        fontSizeHeroLabel.frame = NSRect(x: cardW - PreferencesLayout.cardPad - 96, y: fontHeroTop - 34, width: 96, height: 30)
-        fontPreviewNote.frame = NSRect(x: PreferencesLayout.cardPad, y: fontHeroTop - 34, width: innerW - 110, height: 14)
+        let fontTop = fontCardHeight - fontCard.headerHeight - 24
+        fontSummaryLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fontTop, width: innerW - 140, height: 18)
+        fontPreviewNote.frame = NSRect(x: PreferencesLayout.cardPad, y: fontTop - 24, width: innerW - 140, height: 16)
+        fontSizeHeroLabel.frame = NSRect(x: cardW - PreferencesLayout.cardPad - 120, y: fontTop - 14, width: 120, height: 34)
 
-        let fr0 = fontHeroTop - fontHeroBlockH - 10
-        fontLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fr0, width: labelW - 12, height: PreferencesLayout.rowH)
+        let fr0 = fontTop - 72
+        fontLabel.frame = BellithDesignSystem.Settings.leadingLabelFrame(rowY: fr0, width: labelW - 12)
         let pickerW: CGFloat = 84
-        fontField.frame = NSRect(x: controlX, y: fr0 + 6, width: controlW - pickerW - 10, height: 28)
-        fontPickerBtn.frame = NSRect(x: controlX + controlW - pickerW, y: fr0 + 6, width: pickerW, height: 28)
-        let fr1 = fr0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        sizeLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fr1, width: labelW - 12, height: PreferencesLayout.rowH)
-        let stepSize: CGFloat = 28
+        fontField.frame = BellithDesignSystem.Settings.fieldFrame(x: controlX, rowY: fr0, width: controlW - pickerW - 10)
+        fontPickerBtn.frame = BellithDesignSystem.Settings.fieldFrame(x: controlX + controlW - pickerW, rowY: fr0, width: pickerW)
+        let fr1 = fr0 - 48
+        sizeLabel.frame = BellithDesignSystem.Settings.leadingLabelFrame(rowY: fr1, width: labelW - 12)
+        let stepSize: CGFloat = BellithDesignSystem.Size.stepButton
         sizeMinus.frame = NSRect(x: controlX, y: fr1 + 6, width: stepSize, height: stepSize)
         sizeValue.frame = NSRect(x: controlX + 42, y: fr1 + 10, width: 54, height: 20)
         sizePlus.frame = NSRect(x: controlX + 110, y: fr1 + 6, width: stepSize, height: stepSize)
-        let fr2 = fr1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        ligaturesLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fr2, width: trailingToggleLabelWidth, height: PreferencesLayout.rowH)
-        ligaturesToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: fr2)
+        let fr2 = fr1 - 48
+        ligaturesLabel.frame = BellithDesignSystem.Settings.leadingLabelFrame(rowY: fr2, width: trailingToggleLabelWidth)
+        ligaturesToggle.frame = BellithDesignSystem.Settings.trailingToggleFrame(cardWidth: cardW, rowY: fr2)
         y += fontCardHeight + PreferencesLayout.sectionGap
 
         let cursorCardHeight = cursorCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad

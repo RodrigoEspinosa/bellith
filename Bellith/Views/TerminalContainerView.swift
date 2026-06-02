@@ -8,7 +8,7 @@ import os
 /// smart inspector tabs, a sidebar or tab bar, and the command palette.
 final class TerminalContainerView: NSView, TerminalOverlayControllerHost, TerminalSessionCoordinatorHost {
     private enum Metrics {
-        static let runtimeRefreshInterval: TimeInterval = 1.0
+        static let runtimeRefreshInterval: TimeInterval = 2.0
         static let minimumFontSize: Int = 8
         static let maximumFontSize: Int = 36
     }
@@ -75,14 +75,80 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private var observationCancellables = Set<AnyCancellable>()
     private var windowObservationCancellables = Set<AnyCancellable>()
     private var eventMonitorTokens: [Any] = []
+    private var isRefreshingRuntimeStatus = false
 
-    private let noiseLayer = CALayer()
-    private let contentBackdropLayer = CALayer()
-    private let contentStrokeLayer = CALayer()
-    private let contentInnerStrokeLayer = CALayer()
-    private let contentTopGlossLayer = CAGradientLayer()
-    private let sidebarGlowLayer = CAGradientLayer()
-    private let sidebarBridgeLayer = CAGradientLayer()
+    private let chromeLayers = TerminalChromeLayers()
+
+    /// When this view is embedded inside `RebrandShellView`, all of its own
+    /// chrome (title bar, sidebar rail, tab bar, status bar, decorative
+    /// backdrop layers) is suppressed so the parent shell owns the visible
+    /// chrome. The terminal session, splits, smart panels, and overlays still
+    /// run from this view — only the chrome is yielded.
+    var embedInRebrandShell: Bool = false {
+        didSet {
+            if embedInRebrandShell != oldValue { applyEmbeddedChromeVisibility() }
+        }
+    }
+
+    /// Fires whenever tabs are added/removed/renamed/reordered, the selected
+    /// tab changes, or split layout shifts. The rebrand shell observes this
+    /// to drive its own chrome (title bar, workspace rail, status bar).
+    var onEmbeddedStateChanged: (() -> Void)?
+
+    /// Only terminal tabs land in the workspace rail — smart-panel tabs (file
+    /// activity, process tree, etc.) get their own tools cluster eventually.
+    var embeddedTabSummaries: [EmbeddedTabSummary] {
+        tabs.enumerated().compactMap { (idx, entry) -> EmbeddedTabSummary? in
+            if case .smart = entry.kind { return nil }
+            return EmbeddedTabSummary(
+                id: entry.id,
+                title: Self.rebrandDisplayTitle(for: entry),
+                paneCount: entry.surfaces.count,
+                isSmart: false,
+                sourceIndex: idx
+            )
+        }
+    }
+    var embeddedSelectedTabIndex: Int { selectedTabIndex }
+    var embeddedActiveTabTitle: String? {
+        guard selectedTabIndex < tabs.count else { return nil }
+        return Self.rebrandDisplayTitle(for: tabs[selectedTabIndex])
+    }
+    var embeddedStatusSummary: EmbeddedStatusSummary? {
+        guard selectedTabIndex < tabs.count else { return nil }
+        let entry = tabs[selectedTabIndex]
+        guard entry.isTerminal else { return nil }
+        let surfaces = entry.surfaces
+        let focused = entry.focusedSurface ?? surfaces.first
+        let focusedIndex = focused.flatMap { surface in
+            surfaces.firstIndex { $0 === surface }.map { $0 + 1 }
+        } ?? 1
+        return EmbeddedStatusSummary(
+            muxName: entry.localSessionBootstrap?.rawValue,
+            paneCount: max(1, surfaces.count),
+            focusedPaneIndex: focusedIndex,
+            cwdDisplay: Self.compactPath(focused?.currentCwd ?? entry.cwd),
+            gitBranch: activeGitInfo?.branch,
+            processDisplay: focused?.lastForegroundPresentation?.text,
+            isBroadcasting: isBroadcasting
+        )
+    }
+
+    private func applyEmbeddedChromeVisibility() {
+        let hidden = embedInRebrandShell
+        titleBar.isHidden = hidden
+        statusBar.isHidden = hidden
+        sidebar.isHidden = hidden
+        tabBar.isHidden = hidden
+        chromeLayers.setEmbeddedHidden(hidden)
+        needsLayout = true
+    }
+
+    /// Internal — call from anywhere tab state mutates so the rebrand shell
+    /// can refresh its chrome.
+    func notifyEmbeddedStateChanged() {
+        onEmbeddedStateChanged?()
+    }
 
     init(
         terminalApp: TerminalApp,
@@ -215,99 +281,21 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// 256×256 monochrome noise tile, generated once and shared across all instances.
-    private static let noiseImage: CGImage? = {
-        let size = 256
-        let totalBytes = size * size
-        var pixels = [UInt8](repeating: 0, count: totalBytes)
-        for i in 0..<totalBytes {
-            pixels[i] = UInt8.random(in: 0...255)
-        }
-        guard let provider = CGDataProvider(data: Data(pixels) as CFData),
-              let image = CGImage(
-                  width: size, height: size,
-                  bitsPerComponent: 8, bitsPerPixel: 8,
-                  bytesPerRow: size,
-                  space: CGColorSpaceCreateDeviceGray(),
-                  bitmapInfo: CGBitmapInfo(rawValue: 0),
-                  provider: provider,
-                  decode: nil, shouldInterpolate: false,
-                  intent: .defaultIntent
-              ) else { return nil }
-        return image
-    }()
-
     private func configureChromeLayers() {
         guard let layer else { return }
-
-        // Noise texture overlay (Zen-style grain)
-        if let noiseImage = Self.noiseImage {
-            let nsImage = NSImage(cgImage: noiseImage, size: NSSize(width: noiseImage.width, height: noiseImage.height))
-            noiseLayer.backgroundColor = NSColor(patternImage: nsImage).cgColor
-        }
-        layer.addSublayer(noiseLayer)
+        chromeLayers.install(on: layer)
         applyFrameColor()
-
-        contentBackdropLayer.cornerCurve = .continuous
-        contentBackdropLayer.shadowOpacity = 1
-        contentBackdropLayer.shadowOffset = CGSize(width: 0, height: -2)
-
-        contentStrokeLayer.backgroundColor = NSColor.clear.cgColor
-        contentStrokeLayer.cornerCurve = .continuous
-        contentInnerStrokeLayer.backgroundColor = NSColor.clear.cgColor
-        contentInnerStrokeLayer.cornerCurve = .continuous
-        contentInnerStrokeLayer.borderWidth = 1
-
-        contentTopGlossLayer.startPoint = CGPoint(x: 0.5, y: 1)
-        contentTopGlossLayer.endPoint = CGPoint(x: 0.5, y: 0)
-        contentTopGlossLayer.cornerCurve = .continuous
-
-        sidebarGlowLayer.startPoint = CGPoint(x: 0, y: 0.5)
-        sidebarGlowLayer.endPoint = CGPoint(x: 1, y: 0.5)
-
-        sidebarBridgeLayer.startPoint = CGPoint(x: 0, y: 0.5)
-        sidebarBridgeLayer.endPoint = CGPoint(x: 1, y: 0.5)
-        sidebarBridgeLayer.cornerRadius = 12
-        sidebarBridgeLayer.cornerCurve = .continuous
-
-        layer.addSublayer(contentBackdropLayer)
-        layer.addSublayer(contentTopGlossLayer)
-        layer.addSublayer(sidebarGlowLayer)
-        layer.addSublayer(sidebarBridgeLayer)
-        layer.addSublayer(contentStrokeLayer)
-        layer.addSublayer(contentInnerStrokeLayer)
-
         applyChromeTheme()
         updateChromeFrames(animated: false)
     }
 
     private func applyChromeTheme() {
-        contentBackdropLayer.backgroundColor = activeProfileIsTranslucent
-            ? NSColor.clear.cgColor
-            : Theme.surface.cgColor
-        contentBackdropLayer.shadowColor = NSColor.clear.cgColor
-        contentBackdropLayer.shadowOpacity = 0
-        contentBackdropLayer.shadowRadius = 0
-
-        contentStrokeLayer.borderWidth = 0
-        contentStrokeLayer.borderColor = NSColor.clear.cgColor
-
-        contentInnerStrokeLayer.borderColor = NSColor.clear.cgColor
-        contentInnerStrokeLayer.borderWidth = 0
-
-        contentTopGlossLayer.colors = [NSColor.clear.cgColor, NSColor.clear.cgColor]
-        contentTopGlossLayer.locations = [0, 1]
-
-        sidebarGlowLayer.colors = [NSColor.clear.cgColor, NSColor.clear.cgColor]
-        sidebarGlowLayer.locations = [0, 1]
-
-        sidebarBridgeLayer.colors = [NSColor.clear.cgColor, NSColor.clear.cgColor]
-        sidebarBridgeLayer.locations = [0, 1]
+        chromeLayers.applyTheme(translucent: activeProfileIsTranslucent)
     }
 
     private func applyChrome(to root: NSView) {
         root.wantsLayer = true
-        root.layer?.cornerRadius = contentRadius
+        root.layer?.cornerRadius = embedInRebrandShell ? 0 : contentRadius
         root.layer?.cornerCurve = .continuous
         root.layer?.maskedCorners = [
             .layerMinXMinYCorner,
@@ -315,12 +303,17 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             .layerMinXMaxYCorner,
             .layerMaxXMaxYCorner,
         ]
-        root.layer?.masksToBounds = true
+        // Keep the outer rounded mask (for macOS-style window card) but don't
+        // clip rigidly — the focused-pane decoration's shadow/glow must extend
+        // outside the leaf when panes are split.
+        root.layer?.masksToBounds = !embedInRebrandShell
         root.layer?.borderWidth = 0
         root.layer?.borderColor = NSColor.clear.cgColor
-        root.layer?.backgroundColor = activeProfileIsTranslucent
-            ? NSColor.clear.cgColor
-            : Theme.surface.cgColor
+        if embedInRebrandShell || activeProfileIsTranslucent {
+            root.layer?.backgroundColor = NSColor.clear.cgColor
+        } else {
+            root.layer?.backgroundColor = Theme.surface.cgColor
+        }
     }
 
     private var activeProfileIsTranslucent: Bool {
@@ -330,67 +323,15 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     private func updateChromeFrames(animated: Bool, sidebarWidth: CGFloat? = nil, statusBarVisible: Bool? = nil) {
         let resolvedSidebarWidth = sidebarWidth ?? ((useSidebar && sidebar.isExpanded) ? SidebarView.expandedWidth : 0)
         let resolvedStatusBarVisible = statusBarVisible ?? shouldShowStatusBar
-        let rect = contentRect(forSidebarWidth: resolvedSidebarWidth, statusBarVisible: resolvedStatusBarVisible)
-        let hasVisibleContent = selectedTabIndex < tabs.count || (isZoomed && zoomedSurface != nil)
-        let cornerMask: CACornerMask = [
-            .layerMinXMinYCorner,
-            .layerMaxXMinYCorner,
-            .layerMinXMaxYCorner,
-            .layerMaxXMaxYCorner,
-        ]
-
-        let updates = {
-            let chromeRect = rect.insetBy(dx: -1, dy: -1)
-
-            self.contentBackdropLayer.isHidden = !hasVisibleContent
-            self.contentStrokeLayer.isHidden = !hasVisibleContent
-            self.contentInnerStrokeLayer.isHidden = !hasVisibleContent
-            self.contentTopGlossLayer.isHidden = !hasVisibleContent
-
-            self.contentBackdropLayer.frame = chromeRect
-            self.contentBackdropLayer.cornerRadius = self.contentRadius + 2
-            self.contentBackdropLayer.maskedCorners = cornerMask
-
-            self.contentStrokeLayer.frame = chromeRect
-            self.contentStrokeLayer.cornerRadius = self.contentRadius + 2
-            self.contentStrokeLayer.maskedCorners = cornerMask
-
-            self.contentInnerStrokeLayer.frame = chromeRect.insetBy(dx: 1, dy: 1)
-            self.contentInnerStrokeLayer.cornerRadius = self.contentRadius + 1
-            self.contentInnerStrokeLayer.maskedCorners = cornerMask
-
-            let glossHeight = min(72, max(40, chromeRect.height * 0.16))
-            self.contentTopGlossLayer.frame = NSRect(
-                x: chromeRect.minX,
-                y: chromeRect.maxY - glossHeight,
-                width: chromeRect.width,
-                height: glossHeight
-            )
-            self.contentTopGlossLayer.cornerRadius = self.contentRadius + 2
-            self.contentTopGlossLayer.maskedCorners = cornerMask
-
-            let showsSidebarTransition = self.useSidebar && resolvedSidebarWidth > 0 && hasVisibleContent
-            self.sidebarGlowLayer.isHidden = !showsSidebarTransition
-            self.sidebarBridgeLayer.isHidden = !showsSidebarTransition
-
-            if showsSidebarTransition {
-                let glowRect = NSRect(
-                    x: self.contentPadding + resolvedSidebarWidth - 6,
-                    y: chromeRect.minY + 16,
-                    width: self.sidebarGap + 24,
-                    height: max(0, chromeRect.height - 32)
-                )
-                self.sidebarGlowLayer.frame = glowRect
-
-                let bridgeHeight = min(168, max(112, chromeRect.height * 0.38))
-                self.sidebarBridgeLayer.frame = NSRect(
-                    x: glowRect.minX,
-                    y: chromeRect.maxY - bridgeHeight - 6,
-                    width: glowRect.width - 2,
-                    height: bridgeHeight
-                )
-            }
-        }
+        let inputs = TerminalChromeLayers.FrameInputs(
+            rect: contentRect(forSidebarWidth: resolvedSidebarWidth, statusBarVisible: resolvedStatusBarVisible),
+            contentRadius: contentRadius,
+            contentPadding: contentPadding,
+            sidebarGap: sidebarGap,
+            resolvedSidebarWidth: resolvedSidebarWidth,
+            useSidebar: useSidebar,
+            hasVisibleContent: selectedTabIndex < tabs.count || (isZoomed && zoomedSurface != nil)
+        )
 
         CATransaction.begin()
         CATransaction.setDisableActions(!(animated && !Theme.prefersReducedMotion))
@@ -398,7 +339,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             CATransaction.setAnimationDuration(Theme.animSlow)
             CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1))
         }
-        updates()
+        chromeLayers.updateFrames(inputs)
         CATransaction.commit()
     }
 
@@ -494,7 +435,12 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 self.overlayController.handleModifierFlagsChanged(
                     event.modifierFlags.intersection(.deviceIndependentFlagsMask)
                 )
-            case .keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown:
+            case .keyDown:
+                self.overlayController.handleKeyEventBegan()
+                if self.handlePaneKeyEquivalent(event) {
+                    return nil
+                }
+            case .leftMouseDown, .rightMouseDown, .otherMouseDown:
                 self.overlayController.handleKeyEventBegan()
             default:
                 break
@@ -504,6 +450,89 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
 
         eventMonitorTokens = [token]
+    }
+
+    private func handlePaneKeyEquivalent(_ event: NSEvent) -> Bool {
+        guard event.type == .keyDown,
+              selectedTabIndex < tabs.count,
+              tabs[selectedTabIndex].isTerminal,
+              dependencies.settings.legacyPaneSupport || dependencies.settings.useRebrandShell else {
+            return false
+        }
+
+        if matches(event, action: "splitRight") || Self.matchesShortcut(event, key: "d", command: true) {
+            splitPane(direction: .vertical)
+            return true
+        }
+        if matches(event, action: "splitDown") || Self.matchesShortcut(event, key: "d", command: true, shift: true) {
+            splitPane(direction: .horizontal)
+            return true
+        }
+        if matches(event, action: "closePane") {
+            closePane()
+            return true
+        }
+        if matches(event, action: "navLeft") || Self.matchesShortcut(event, key: "leftArrow", command: true, shift: true) {
+            navigatePane(.left)
+            return true
+        }
+        if matches(event, action: "navRight") || Self.matchesShortcut(event, key: "rightArrow", command: true, shift: true) {
+            navigatePane(.right)
+            return true
+        }
+        if matches(event, action: "navUp") || Self.matchesShortcut(event, key: "upArrow", command: true, shift: true) {
+            navigatePane(.up)
+            return true
+        }
+        if matches(event, action: "navDown") || Self.matchesShortcut(event, key: "downArrow", command: true, shift: true) {
+            navigatePane(.down)
+            return true
+        }
+        return false
+    }
+
+    func interceptWindowKeyDown(_ event: NSEvent) -> Bool {
+        handlePaneKeyEquivalent(event)
+    }
+
+    func interceptTerminalText(_ text: String, from source: TerminalSurfaceView) -> Bool {
+        guard source === activeSurface else { return false }
+        guard let direction = paneNavigationDirection(fromArrowPayload: text) else { return false }
+        navigatePane(direction)
+        return true
+    }
+
+    private func paneNavigationDirection(fromArrowPayload text: String) -> SplitPaneView.Direction? {
+        let uppercased = text.uppercased()
+        guard !uppercased.isEmpty,
+              uppercased.count % 2 == 0,
+              uppercased.allSatisfy({ $0.isHexDigit }) else {
+            return nil
+        }
+
+        let pairs = stride(from: 0, to: uppercased.count, by: 2).map { offset -> String in
+            let start = uppercased.index(uppercased.startIndex, offsetBy: offset)
+            let end = uppercased.index(start, offsetBy: 2)
+            return String(uppercased[start..<end])
+        }
+
+        guard pairs.allSatisfy({ ["0A", "0B", "0C", "0D"].contains($0) }),
+              let last = pairs.last else {
+            return nil
+        }
+
+        switch last {
+        case "0A":
+            return .up
+        case "0B":
+            return .down
+        case "0C":
+            return .right
+        case "0D":
+            return .left
+        default:
+            return nil
+        }
     }
 
     private func removeEventMonitors() {
@@ -520,6 +549,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         let hasSplits = entry.surfaces.count > 1
 
         for surface in entry.surfaces {
+            surface.setTerminalFocused(surface === activeSurface && window?.firstResponder === surface)
             if let root = entry.splitRoot, let leaf = root.leaf(containing: surface) {
                 let state: PaneDecorationState
                 if !hasSplits {
@@ -527,105 +557,20 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 } else if isBroadcasting {
                     state = .broadcast
                 } else if surface === activeSurface {
-                    state = .active
+                    state = .active(tint: activeWorkspaceTint())
                 } else {
                     state = .inactive
                 }
-                applyPaneDecoration(to: leaf, state: state)
+                PaneDecorator.apply(to: leaf, state: state)
             }
         }
+
+        refreshPaneHeaders()
     }
 
-    private enum PaneDecorationState {
-        case hidden
-        case inactive
-        case active
-        case broadcast
-    }
-
-    private enum PaneDecoration {
-        static let border = "paneBorder"
-        static let glow = "paneGlow"
-        static let inset: CGFloat = 5
-        static let cornerRadius: CGFloat = 10
-    }
-
-    private func applyPaneDecoration(to leaf: NSView, state: PaneDecorationState) {
-        leaf.wantsLayer = true
-        leaf.layer?.borderColor = nil
-        leaf.layer?.borderWidth = 0
-        leaf.layer?.cornerRadius = 0
-        leaf.layer?.masksToBounds = false
-
-        guard let layer = leaf.layer else { return }
-        let frame = leaf.bounds.insetBy(dx: PaneDecoration.inset, dy: PaneDecoration.inset)
-        let borderLayer = paneDecorationLayer(
-            named: PaneDecoration.border,
-            on: layer,
-            frame: frame
-        )
-        let glowLayer = paneDecorationLayer(
-            named: PaneDecoration.glow,
-            on: layer,
-            frame: frame
-        )
-
-        borderLayer.cornerRadius = PaneDecoration.cornerRadius
-        borderLayer.cornerCurve = .continuous
-        borderLayer.backgroundColor = NSColor.clear.cgColor
-        borderLayer.masksToBounds = false
-        glowLayer.cornerRadius = PaneDecoration.cornerRadius
-        glowLayer.cornerCurve = .continuous
-        glowLayer.backgroundColor = NSColor.clear.cgColor
-        glowLayer.borderWidth = 0
-
-        switch state {
-        case .hidden:
-            borderLayer.opacity = 0
-            glowLayer.opacity = 0
-            glowLayer.shadowOpacity = 0
-
-        case .inactive:
-            borderLayer.opacity = 1
-            borderLayer.borderWidth = 1
-            borderLayer.borderColor = Theme.chromeHairline.withAlphaComponent(Theme.colors.isLight ? 0.32 : 0.24).cgColor
-            glowLayer.opacity = 0
-            glowLayer.shadowOpacity = 0
-
-        case .active:
-            borderLayer.opacity = 1
-            borderLayer.borderWidth = 1.5
-            borderLayer.borderColor = Theme.accent.withAlphaComponent(0.6).cgColor
-            glowLayer.opacity = 1
-            glowLayer.shadowColor = Theme.accent.withAlphaComponent(0.22).cgColor
-            glowLayer.shadowOpacity = 1
-            glowLayer.shadowRadius = 14
-            glowLayer.shadowOffset = .zero
-
-        case .broadcast:
-            borderLayer.opacity = 1
-            borderLayer.borderWidth = 1.5
-            borderLayer.borderColor = Theme.accent.withAlphaComponent(0.52).cgColor
-            glowLayer.opacity = 1
-            glowLayer.shadowColor = Theme.accent.withAlphaComponent(0.12).cgColor
-            glowLayer.shadowOpacity = 1
-            glowLayer.shadowRadius = 8
-            glowLayer.shadowOffset = .zero
-        }
-    }
-
-    private func paneDecorationLayer(named name: String, on parent: CALayer, frame: CGRect) -> CALayer {
-        if let existing = parent.sublayers?.first(where: { $0.name == name }) {
-            existing.frame = frame
-            return existing
-        }
-
-        let layer = CALayer()
-        layer.name = name
-        layer.frame = frame
-        layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
-        parent.addSublayer(layer)
-        return layer
+    private func activeWorkspaceTint() -> NSColor {
+        guard selectedTabIndex < tabs.count else { return Theme.accent }
+        return WorkspaceTint.accent(for: tabs[selectedTabIndex].title)
     }
 
     // MARK: - Tab Mode
@@ -634,8 +579,8 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     func applyTabMode() {
         let isSidebar = useSidebar
-        sidebar.isHidden = !isSidebar
-        tabBar.isHidden = isSidebar
+        sidebar.isHidden = embedInRebrandShell ? true : !isSidebar
+        tabBar.isHidden = embedInRebrandShell ? true : isSidebar
         syncTrafficLightDisplayMode()
         updateChromeFrames(animated: false)
         needsLayout = true
@@ -676,7 +621,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         if matches(event, action: "showKeyboardShortcuts") { toggleShortcutCheatSheet(); return true }
         if matches(event, action: "toggleSidebar") { sidebar.toggle(); return true }
         if matches(event, action: "newTab") { createTab(); return true }
-        if matches(event, action: "closeTab") { closeCurrentTab(); return true }
+        if matches(event, action: "closeTab") { closeFocusedPaneOrTab(); return true }
         if matches(event, action: "nextTab") { advanceToNextTerminalTab(); return true }
         if matches(event, action: "prevTab") { advanceToPreviousTerminalTab(); return true }
 
@@ -817,6 +762,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             refreshStatusBarAsync(cwd: initialCwd)
         }
 
+        openReferencePaneLayoutIfNeeded()
         return surface
     }
 
@@ -1051,6 +997,16 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     func closeCurrentTab() { closeTab(selectedTabIndex) }
 
+    func closeFocusedPaneOrTab() {
+        guard selectedTabIndex < tabs.count else { return }
+        let entry = tabs[selectedTabIndex]
+        if entry.isTerminal, entry.surfaces.count > 1 {
+            closePane()
+        } else {
+            closeCurrentTab()
+        }
+    }
+
     func reorderTab(from sourceIndex: Int, to destinationIndex: Int) {
         guard sourceIndex != destinationIndex,
               sourceIndex >= 0, sourceIndex < tabs.count,
@@ -1220,6 +1176,8 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     /// Fetch shell context off the main thread.
     private func refreshStatusBarAsync(cwd: String) {
+        activeGitInfo = nil
+        notifyEmbeddedStateChanged()
         let pid = findShellPID()
         let activeSurface = activeSurface
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -1244,6 +1202,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 self.statusBar.updateGitBranch(gitInfo?.branch)
                 self.statusBar.updateGitWorktree(gitInfo?.worktreeName)
                 self.statusBar.updateProcess(runtimeStatus.foregroundProcess)
+                self.activeGitInfo = gitInfo
+                self.refreshPaneHeaders()
+                self.notifyEmbeddedStateChanged()
             }
         }
 
@@ -1252,6 +1213,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     private var lastGitHubCwd: String?
+    private var activeGitInfo: GitRepositoryInfo?
 
     private var shouldShowStatusBar: Bool {
         dependencies.settings.showStatusBar && statusBar.hasVisibleContent
@@ -1282,8 +1244,10 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     private func refreshActiveRuntimeStatusAsync() {
         guard selectedTabIndex < tabs.count,
-              let surface = activeSurface else { return }
+              let surface = activeSurface,
+              !isRefreshingRuntimeStatus else { return }
 
+        isRefreshingRuntimeStatus = true
         let tabID = tabs[selectedTabIndex].id
         let pid = findShellPID()
 
@@ -1291,10 +1255,14 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             let runtimeStatus = TerminalRuntimeInfoService.runtimeStatus(for: pid)
 
             DispatchQueue.main.async {
-                guard let self, let surface else { return }
+                guard let self else { return }
+                defer { self.isRefreshingRuntimeStatus = false }
+                guard let surface else { return }
                 guard self.selectedTabIndex < self.tabs.count,
                       self.tabs[self.selectedTabIndex].id == tabID,
                       self.activeSurface === surface else { return }
+                guard surface.detectedContext != runtimeStatus.detectedContext ||
+                        surface.lastForegroundPresentation != runtimeStatus.foregroundProcess else { return }
 
                 surface.detectedContext = runtimeStatus.detectedContext
                 surface.lastForegroundPresentation = runtimeStatus.foregroundProcess
@@ -1303,6 +1271,8 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 self.statusBar.updateContext(context)
                 self.titleBar.updateProcess(runtimeStatus.foregroundProcess)
                 self.statusBar.updateProcess(runtimeStatus.foregroundProcess)
+                self.refreshPaneHeaders()
+                self.notifyEmbeddedStateChanged()
             }
         }
     }
@@ -1349,20 +1319,93 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     private func refreshTabUI() {
-        let tabData = tabs.map { (id: $0.id, title: $0.title, kind: $0.kind) }
+        // Build a map from tab index to ⌘N digit for the first 9 terminal tabs.
+        let terminalIndices = Self.shortcutSelectableTerminalTabIndices(for: tabs.map(\.kind))
+        var hotkeyByTabIndex: [Int: Int] = [:]
+        for (visibleIndex, tabIndex) in terminalIndices.prefix(9).enumerated() {
+            hotkeyByTabIndex[tabIndex] = visibleIndex + 1
+        }
+        let tabData = tabs.enumerated().map { offset, entry in
+            (
+                id: entry.id,
+                title: entry.title,
+                kind: entry.kind,
+                paneCount: entry.surfaces.count,
+                hotkeyDigit: hotkeyByTabIndex[offset]
+            )
+        }
         sidebar.update(tabs: tabData, selectedIndex: selectedTabIndex)
 
         let barTabs = tabs.map { TabBarView.Tab(id: $0.id, title: $0.title, kind: $0.kind, isPinned: $0.isPinned) }
         tabBar.update(tabs: barTabs, selectedIndex: selectedTabIndex)
+
+        refreshWorkspaceTitle()
+        refreshPaneHeaders()
+        notifyEmbeddedStateChanged()
+    }
+
+    /// Push the active tab's name + pane count into the title bar's centered title.
+    private func refreshWorkspaceTitle() {
+        guard selectedTabIndex < tabs.count else {
+            titleBar.updateWorkspaceContext(shell: nil, name: nil, paneCount: 0)
+            return
+        }
+        let entry = tabs[selectedTabIndex]
+        guard entry.isTerminal else {
+            titleBar.updateWorkspaceContext(shell: nil, name: nil, paneCount: 0)
+            return
+        }
+        titleBar.updateWorkspaceContext(
+            shell: "zsh",
+            name: entry.title,
+            paneCount: entry.surfaces.count
+        )
     }
 
     // MARK: - Split Panes
 
     func splitPane(direction: SplitPaneView.Orientation) {
+        splitPane(direction: direction, animated: true)
+    }
+
+    func openReferencePaneLayoutIfNeeded() {
+        guard dependencies.settings.useRebrandShell,
+              dependencies.settings.openRebrandPanesByDefault,
+              selectedTabIndex < tabs.count,
+              tabs[selectedTabIndex].isTerminal,
+              tabs[selectedTabIndex].surfaces.count == 1,
+              let root = tabs[selectedTabIndex].splitRoot else {
+            return
+        }
+
+        let originalCwd = activeSurface?.currentCwd ?? tabs[selectedTabIndex].cwd
+        splitPane(direction: .vertical, animated: false)
+        root.adjustRatio(by: 0.12, animated: false)
+
+        splitPane(direction: .horizontal, animated: false)
+        root.second?.adjustRatio(by: -0.08, animated: false)
+
+        if let originalCwd {
+            for surface in tabs[selectedTabIndex].surfaces where surface.currentCwd == nil {
+                openWorkingDirectory(originalCwd, in: surface)
+            }
+        }
+
+        if let firstSurface = tabs[selectedTabIndex].surfaces.first {
+            tabs[selectedTabIndex].focusedSurface = firstSurface
+            window?.makeFirstResponder(firstSurface)
+        }
+        updateFocusIndicator()
+        refreshWorkspaceTitle()
+        refreshTabUI()
+    }
+
+    private func splitPane(direction: SplitPaneView.Orientation, animated: Bool) {
         guard selectedTabIndex < tabs.count, tabs[selectedTabIndex].isTerminal, let terminalApp else { return }
 
         let tabId = tabs[selectedTabIndex].id
         let inheritedContext = activeSurface?.terminalContext ?? .local
+        let inheritedCwd = activeSurface?.currentCwd ?? tabs[selectedTabIndex].cwd
         let surface = makeSurface(tabId: tabId, app: terminalApp, context: inheritedContext)
 
         guard let root = tabs[selectedTabIndex].splitRoot else { return }
@@ -1375,19 +1418,31 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
 
         tabs[selectedTabIndex].addSurface(surface)
+        tabs[selectedTabIndex].focusedSurface = surface
+        if let inheritedCwd {
+            openWorkingDirectory(inheritedCwd, in: surface)
+        }
         window?.makeFirstResponder(surface)
 
-        // Fade in the new pane while animating the split layout
-        newLeaf.alphaValue = 0
-        needsLayout = true
-        layoutSubtreeIfNeeded()
-        root.animateLayout(duration: Theme.animMedium)
+        if animated {
+            // Fade in the new pane while animating the split layout.
+            newLeaf.alphaValue = 0
+            needsLayout = true
+            layoutSubtreeIfNeeded()
+            root.animateLayout(duration: Theme.animMedium)
 
-        Theme.animate(duration: Theme.animMedium) { _ in
-            newLeaf.animator().alphaValue = 1
+            Theme.animate(duration: Theme.animMedium) { _ in
+                newLeaf.animator().alphaValue = 1
+            }
+        } else {
+            newLeaf.alphaValue = 1
+            root.needsLayout = true
         }
 
         updateFocusIndicator()
+        refreshWorkspaceTitle()
+        refreshPaneHeaders()
+        notifyEmbeddedStateChanged()
     }
 
     func closePane() {
@@ -1427,6 +1482,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
                 // Animate the remaining pane expanding into the freed space
                 root.animateLayout(duration: Theme.animMedium)
                 self.updateFocusIndicator()
+                self.refreshWorkspaceTitle()
             })
         } else if entry.surfaces.count == 1 {
             closeCurrentTab()
@@ -1522,6 +1578,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         isBroadcasting.toggle()
         updateFocusIndicator()
         updateBroadcastBadge()
+        notifyEmbeddedStateChanged()
     }
 
     private func updateBroadcastBadge() {
@@ -1859,6 +1916,12 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     private func contentRect(forSidebarWidth sidebarWidth: CGFloat, statusBarVisible: Bool = false) -> NSRect {
+        // When the rebrand shell hosts this view, it provides its own title
+        // bar / rail / status bar / outer padding, so this view is just the
+        // body and should fill its bounds completely.
+        if embedInRebrandShell {
+            return bounds
+        }
         let p = contentPadding
         let bottomOffset = p + statusBarHeight(for: statusBarVisible) + statusBarGap(for: statusBarVisible)
         let topOffset = p + titleBarHeight
@@ -1900,7 +1963,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         super.layout()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        noiseLayer.frame = bounds
+        chromeLayers.setNoiseFrame(bounds)
         CATransaction.commit()
         guard !isAnimatingLayout else { return }
 
@@ -1935,7 +1998,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
         let hasVisibleTrafficLights = !useSidebar
         titleBar.leadingInset = hasVisibleTrafficLights ? 92 : 0
-        titleBar.isHidden = false
+        titleBar.isHidden = embedInRebrandShell
         titleBar.frame = NSRect(
             x: contentLeft + 6,
             y: bounds.height - p - titleBarHeight + 1,
@@ -1943,7 +2006,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             height: titleBarHeight
         )
 
-        let statusBarVisible = shouldShowStatusBar
+        let statusBarVisible = shouldShowStatusBar && !embedInRebrandShell
         lastKnownStatusBarVisible = statusBarVisible
         statusBar.isHidden = !statusBarVisible
         statusBar.alphaValue = statusBarVisible ? 1 : 0
@@ -2026,7 +2089,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         let targetStatusBarX = targetContentLeft
         let targetStatusBarW = bounds.width - targetStatusBarX - p
 
-        if targetStatusBarVisible {
+        if targetStatusBarVisible && !embedInRebrandShell {
             statusBar.isHidden = false
             if !lastKnownStatusBarVisible {
                 statusBar.alphaValue = 0
@@ -2076,8 +2139,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }, completion: { [weak self] in
             guard let self else { return }
             self.lastKnownStatusBarVisible = targetStatusBarVisible
-            self.statusBar.isHidden = !targetStatusBarVisible
-            self.statusBar.alphaValue = targetStatusBarVisible ? 1 : 0
+            let hideForEmbed = self.embedInRebrandShell
+            self.statusBar.isHidden = hideForEmbed || !targetStatusBarVisible
+            self.statusBar.alphaValue = (hideForEmbed || !targetStatusBarVisible) ? 0 : 1
             self.isAnimatingLayout = false
             self.needsLayout = true
         })
@@ -2099,9 +2163,10 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         layer?.backgroundColor = activeProfileIsTranslucent
             ? NSColor.clear.cgColor
             : Theme.colors.frame.cgColor
-        // Slider 0–1 maps to 0–0.08 (dark) or 0–0.12 (light) actual opacity
-        let maxOpacity: Double = Theme.colors.isLight ? 0.12 : 0.08
-        noiseLayer.opacity = Float(dependencies.settings.noiseIntensity * maxOpacity)
+        chromeLayers.updateNoiseOpacity(
+            intensity: dependencies.settings.noiseIntensity,
+            isLightTheme: Theme.colors.isLight
+        )
     }
 
     private func handleThemeChange() {
@@ -2241,15 +2306,10 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             return
         }
 
-        let normalizedThemeName = cmd.lowercased()
-        if let theme = ThemeColors.allThemes.first(where: { $0.name.lowercased() == normalizedThemeName }) {
-            if theme.isLight {
-                dependencies.settings.lightThemeName = theme.name
-            } else {
-                dependencies.settings.darkThemeName = theme.name
-            }
-            let resolved = dependencies.settings.resolvedTheme
-            dependencies.themeManager.apply(resolved)
+        let normalizedPaletteName = cmd.lowercased()
+        if let palette = AppearancePalette.all.first(where: { $0.name.lowercased() == normalizedPaletteName || $0.id == normalizedPaletteName }) {
+            dependencies.settings.appearancePaletteID = palette.id
+            dependencies.themeManager.apply(dependencies.settings.resolvedTheme)
         } else {
             Logger.ui.warning("Unknown command: \(text)")
         }
@@ -2598,7 +2658,43 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     func makePaneContent(for surface: TerminalSurfaceView) -> NSView {
-        surface
+        let container = PaneContainerView(surface: surface)
+        return container
+    }
+
+    /// Walk up from a surface's view tree to find the wrapping `PaneContainerView`, if any.
+    private func paneContainer(for surface: NSView) -> PaneContainerView? {
+        var node: NSView? = surface
+        while let n = node {
+            if let container = n as? PaneContainerView { return container }
+            node = n.superview
+        }
+        return nil
+    }
+
+    /// Refresh every pane's header content (pid pill, title, cwd, status dot) for the active tab.
+    private func refreshPaneHeaders() {
+        guard selectedTabIndex < tabs.count else { return }
+        let entry = tabs[selectedTabIndex]
+        guard entry.isTerminal else { return }
+        let tint = WorkspaceTint.accent(for: entry.title)
+        let showsCard = entry.surfaces.count > 1
+        for (idx, surface) in entry.surfaces.enumerated() {
+            guard let container = paneContainer(for: surface) else { continue }
+            let cwd = surface.currentCwd ?? entry.cwd
+            let presentation = surface.lastForegroundPresentation
+            let title = Self.paneHeaderTitle(from: presentation)
+            let isRunning = Self.paneHeaderIsRunning(from: presentation)
+            container.configure(
+                paneIndex: "0:\(idx + 1)",
+                title: title,
+                cwd: cwd,
+                isFocused: surface === entry.focusedSurface,
+                isRunning: isRunning,
+                workspaceTint: tint,
+                showsCardChrome: showsCard
+            )
+        }
     }
 
     private func makeSurface(tabId: UUID, app: TerminalApp, context: TerminalContext) -> TerminalSurfaceView {
@@ -2609,6 +2705,10 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
     }
 
     private func bindSurfaceCallbacks(for surface: TerminalSurfaceView, tabId: UUID) {
+        surface.shouldReportMousePosition = { [weak self, weak surface] in
+            guard let self, let surface else { return false }
+            return self.isSurfaceVisible(surface)
+        }
         surface.onFocus = { [weak self, weak surface] focusedSurface in
             guard let self, let surface, focusedSurface === surface else { return }
             guard let tabIndex = self.tabs.firstIndex(where: { tab in
@@ -2635,6 +2735,13 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
         surface.onTextInserted = { [weak self] text, source in
             self?.broadcastText(text, from: source)
+        }
+        surface.onKeyDownIntercept = { [weak self] event, source in
+            guard let self, source === self.activeSurface else { return false }
+            return self.handlePaneKeyEquivalent(event)
+        }
+        surface.onTextIntercept = { [weak self] text, source in
+            self?.interceptTerminalText(text, from: source) ?? false
         }
         surface.onSizeChanged = { [weak self, weak surface] cols, rows in
             guard let self, let surface else { return }
@@ -2709,119 +2816,4 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         sessionCoordinator.restoreWorkingDirectory(cwd, on: surface)
     }
 
-    private static func editorCommand(for fileURL: URL) -> String {
-        let escapedPath = shellQuoted(fileURL.path)
-        return """
-        if [ -n "${EDITOR:-}" ]; then
-          eval "$EDITOR \(escapedPath)"
-        elif [ -n "${VISUAL:-}" ]; then
-          eval "$VISUAL \(escapedPath)"
-        else
-          open -t \(escapedPath)
-        fi
-        """
-    }
-
-    private static func shellQuoted(_ value: String) -> String {
-        "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
-    }
-}
-
-// MARK: - Broadcast Badge
-
-// MARK: - Zoom Badge
-
-private final class ZoomBadge: NSView {
-    private let label = NSTextField(labelWithString: "ZOOMED")
-    private let iconView = NSImageView()
-
-    override init(frame: NSRect) {
-        super.init(frame: frame)
-        wantsLayer = true
-        layer?.cornerRadius = 12
-        layer?.borderWidth = 0.5
-
-        iconView.image = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "Zoomed")
-        iconView.imageScaling = .scaleProportionallyDown
-        addSubview(iconView)
-
-        label.font = .systemFont(ofSize: 10, weight: .bold)
-        label.isEditable = false
-        label.isBezeled = false
-        label.drawsBackground = false
-        addSubview(label)
-
-        refreshTheme()
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError() }
-
-    override func layout() {
-        super.layout()
-        let h = bounds.height
-        iconView.frame = NSRect(x: 8, y: (h - 10) / 2, width: 10, height: 10)
-        label.frame = NSRect(x: 22, y: (h - 12) / 2, width: bounds.width - 28, height: 12)
-    }
-
-    func refreshTheme() {
-        layer?.backgroundColor = Theme.accent.withAlphaComponent(0.15).cgColor
-        layer?.borderColor = Theme.accent.withAlphaComponent(0.3).cgColor
-        iconView.contentTintColor = Theme.accent
-        label.textColor = Theme.accent
-    }
-}
-
-private final class BroadcastBadge: NSView {
-    private let label = NSTextField(labelWithString: "BROADCAST")
-    private let dotView = NSView()
-
-    override init(frame: NSRect) {
-        super.init(frame: frame)
-        wantsLayer = true
-        layer?.cornerRadius = 13
-        layer?.borderWidth = 0.5
-
-        dotView.wantsLayer = true
-        dotView.layer?.cornerRadius = 3
-        addSubview(dotView)
-
-        label.font = .systemFont(ofSize: 10, weight: .bold)
-        label.isEditable = false
-        label.isBezeled = false
-        label.drawsBackground = false
-        addSubview(label)
-
-        // Pulse the dot
-        startPulse()
-        refreshTheme()
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError() }
-
-    override func layout() {
-        super.layout()
-        let h = bounds.height
-        dotView.frame = NSRect(x: 10, y: (h - 6) / 2, width: 6, height: 6)
-        label.frame = NSRect(x: 22, y: (h - 12) / 2, width: bounds.width - 30, height: 12)
-    }
-
-    private func startPulse() {
-        let pulse = CABasicAnimation(keyPath: "opacity")
-        pulse.fromValue = 1.0
-        pulse.toValue = 0.3
-        pulse.duration = 0.8
-        pulse.autoreverses = true
-        pulse.repeatCount = .infinity
-        pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        dotView.layer?.add(pulse, forKey: "pulse")
-    }
-
-    func refreshTheme() {
-        layer?.backgroundColor = Theme.warning.withAlphaComponent(0.15).cgColor
-        layer?.borderColor = Theme.warning.withAlphaComponent(0.3).cgColor
-        dotView.layer?.backgroundColor = Theme.warning.cgColor
-        label.textColor = Theme.warning
-    }
 }

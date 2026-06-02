@@ -14,6 +14,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     private var keyTextAccumulator: [String]?
     private var eventMonitor: Any?
     private var focused = false
+    private var currentModifierFlags: NSEvent.ModifierFlags = []
     private let dropIndicatorLayer = CALayer()
     private let temporaryDropDirectoryURL = TerminalSurfaceView.temporaryDropDirectoryURL()
     private var minimapView: ScrollbackMinimapView?
@@ -36,13 +37,16 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     var onTextInserted: ((String, TerminalSurfaceView) -> Void)?
     var onSizeChanged: ((Int, Int) -> Void)?
     var onFocus: ((TerminalSurfaceView) -> Void)?
+    var onKeyDownIntercept: ((NSEvent, TerminalSurfaceView) -> Bool)?
+    var onTextIntercept: ((String, TerminalSurfaceView) -> Bool)?
+    var shouldReportMousePosition: (() -> Bool)?
 
     init(app: TerminalApp, baseConfig: ghostty_surface_config_s? = nil) {
         self.terminalApp = app
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
 
         wantsLayer = true
-        layer?.isOpaque = true
+        updateLayerOpacity()
         registerForDraggedTypes([.fileURL, .png, .tiff])
 
         dropIndicatorLayer.borderWidth = 2
@@ -70,15 +74,11 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
             return
         }
 
-        // Monitor for key-up events that don't reach the responder chain
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyUp]) { [weak self] event in
-            self?.localKeyUp(event) ?? event
-        }
-
         applyMinimapPreference()
         settingsObserver = NotificationCenter.default.addObserver(
             forName: BellithSettings.didChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
+            self?.updateLayerOpacity()
             self?.applyMinimapPreference()
         }
     }
@@ -144,8 +144,8 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     override func becomeFirstResponder() -> Bool {
         let becameFirstResponder = super.becomeFirstResponder()
         guard becameFirstResponder else { return false }
-        focused = true
-        if let surface { ghostty_surface_set_focus(surface, true) }
+        setTerminalFocused(true)
+        installKeyUpMonitorIfNeeded()
         onFocus?(self)
         return true
     }
@@ -153,9 +153,28 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     override func resignFirstResponder() -> Bool {
         let resignedFirstResponder = super.resignFirstResponder()
         guard resignedFirstResponder else { return false }
-        focused = false
-        if let surface { ghostty_surface_set_focus(surface, false) }
+        setTerminalFocused(false)
+        removeKeyUpMonitor()
         return true
+    }
+
+    func setTerminalFocused(_ isFocused: Bool) {
+        guard focused != isFocused else { return }
+        focused = isFocused
+        if let surface { ghostty_surface_set_focus(surface, isFocused) }
+    }
+
+    private func installKeyUpMonitorIfNeeded() {
+        guard eventMonitor == nil else { return }
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyUp]) { [weak self] event in
+            self?.localKeyUp(event) ?? event
+        }
+    }
+
+    private func removeKeyUpMonitor() {
+        guard let eventMonitor else { return }
+        NSEvent.removeMonitor(eventMonitor)
+        self.eventMonitor = nil
     }
 
     override func viewDidMoveToWindow() {
@@ -166,6 +185,12 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     }
 
     override var wantsUpdateLayer: Bool { true }
+
+    private func updateLayerOpacity() {
+        let opacity = min(max(BellithSettings.shared.backgroundOpacity, 0.0), 1.0)
+        layer?.isOpaque = opacity >= 0.999
+        layer?.backgroundColor = NSColor.clear.cgColor
+    }
 
     override func layout() {
         super.layout()
@@ -422,6 +447,10 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
 
     private func sendTextToSurface(_ text: String) {
         guard let surface else { return }
+        if shouldOfferTextIntercept(text),
+           onTextIntercept?(text, self) == true {
+            return
+        }
         text.withCString { ptr in
             ghostty_surface_text(surface, ptr, UInt(text.utf8.count))
         }
@@ -455,6 +484,11 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     // MARK: - Keyboard
 
     override func keyDown(with event: NSEvent) {
+        currentModifierFlags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if onKeyDownIntercept?(event, self) == true {
+            return
+        }
+
         guard let surface else {
             interpretKeyEvents([event])
             return
@@ -529,10 +563,12 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     }
 
     override func keyUp(with event: NSEvent) {
+        currentModifierFlags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         keyAction(GHOSTTY_ACTION_RELEASE, event: event)
     }
 
     override func flagsChanged(with event: NSEvent) {
+        currentModifierFlags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         guard let surface else { return }
         // Send modifier-only key events so ghostty can track modifier state
         var key_ev = ghostty_input_key_s()
@@ -552,6 +588,10 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         guard event.type == .keyDown, focused else { return false }
+        if onKeyDownIntercept?(event, self) == true {
+            return true
+        }
+
         guard let surface else { return false }
 
         // Let Cmd+Q and Cmd+, pass through to the system menu
@@ -578,9 +618,24 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     }
 
     private func localKeyUp(_ event: NSEvent) -> NSEvent? {
+        currentModifierFlags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         guard event.modifierFlags.contains(.command), focused else { return event }
+        if isCommandShiftArrow(event) {
+            return nil
+        }
         keyUp(with: event)
         return nil
+    }
+
+    private func isCommandShiftArrow(_ event: NSEvent) -> Bool {
+        let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard mods == [.command, .shift] else { return false }
+        switch KeyShortcut.canonicalKey(from: event) {
+        case "leftArrow", "rightArrow", "upArrow", "downArrow":
+            return true
+        default:
+            return false
+        }
     }
 
     @discardableResult
@@ -603,12 +658,35 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         // Only send text if it's not a control character (ghostty handles those)
         if let text, !text.isEmpty,
            let codepoint = text.utf8.first, codepoint >= 0x20 {
+            if shouldOfferTextIntercept(text),
+               onTextIntercept?(text, self) == true {
+                return true
+            }
             return text.withCString { ptr in
                 key_ev.text = ptr
                 return ghostty_surface_key(surface, key_ev)
             }
         } else {
             return ghostty_surface_key(surface, key_ev)
+        }
+    }
+
+    private func shouldOfferTextIntercept(_ text: String) -> Bool {
+        currentModifierFlags == [.command, .shift] && Self.isArrowPayloadText(text)
+    }
+
+    private static func isArrowPayloadText(_ text: String) -> Bool {
+        let uppercased = text.uppercased()
+        guard !uppercased.isEmpty,
+              uppercased.count % 2 == 0,
+              uppercased.allSatisfy({ $0.isHexDigit }) else {
+            return false
+        }
+
+        return stride(from: 0, to: uppercased.count, by: 2).allSatisfy { offset in
+            let start = uppercased.index(uppercased.startIndex, offsetBy: offset)
+            let end = uppercased.index(start, offsetBy: 2)
+            return ["0A", "0B", "0C", "0D"].contains(String(uppercased[start..<end]))
         }
     }
 
@@ -665,6 +743,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
 
     private func sendMousePos(_ event: NSEvent) {
         guard let surface else { return }
+        guard shouldReportMousePosition?() ?? true else { return }
         let pos = convert(event.locationInWindow, from: nil)
         ghostty_surface_mouse_pos(surface, pos.x, frame.height - pos.y,
                                   InputHelpers.ghosttyMods(event.modifierFlags))

@@ -51,6 +51,10 @@ final class TerminalConfigTests: XCTestCase {
         XCTAssertTrue(contents.contains("keybind = cmd+right=text:\\x05"), "Config should map Command-Right to line end")
         XCTAssertTrue(contents.contains("keybind = cmd+backspace=text:\\x15"), "Config should map Command-Delete to kill to line start")
         XCTAssertTrue(contents.contains("keybind = cmd+delete=text:\\x0b"), "Config should map Command-ForwardDelete to kill to line end")
+        XCTAssertTrue(contents.contains("keybind = cmd+shift+left=goto_split:left"), "Config should route Command-Shift-Left to pane focus")
+        XCTAssertTrue(contents.contains("keybind = cmd+shift+right=goto_split:right"), "Config should route Command-Shift-Right to pane focus")
+        XCTAssertTrue(contents.contains("keybind = cmd+shift+up=goto_split:up"), "Config should route Command-Shift-Up to pane focus")
+        XCTAssertTrue(contents.contains("keybind = cmd+shift+down=goto_split:down"), "Config should route Command-Shift-Down to pane focus")
         XCTAssertTrue(contents.contains("window-padding-x = 4"), "Config should write the expected horizontal padding")
         XCTAssertTrue(contents.contains("window-padding-y = 8,0"), "Config should write the expected top-heavy vertical padding")
         XCTAssertFalse(contents.contains("window-padding-y = 38,2"), "Config should not include the old typo")
@@ -83,21 +87,58 @@ final class TerminalConfigTests: XCTestCase {
         )
     }
 
-    func testOLEDThemeWritesGeneratedGhosttyThemeFile() throws {
-        settings.darkThemeName = "Midnight OLED"
+    func testAccentAppearanceWritesGeneratedGhosttyThemeFile() throws {
+        settings.useRebrandShell = false
+        settings.appearanceMode = .dark
+        settings.appearancePaletteID = AppearancePalette.steel.id
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("TerminalConfigTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let path = try TerminalConfig.writeConfigFile(settings: settings, configurationDirectory: directory)
         let contents = try String(contentsOfFile: path, encoding: .utf8)
-        let themeFile = directory.appendingPathComponent("ghostty-theme-midnight-oled.theme")
+        let themeFile = directory.appendingPathComponent("ghostty-theme-appearance-steel-dark.theme")
         let themeContents = try String(contentsOf: themeFile, encoding: .utf8)
 
         XCTAssertTrue(contents.contains("theme = \(themeFile.path)"))
-        XCTAssertTrue(themeContents.contains("background = #05070A"))
-        XCTAssertTrue(themeContents.contains("cursor-color = #7CC6FF"))
-        XCTAssertTrue(themeContents.contains("palette = 0=#0B0F14"))
+        XCTAssertTrue(themeContents.contains("background = #08090B"))
+        XCTAssertTrue(themeContents.contains("cursor-color = #7C9CD8"))
+        XCTAssertTrue(themeContents.contains("palette = 0=#2A2B2D"))
+    }
+
+    func testRebrandConfigOverridesTerminalBackground() throws {
+        settings.useRebrandShell = true
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TerminalConfigTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let path = try TerminalConfig.writeConfigFile(settings: settings, configurationDirectory: directory)
+        let contents = try String(contentsOfFile: path, encoding: .utf8)
+
+        XCTAssertTrue(contents.contains("background = #"))
+        XCTAssertTrue(contents.contains("selection-background = #"))
+    }
+
+    func testBackgroundOpacityReflectsSettings() throws {
+        settings.useRebrandShell = false
+        settings.backgroundOpacity = 0.72
+
+        let path = try TerminalConfig.writeConfigFile(settings: settings)
+        let contents = try String(contentsOfFile: path, encoding: .utf8)
+
+        XCTAssertTrue(contents.contains("background-opacity = 0.720"))
+        XCTAssertTrue(contents.contains("background-blur-radius = 11"))
+    }
+
+    func testRebrandConfigUsesOpaqueTerminalCanvas() throws {
+        settings.useRebrandShell = true
+        settings.backgroundOpacity = 0.72
+
+        let path = try TerminalConfig.writeConfigFile(settings: settings)
+        let contents = try String(contentsOfFile: path, encoding: .utf8)
+
+        XCTAssertTrue(contents.contains("background-opacity = 1.000"))
+        XCTAssertTrue(contents.contains("background-blur-radius = 0"))
     }
 
     func testVerticalPaddingKeepsMinimumTopInset() throws {

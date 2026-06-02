@@ -130,6 +130,175 @@ struct ThemeColors {
     }
 }
 
+// MARK: - Accent-Driven Appearance
+
+struct AppearancePalette: Equatable {
+    let id: String
+    let name: String
+    let accent: NSColor
+    let secondaryAccent: NSColor
+
+    var displayName: String { name.uppercased() }
+
+    static let aurora = AppearancePalette(
+        id: "aurora",
+        name: "Aurora",
+        accent: NSColor(red: 0.486, green: 0.776, blue: 1.000, alpha: 1.0),
+        secondaryAccent: NSColor(red: 0.455, green: 0.996, blue: 0.745, alpha: 1.0)
+    )
+    static let ember = AppearancePalette(
+        id: "ember",
+        name: "Ember",
+        accent: NSColor(red: 1.000, green: 0.451, blue: 0.325, alpha: 1.0),
+        secondaryAccent: NSColor(red: 1.000, green: 0.737, blue: 0.247, alpha: 1.0)
+    )
+    static let iris = AppearancePalette(
+        id: "iris",
+        name: "Iris",
+        accent: NSColor(red: 0.682, green: 0.533, blue: 0.980, alpha: 1.0),
+        secondaryAccent: NSColor(red: 0.980, green: 0.533, blue: 0.824, alpha: 1.0)
+    )
+    static let moss = AppearancePalette(
+        id: "moss",
+        name: "Moss",
+        accent: NSColor(red: 0.486, green: 0.792, blue: 0.455, alpha: 1.0),
+        secondaryAccent: NSColor(red: 0.494, green: 0.847, blue: 0.753, alpha: 1.0)
+    )
+    static let steel = AppearancePalette(
+        id: "steel",
+        name: "Steel",
+        accent: NSColor(red: 0.486, green: 0.612, blue: 0.847, alpha: 1.0),
+        secondaryAccent: NSColor(red: 0.533, green: 0.753, blue: 0.816, alpha: 1.0)
+    )
+    static let mono = AppearancePalette(
+        id: "mono",
+        name: "Mono",
+        accent: NSColor(red: 0.780, green: 0.800, blue: 0.835, alpha: 1.0),
+        secondaryAccent: NSColor(red: 0.580, green: 0.620, blue: 0.690, alpha: 1.0)
+    )
+
+    static let all: [AppearancePalette] = [.aurora, .ember, .iris, .moss, .steel, .mono]
+
+    static func palette(for id: String) -> AppearancePalette {
+        all.first { $0.id == id } ?? .aurora
+    }
+
+    static func == (lhs: AppearancePalette, rhs: AppearancePalette) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+extension ThemeColors {
+    static func appearance(palette: AppearancePalette, isDark: Bool) -> ThemeColors {
+        appearance(accent: palette.accent, name: palette.name, id: palette.id, isDark: isDark)
+    }
+
+    static func appearance(accent inputAccent: NSColor, name: String = "Custom", id: String = "custom", isDark: Bool) -> ThemeColors {
+        let accent = inputAccent.usingColorSpace(.sRGB) ?? inputAccent
+        let secondary = accent.derivedSecondaryAccent
+
+        if isDark {
+            let base = NSColor(red: 0.030, green: 0.034, blue: 0.044, alpha: 1.0)
+            let surface = base.mixing(with: accent, baseFraction: 0.97)
+            let overlay = base.mixing(with: secondary, baseFraction: 0.94)
+            return ThemeColors(
+                name: "\(name) Dark",
+                base: base,
+                surface: surface,
+                overlay: overlay,
+                accent: accent,
+                textPrimary: NSColor(red: 0.900, green: 0.925, blue: 0.965, alpha: 1.0),
+                textSecondary: NSColor(red: 0.670, green: 0.710, blue: 0.790, alpha: 1.0),
+                textMuted: NSColor(red: 0.430, green: 0.475, blue: 0.560, alpha: 1.0),
+                border: NSColor(white: 1.0, alpha: 0.10),
+                borderSubtle: NSColor(white: 1.0, alpha: 0.055),
+                ghosttyTheme: "Bellith \(name) Dark",
+                darkChromeStyle: .standard,
+                ghosttyThemeDefinition: Self.ghosttyDefinition(
+                    fileStem: "appearance-\(id.safeThemeStem)-dark",
+                    accent: accent,
+                    secondary: secondary,
+                    isDark: true,
+                    base: base,
+                    foreground: NSColor(red: 0.900, green: 0.925, blue: 0.965, alpha: 1.0)
+                )
+            )
+        }
+
+        let base = NSColor(red: 0.972, green: 0.975, blue: 0.982, alpha: 1.0)
+        let surface = base.mixing(with: accent, baseFraction: 0.95)
+        let overlay = base.mixing(with: secondary, baseFraction: 0.88)
+        return ThemeColors(
+            name: "\(name) Light",
+            base: base,
+            surface: surface,
+            overlay: overlay,
+            accent: accent.mixing(with: .black, baseFraction: 0.82),
+            textPrimary: NSColor(red: 0.145, green: 0.160, blue: 0.190, alpha: 1.0),
+            textSecondary: NSColor(red: 0.365, green: 0.395, blue: 0.455, alpha: 1.0),
+            textMuted: NSColor(red: 0.590, green: 0.620, blue: 0.675, alpha: 1.0),
+            border: NSColor(white: 0.0, alpha: 0.09),
+            borderSubtle: NSColor(white: 0.0, alpha: 0.045),
+            ghosttyTheme: "Bellith \(name) Light",
+            ghosttyThemeDefinition: Self.ghosttyDefinition(
+                fileStem: "appearance-\(id.safeThemeStem)-light",
+                accent: accent,
+                secondary: secondary,
+                isDark: false,
+                base: base,
+                foreground: NSColor(red: 0.145, green: 0.160, blue: 0.190, alpha: 1.0)
+            )
+        )
+    }
+
+    private static func ghosttyDefinition(
+        fileStem: String,
+        accent: NSColor,
+        secondary: NSColor,
+        isDark: Bool,
+        base: NSColor,
+        foreground: NSColor
+    ) -> GhosttyThemeDefinition {
+        let red = NSColor(red: 1.000, green: 0.431, blue: 0.500, alpha: 1.0)
+        let green = NSColor(red: 0.420, green: 0.840, blue: 0.570, alpha: 1.0)
+        let yellow = NSColor(red: 0.960, green: 0.720, blue: 0.330, alpha: 1.0)
+        let magenta = accent.mixing(with: red, baseFraction: 0.58)
+        let cyan = secondary.mixing(with: accent, baseFraction: 0.56)
+        let low = isDark ? base.mixing(with: .white, baseFraction: 0.86) : base.mixing(with: .black, baseFraction: 0.84)
+        let mid = isDark ? base.mixing(with: .white, baseFraction: 0.68) : base.mixing(with: .black, baseFraction: 0.70)
+        let high = isDark ? foreground : NSColor(red: 0.220, green: 0.235, blue: 0.270, alpha: 1.0)
+        let selection = isDark ? accent.withAlphaComponent(0.28) : accent.withAlphaComponent(0.18)
+
+        return GhosttyThemeDefinition(
+            fileStem: fileStem,
+            lines: [
+                "palette = 0=\(low.hexRGB)",
+                "palette = 1=\(red.hexRGB)",
+                "palette = 2=\(green.hexRGB)",
+                "palette = 3=\(yellow.hexRGB)",
+                "palette = 4=\(accent.hexRGB)",
+                "palette = 5=\(magenta.hexRGB)",
+                "palette = 6=\(cyan.hexRGB)",
+                "palette = 7=\(high.hexRGB)",
+                "palette = 8=\(mid.hexRGB)",
+                "palette = 9=\(red.mixing(with: .white, baseFraction: 0.76).hexRGB)",
+                "palette = 10=\(green.mixing(with: .white, baseFraction: 0.78).hexRGB)",
+                "palette = 11=\(yellow.mixing(with: .white, baseFraction: 0.80).hexRGB)",
+                "palette = 12=\(accent.mixing(with: .white, baseFraction: 0.78).hexRGB)",
+                "palette = 13=\(magenta.mixing(with: .white, baseFraction: 0.78).hexRGB)",
+                "palette = 14=\(cyan.mixing(with: .white, baseFraction: 0.78).hexRGB)",
+                "palette = 15=\(foreground.mixing(with: .white, baseFraction: isDark ? 0.70 : 0.18).hexRGB)",
+                "background = \(base.hexRGB)",
+                "foreground = \(foreground.hexRGB)",
+                "cursor-color = \(accent.hexRGB)",
+                "cursor-text = \(base.hexRGB)",
+                "selection-background = \(selection.opaque(over: base).hexRGB)",
+                "selection-foreground = \(foreground.hexRGB)",
+            ]
+        )
+    }
+}
+
 // MARK: - Built-in Themes
 
 extension ThemeColors {
@@ -548,6 +717,51 @@ private extension NSColor {
     func scaledAlpha(_ multiplier: CGFloat) -> NSColor {
         let converted = usingColorSpace(.sRGB) ?? self
         return converted.withAlphaComponent(max(0, min(1, converted.alphaComponent * multiplier)))
+    }
+
+    var hexRGB: String {
+        let resolved = usingColorSpace(.sRGB) ?? self
+        let r = Int((resolved.redComponent * 255).rounded())
+        let g = Int((resolved.greenComponent * 255).rounded())
+        let b = Int((resolved.blueComponent * 255).rounded())
+        return String(format: "#%02X%02X%02X", r, g, b)
+    }
+
+    var derivedSecondaryAccent: NSColor {
+        let resolved = usingColorSpace(.sRGB) ?? self
+        var hue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 0
+        resolved.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+        return NSColor(
+            calibratedHue: (hue + 0.11).truncatingRemainder(dividingBy: 1),
+            saturation: min(1, max(0.34, saturation * 0.86)),
+            brightness: min(1, max(0.62, brightness * 1.08)),
+            alpha: 1
+        )
+    }
+
+    func opaque(over background: NSColor) -> NSColor {
+        guard let foreground = usingColorSpace(.sRGB),
+              let background = background.usingColorSpace(.sRGB) else { return self }
+        let alpha = foreground.alphaComponent
+        let inv = 1 - alpha
+        return NSColor(
+            srgbRed: foreground.redComponent * alpha + background.redComponent * inv,
+            green: foreground.greenComponent * alpha + background.greenComponent * inv,
+            blue: foreground.blueComponent * alpha + background.blueComponent * inv,
+            alpha: 1
+        )
+    }
+}
+
+private extension String {
+    var safeThemeStem: String {
+        let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
+        let filtered = map { allowed.contains($0) ? $0 : "-" }
+        let collapsed = String(filtered).trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
+        return collapsed.isEmpty ? "custom" : collapsed.lowercased()
     }
 }
 

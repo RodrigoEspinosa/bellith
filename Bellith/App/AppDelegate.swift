@@ -1,7 +1,6 @@
 import AppKit
 import GhosttyKit
 import os
-import UniformTypeIdentifiers
 import UserNotifications
 
 @main
@@ -16,19 +15,19 @@ struct BellithApp {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    private let dependencies: BellithDependencies
+    let dependencies: BellithDependencies
     private let updater = UpdaterController()
-    private var terminalApp: TerminalApp?
-    private var windows: [WindowEntry] = []
+    var terminalApp: TerminalApp?
+    var windows: [WindowEntry] = []
     private var newWindowObserver: NSObjectProtocol?
     private var appearanceObserver: NSObjectProtocol?
     private var terminalConfigFailureObserver: NSObjectProtocol?
     private var settingsObserver: NSObjectProtocol?
-    private var themeMenu = NSMenu(title: "Theme")
+    private var appearanceAccentMenu = NSMenu(title: "Accent Color")
     private var workspacesMenu = NSMenu(title: "Workspaces")
     private var workspaceStoreObserver: NSObjectProtocol?
 
-    private struct WindowEntry {
+    struct WindowEntry {
         let window: TerminalWindow
         let container: TerminalContainerView
     }
@@ -92,7 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         applyResolvedAppearanceAndTheme()
 
-        // Observe system appearance changes to switch themes
+        // Observe system appearance changes to update the derived appearance palette.
         appearanceObserver = DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
             object: nil, queue: .main
@@ -101,7 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         // Observe "Increase Contrast" accessibility toggle so we can promote
-        // to/from the high-contrast theme variant at runtime.
+        // to/from the high-contrast appearance variant at runtime.
         NSWorkspace.shared.notificationCenter.addObserver(
             self,
             selector: #selector(handleAccessibilityDisplayOptionsChanged),
@@ -237,8 +236,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             createInitialTab: createInitialTab,
             dependencies: dependencies
         )
-        let backdrop = BackdropView(container: container)
-        window.contentView = backdrop
+        window.onKeyDownIntercept = { [weak container] event in
+            container?.interceptWindowKeyDown(event) ?? false
+        }
+        if dependencies.settings.useRebrandShell {
+            // Rebrand path: hand off chrome to `RebrandShellView`, which hosts
+            // the legacy container with its own title bar / rail / status bar
+            // suppressed. Set as the window's content view directly — no
+            // BackdropView in the rebrand path because the shell paints its
+            // own background.
+            let shell = RebrandShellView(container: container)
+            window.contentView = shell
+        } else {
+            let backdrop = BackdropView(container: container)
+            window.contentView = backdrop
+        }
 
         let entry = WindowEntry(window: window, container: container)
         windows.append(entry)
@@ -247,6 +259,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             container.restoreSession(session)
         } else if let initialWorkingDirectory, !initialWorkingDirectory.isEmpty {
             container.openWorkingDirectory(initialWorkingDirectory)
+            container.openReferencePaneLayoutIfNeeded()
+        } else if createInitialTab {
+            container.openReferencePaneLayoutIfNeeded()
         }
 
         window.makeFirstResponder(container.activeSurface ?? container)
@@ -440,7 +455,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // supermenu reference from the previous main-menu tree after the
         // first pass. `setSubmenu:` throws `NSInternalInconsistencyException`
         // if we attach it to a new item while it already has a parent — give
-        // it a fresh instance each rebuild. `themeMenu` is reassigned below
+        // it a fresh instance each rebuild. `appearanceAccentMenu` is reassigned below
         // for the same reason.
         workspacesMenu = NSMenu(title: "Workspaces")
 
@@ -449,9 +464,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // App menu
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "About Bellith", action: #selector(handleAbout), keyEquivalent: "")
-        let checkForUpdatesItem = NSMenuItem(title: "Check for Updates…", action: updater.menuAction, keyEquivalent: "")
-        checkForUpdatesItem.target = updater.menuTarget
-        appMenu.addItem(checkForUpdatesItem)
+        if updater.isAvailable {
+            let checkForUpdatesItem = NSMenuItem(title: "Check for Updates…", action: updater.menuAction, keyEquivalent: "")
+            checkForUpdatesItem.target = updater.menuTarget
+            appMenu.addItem(checkForUpdatesItem)
+        }
         appMenu.addItem(.separator())
         appMenu.addItem(configuredMenuItem(title: "Settings…", action: #selector(handlePreferences), shortcutID: "preferences"))
         appMenu.addItem(configuredMenuItem(title: "Open settings.json", action: #selector(handleOpenSettingsFile)))
@@ -478,7 +495,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         shellMenu.addItem(configuredMenuItem(title: "New Tab", action: #selector(handleNewTab), shortcutID: "newTab"))
         shellMenu.addItem(configuredMenuItem(title: "New Window", action: #selector(handleNewWindow), shortcutID: "newWindow"))
         shellMenu.addItem(configuredMenuItem(title: "Connect Host…", action: #selector(handleConnectHost)))
-        if dependencies.settings.legacyPaneSupport {
+        if dependencies.settings.legacyPaneSupport || dependencies.settings.useRebrandShell {
             shellMenu.addItem(.separator())
             shellMenu.addItem(configuredMenuItem(title: "Split Right", action: #selector(handleSplitRight), shortcutID: "splitRight"))
             shellMenu.addItem(configuredMenuItem(title: "Split Down", action: #selector(handleSplitDown), shortcutID: "splitDown"))
@@ -537,14 +554,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         viewMenu.addItem(configuredMenuItem(title: "Reload Config", action: #selector(handleReloadConfig), shortcutID: "reloadConfig"))
         viewMenu.addItem(.separator())
 
-        // Theme submenu
-        themeMenu = NSMenu(title: "Theme")
-        themeMenu.delegate = self
-        rebuildThemeMenu()
-        let themeItem = NSMenuItem(title: "Theme", action: nil, keyEquivalent: "")
-        themeItem.submenu = themeMenu
-        viewMenu.addItem(themeItem)
-        viewMenu.addItem(configuredMenuItem(title: "Import iTerm2 Theme…", action: #selector(handleImportITermColors)))
+        appearanceAccentMenu = NSMenu(title: "Accent Color")
+        appearanceAccentMenu.delegate = self
+        rebuildAppearanceAccentMenu()
+        let accentItem = NSMenuItem(title: "Accent Color", action: nil, keyEquivalent: "")
+        accentItem.submenu = appearanceAccentMenu
+        viewMenu.addItem(accentItem)
 
         let viewMenuItem = NSMenuItem()
         viewMenuItem.submenu = viewMenu
@@ -666,7 +681,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func handleFind() { activeEntry?.container.showSearch() }
     @objc private func handleClearBuffer() { activeEntry?.container.clearBuffer() }
     @objc private func handleNewTab() { activeEntry?.container.createTab() }
-    @objc private func handleCloseTab() { activeEntry?.container.closeCurrentTab() }
+    @objc private func handleCloseTab() { activeEntry?.container.closeFocusedPaneOrTab() }
     @objc private func handleCloseWindow() { NSApp.keyWindow?.close() }
     @objc private func handleClosePane() { activeEntry?.container.closePane() }
     @objc private func handleNewWindow() { createWindow() }
@@ -693,7 +708,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func handleToggleSidebar() { activeEntry?.container.sidebar.toggle() }
     @objc private func handleTogglePalette() { activeEntry?.container.toggleCommandPalette() }
     @objc private func handleShowKeyboardShortcuts() { activeEntry?.container.toggleShortcutCheatSheet() }
-    @objc private func handleToggleStatusBar() { dependencies.settings.showStatusBar.toggle() }
+    @objc func handleToggleStatusBar() { dependencies.settings.showStatusBar.toggle() }
 
     @objc private func handleFontBigger() { activeEntry?.container.adjustFontSizePublic(delta: 1) }
     @objc private func handleFontSmaller() { activeEntry?.container.adjustFontSizePublic(delta: -1) }
@@ -720,52 +735,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.orderFrontStandardAboutPanel(options: BellithBranding.aboutPanelOptions())
         NSApp.activate(ignoringOtherApps: true)
     }
-    @objc private func handleImportITermColors() {
-        let panel = NSOpenPanel()
-        panel.title = "Import iTerm2 Theme"
-        panel.prompt = "Import"
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        if let type = UTType(filenameExtension: "itermcolors") {
-            panel.allowedContentTypes = [type]
-        }
-        guard panel.runModal() == .OK else { return }
-
-        var imported: [String] = []
-        var failures: [(URL, Error)] = []
-        for url in panel.urls {
-            do {
-                let def = try ITermColorsImporter.importFile(url: url)
-                imported.append(def.name)
-            } catch {
-                failures.append((url, error))
-            }
-        }
-
-        let alert = NSAlert()
-        if !imported.isEmpty && failures.isEmpty {
-            alert.messageText = "Imported \(imported.count) theme\(imported.count == 1 ? "" : "s")"
-            alert.informativeText = imported.joined(separator: ", ") + "\n\nOpen the Theme menu to apply."
-            alert.alertStyle = .informational
-        } else if imported.isEmpty {
-            alert.messageText = "Import failed"
-            alert.informativeText = failures.map { "\($0.0.lastPathComponent): \($0.1.localizedDescription)" }.joined(separator: "\n")
-            alert.alertStyle = .warning
-        } else {
-            alert.messageText = "Imported \(imported.count), \(failures.count) failed"
-            alert.informativeText = "Imported: \(imported.joined(separator: ", "))\n\nFailed:\n" +
-                failures.map { "\($0.0.lastPathComponent): \($0.1.localizedDescription)" }.joined(separator: "\n")
-            alert.alertStyle = .warning
-        }
-        alert.runModal()
-
-        // Rebuild theme menu so newly-imported themes appear immediately.
-        rebuildThemeMenu()
-    }
 
     @objc private func handleHelp() {
-        // Open help/documentation — for now open the custom themes folder as a basic help action
         guard let url = BellithBranding.repoURL else { return }
         NSWorkspace.shared.open(url)
     }
@@ -896,41 +867,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let pluginID = sender.representedObject as? String else { return }
         activeEntry?.container.createSmartTab(pluginID: pluginID)
     }
-    @objc private func handleThemeSelection(_ sender: NSMenuItem) {
-        guard let theme = sender.representedObject as? ThemeColors else { return }
-        if theme.isLight {
-            dependencies.settings.lightThemeName = theme.name
-        } else {
-            dependencies.settings.darkThemeName = theme.name
-        }
+    @objc private func handleAppearanceAccentSelection(_ sender: NSMenuItem) {
+        guard let palette = sender.representedObject as? AppearancePalette else { return }
+        dependencies.settings.appearancePaletteID = palette.id
         applyResolvedAppearanceAndTheme()
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
-        if menu === themeMenu { rebuildThemeMenu() }
+        if menu === appearanceAccentMenu { rebuildAppearanceAccentMenu() }
     }
 
-    private func rebuildThemeMenu() {
-        themeMenu.removeAllItems()
+    private func rebuildAppearanceAccentMenu() {
+        appearanceAccentMenu.removeAllItems()
         let settings = dependencies.settings
-        let darkHeader = NSMenuItem(title: "Dark", action: nil, keyEquivalent: "")
-        darkHeader.isEnabled = false
-        themeMenu.addItem(darkHeader)
-        for theme in ThemeColors.allThemes where !theme.isLight {
-            let item = NSMenuItem(title: "  " + theme.name, action: #selector(handleThemeSelection(_:)), keyEquivalent: "")
-            item.representedObject = theme
-            item.state = theme.name == settings.darkThemeName ? .on : .off
-            themeMenu.addItem(item)
-        }
-        themeMenu.addItem(.separator())
-        let lightHeader = NSMenuItem(title: "Light", action: nil, keyEquivalent: "")
-        lightHeader.isEnabled = false
-        themeMenu.addItem(lightHeader)
-        for theme in ThemeColors.allThemes where theme.isLight {
-            let item = NSMenuItem(title: "  " + theme.name, action: #selector(handleThemeSelection(_:)), keyEquivalent: "")
-            item.representedObject = theme
-            item.state = theme.name == settings.lightThemeName ? .on : .off
-            themeMenu.addItem(item)
+        for palette in AppearancePalette.all {
+            let item = NSMenuItem(title: palette.name, action: #selector(handleAppearanceAccentSelection(_:)), keyEquivalent: "")
+            item.representedObject = palette
+            item.state = palette.id == settings.appearancePaletteID ? .on : .off
+            appearanceAccentMenu.addItem(item)
         }
     }
 
@@ -1048,6 +1002,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return true
 
         case GHOSTTY_ACTION_MOUSE_SHAPE:
+            guard mouseActionCanAffectCursor(target: target) else { return true }
             let shape = action.action.mouse_shape
             switch shape {
             case GHOSTTY_MOUSE_SHAPE_DEFAULT: NSCursor.arrow.set()
@@ -1059,6 +1014,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return true
 
         case GHOSTTY_ACTION_MOUSE_VISIBILITY:
+            guard mouseActionCanAffectCursor(target: target) else { return true }
             if action.action.mouse_visibility == GHOSTTY_MOUSE_HIDDEN {
                 NSCursor.hide()
             } else {
@@ -1114,6 +1070,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         case GHOSTTY_ACTION_RELOAD_CONFIG:
             activeEntry?.container.reloadConfig()
+            return true
+
+        case GHOSTTY_ACTION_GOTO_SPLIT:
+            guard let direction = splitDirection(from: action.action.goto_split) else { return true }
+            let surfaceView = surfaceView(for: target)
+            (surfaceView.flatMap { container(for: $0) } ?? activeEntry?.container)?.focusPane(direction)
             return true
 
         case GHOSTTY_ACTION_COMMAND_FINISHED:
@@ -1187,6 +1149,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    private func splitDirection(from action: ghostty_action_goto_split_e) -> SplitPaneView.Direction? {
+        switch action {
+        case GHOSTTY_GOTO_SPLIT_LEFT:
+            return .left
+        case GHOSTTY_GOTO_SPLIT_RIGHT:
+            return .right
+        case GHOSTTY_GOTO_SPLIT_UP:
+            return .up
+        case GHOSTTY_GOTO_SPLIT_DOWN:
+            return .down
+        default:
+            return nil
+        }
+    }
+
+    private func mouseActionCanAffectCursor(target: ghostty_target_s) -> Bool {
+        guard let surfaceView = surfaceView(for: target),
+              let container = container(for: surfaceView) else {
+            return false
+        }
+        return container.isSurfaceVisible(surfaceView)
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
     }
@@ -1196,36 +1181,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(withTitle: "New Window", action: #selector(handleNewWindow), keyEquivalent: "")
         menu.addItem(withTitle: "New Tab", action: #selector(handleNewTab), keyEquivalent: "")
         return menu
-    }
-}
-
-// MARK: - Menu Validation
-
-extension AppDelegate: NSMenuItemValidation {
-    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if menuItem.action == #selector(handleToggleStatusBar) {
-            menuItem.state = dependencies.settings.showStatusBar ? .on : .off
-        }
-        return true
-    }
-}
-
-// MARK: - NSWindowDelegate
-
-extension AppDelegate: NSWindowDelegate {
-    func windowDidBecomeKey(_ notification: Notification) {
-        guard let window = notification.object as? TerminalWindow,
-              let entry = windows.first(where: { $0.window === window }) else { return }
-        terminalApp?.setFocus(true)
-        window.makeFirstResponder(entry.container.activeSurface)
-    }
-
-    func windowDidResignKey(_ notification: Notification) {
-        terminalApp?.setFocus(false)
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        guard let window = notification.object as? TerminalWindow else { return }
-        windows.removeAll { $0.window === window }
     }
 }

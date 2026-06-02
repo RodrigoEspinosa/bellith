@@ -48,20 +48,9 @@ final class BellithSettings {
     static let shared = BellithSettings()
     static let didChangeNotification = Notification.Name("BellithSettingsDidChange")
     static let defaultTerminalTerm = "xterm-ghostty"
-    private enum WindowPaddingDefaults {
-        static let migrationKey = "didMigrateWindowPaddingDefaults"
-        static let legacyX = 10
-        static let legacyY = 38
-        static let current = 0
-    }
-    private enum BuiltInSettingsWindowDefaults {
-        static let migrationKey = "didMigrateBuiltInSettingsWindowDefault"
-        static let legacyDefault = false
-        static let currentDefault = true
-    }
-    private enum PersistedKeys {
+    enum PersistedKeys {
         static let stringKeys: Set<String> = [
-            "fontFamily", "cursorStyle", "darkThemeName", "lightThemeName", "tabMode",
+            "fontFamily", "cursorStyle", "appearanceAccentColor", "appearancePaletteID", "darkThemeName", "lightThemeName", "tabMode",
             "shell", "terminalTerm", "visorPosition", "workingDirectory",
             "bellMode", "shortcutPreset", "localSessionBootstrap",
             "terminalOptionKeyBehavior", "appearanceMode",
@@ -89,6 +78,8 @@ final class BellithSettings {
             "showStatusBarGitWorktree", "showStatusBarGitBranch", "showStatusBarProcess",
             "showStatusBarGitHub", "showStatusBarSize",
             "fontLigaturesEnabled",
+            "useRebrandShell", "openRebrandPanesByDefault",
+            "showModifierHints",
         ]
         static let stringArrayKeys: Set<String> = [
             "sidebarTools",
@@ -106,9 +97,9 @@ final class BellithSettings {
 
     let defaults: UserDefaults
     private let smartPanelRegistry: SmartPanelRegistry
-    private let settingsFileURL: URL?
-    private var settingsFileObserver: DispatchSourceFileSystemObject?
-    private var lastPersistedSettingsFileData: Data?
+    let settingsFileURL: URL?
+    var settingsFileObserver: DispatchSourceFileSystemObject?
+    var lastPersistedSettingsFileData: Data?
 
     init(
         defaults: UserDefaults = .standard,
@@ -157,11 +148,11 @@ final class BellithSettings {
     var backgroundOpacity: Double {
         get {
             if defaults.object(forKey: "backgroundOpacity") != nil {
-                return defaults.double(forKey: "backgroundOpacity")
+                return min(1.0, max(0.45, defaults.double(forKey: "backgroundOpacity")))
             }
             return 1.0
         }
-        set { defaults.set(newValue, forKey: "backgroundOpacity"); notify() }
+        set { defaults.set(min(1.0, max(0.45, newValue)), forKey: "backgroundOpacity"); notify() }
     }
 
     /// When true, a muted accent derived from the desktop wallpaper is overlaid
@@ -177,14 +168,71 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "cursorStyle"); notify() }
     }
 
+    var appearancePaletteID: String {
+        get {
+            if let id = defaults.string(forKey: "appearancePaletteID") {
+                return AppearancePalette.palette(for: id).id
+            }
+            if let legacyName = defaults.string(forKey: "darkThemeName") ?? defaults.string(forKey: "themeName"),
+               let migrated = Self.paletteID(forLegacyThemeName: legacyName) {
+                return migrated
+            }
+            return AppearancePalette.aurora.id
+        }
+        set {
+            let palette = AppearancePalette.palette(for: newValue)
+            defaults.set(palette.id, forKey: "appearancePaletteID")
+            defaults.set(palette.accent.bellithHexRGB, forKey: "appearanceAccentColor")
+            notify()
+        }
+    }
+
+    var appearanceAccentColorHex: String {
+        get {
+            if let color = defaults.string(forKey: "appearanceAccentColor"),
+               NSColor.bellithColor(fromHex: color) != nil {
+                return color.uppercased()
+            }
+            return AppearancePalette.palette(for: appearancePaletteID).accent.bellithHexRGB
+        }
+        set {
+            guard let color = NSColor.bellithColor(fromHex: newValue) else { return }
+            defaults.set(color.bellithHexRGB, forKey: "appearanceAccentColor")
+            notify()
+        }
+    }
+
+    var appearanceAccentColor: NSColor {
+        get {
+            NSColor.bellithColor(fromHex: appearanceAccentColorHex) ?? AppearancePalette.aurora.accent
+        }
+        set {
+            let resolved = newValue.usingColorSpace(.sRGB) ?? newValue
+            defaults.set(resolved.bellithHexRGB, forKey: "appearanceAccentColor")
+            notify()
+        }
+    }
+
     var darkThemeName: String {
-        get { defaults.string(forKey: "darkThemeName") ?? defaults.string(forKey: "themeName") ?? "Tokyo Night" }
-        set { defaults.set(newValue, forKey: "darkThemeName"); notify() }
+        get { resolvedIsDark ? resolvedTheme.name : ThemeColors.appearance(accent: appearanceAccentColor, isDark: true).name }
+        set {
+            if let id = Self.paletteID(forLegacyThemeName: newValue) {
+                let palette = AppearancePalette.palette(for: id)
+                defaults.set(palette.id, forKey: "appearancePaletteID")
+                appearanceAccentColor = palette.accent
+            }
+        }
     }
 
     var lightThemeName: String {
-        get { defaults.string(forKey: "lightThemeName") ?? "Tokyo Night Light" }
-        set { defaults.set(newValue, forKey: "lightThemeName"); notify() }
+        get { ThemeColors.appearance(accent: appearanceAccentColor, isDark: false).name }
+        set {
+            if let id = Self.paletteID(forLegacyThemeName: newValue) {
+                let palette = AppearancePalette.palette(for: id)
+                defaults.set(palette.id, forKey: "appearancePaletteID")
+                appearanceAccentColor = palette.accent
+            }
+        }
     }
 
     var tabMode: String {
@@ -528,6 +576,44 @@ final class BellithSettings {
         set { defaults.set(newValue, forKey: "showStatusBar"); notify() }
     }
 
+    /// Toggle for the from-scratch chrome rewrite. When true, windows render
+    /// `RebrandShellView` instead of the legacy chrome built into
+    /// `TerminalContainerView`. Default true while the rebrand is being
+    /// stood up — flip via `defaults write com.rec.bellith useRebrandShell -bool NO`
+    /// to fall back to the legacy chrome.
+    var useRebrandShell: Bool {
+        get {
+            if defaults.object(forKey: "useRebrandShell") != nil {
+                return defaults.bool(forKey: "useRebrandShell")
+            }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "useRebrandShell"); notify() }
+    }
+
+    var openRebrandPanesByDefault: Bool {
+        get {
+            if defaults.object(forKey: "openRebrandPanesByDefault") != nil {
+                return defaults.bool(forKey: "openRebrandPanesByDefault")
+            }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "openRebrandPanesByDefault"); notify() }
+    }
+
+    /// When true, holding modifier keys (⌘, ⌥, ⌃, ⇧) reveals the contextual
+    /// shortcut hint popover. Off by default — flip via
+    /// `defaults write com.rec.bellith showModifierHints -bool YES`.
+    var showModifierHints: Bool {
+        get {
+            if defaults.object(forKey: "showModifierHints") != nil {
+                return defaults.bool(forKey: "showModifierHints")
+            }
+            return false
+        }
+        set { defaults.set(newValue, forKey: "showModifierHints"); notify() }
+    }
+
     var showStatusBarContext: Bool {
         get {
             if defaults.object(forKey: "showStatusBarContext") != nil {
@@ -619,7 +705,10 @@ final class BellithSettings {
     }
 
     var legacyPaneSupport: Bool {
-        get { defaults.bool(forKey: "legacyPaneSupport") }
+        get {
+            if useRebrandShell { return true }
+            return defaults.bool(forKey: "legacyPaneSupport")
+        }
         set { defaults.set(newValue, forKey: "legacyPaneSupport"); notify() }
     }
 
@@ -652,179 +741,6 @@ final class BellithSettings {
         set { defaults.set(newValue.rawValue, forKey: "shortcutPreset"); notify() }
     }
 
-    // Keybindings
-    var keybindings: [KeyBindingEntry] {
-        get {
-            let visibleDefaults = activeDefaultKeybindings
-            if let data = defaults.data(forKey: "keybindings"),
-               let decoded = try? JSONDecoder().decode([KeyBindingEntry].self, from: data) {
-                let map = Dictionary(uniqueKeysWithValues: decoded.map { ($0.id, $0) })
-                return visibleDefaults.map { mergeBinding($0, persisted: map[$0.id]) }
-            }
-            return visibleDefaults
-        }
-        set {
-            if let data = try? JSONEncoder().encode(newValue) {
-                defaults.set(data, forKey: "keybindings")
-            }
-            notify()
-        }
-    }
-
-    func shortcut(for actionId: String) -> KeyShortcut? {
-        binding(for: actionId)?.primaryShortcut
-    }
-
-    func shortcuts(for actionId: String) -> [KeyShortcut] {
-        binding(for: actionId)?.allShortcuts ?? []
-    }
-
-    func shortcutSummary(for actionId: String) -> String? {
-        guard let binding = binding(for: actionId), !binding.allShortcuts.isEmpty else { return nil }
-        return binding.shortcutSummary
-    }
-
-    func binding(for actionId: String) -> KeyBindingEntry? {
-        keybindings.first { $0.id == actionId }
-    }
-
-    func effectiveShortcutMap(for scope: ShortcutScope? = nil) -> [String: [KeyShortcut]] {
-        keybindings.reduce(into: [String: [KeyShortcut]]()) { map, binding in
-            guard scope == nil || binding.scope == scope else { return }
-            map[binding.id] = binding.allShortcuts
-        }
-    }
-
-    func conflicts() -> [ShortcutConflict] {
-        let bindings = keybindings
-        var groups: [KeyShortcut: [String]] = [:]
-
-        for binding in bindings {
-            for shortcut in binding.allShortcuts {
-                groups[shortcut, default: []].append(binding.id)
-            }
-        }
-
-        return groups
-            .compactMap { shortcut, actionIDs in
-                let uniqueActionIDs = Array(Set(actionIDs)).sorted()
-                guard uniqueActionIDs.count > 1 else { return nil }
-                return ShortcutConflict(shortcut: shortcut, actionIDs: uniqueActionIDs)
-            }
-            .sorted { $0.shortcut.displayString < $1.shortcut.displayString }
-    }
-
-    func reset(actionId: String) {
-        guard let index = keybindings.firstIndex(where: { $0.id == actionId }),
-              let defaultBinding = activeDefaultKeybindings.first(where: { $0.id == actionId }) else { return }
-        var updated = keybindings
-        updated[index] = defaultBinding
-        keybindings = updated
-    }
-
-    func reset(category: String) {
-        let defaultsByID = Dictionary(uniqueKeysWithValues: activeDefaultKeybindings.map { ($0.id, $0) })
-        let updated = keybindings.map { binding in
-            guard binding.category == category, let defaultBinding = defaultsByID[binding.id] else { return binding }
-            return defaultBinding
-        }
-        keybindings = updated
-    }
-
-    func applyPreset(_ preset: ShortcutPresetID) {
-        defaults.set(preset.rawValue, forKey: "shortcutPreset")
-        keybindings = Self.defaultKeybindings(for: preset, legacyPaneSupport: legacyPaneSupport)
-    }
-
-    private var activeDefaultKeybindings: [KeyBindingEntry] {
-        Self.defaultKeybindings(for: shortcutPreset, legacyPaneSupport: legacyPaneSupport)
-    }
-
-    private func mergeBinding(_ defaultBinding: KeyBindingEntry, persisted: KeyBindingEntry?) -> KeyBindingEntry {
-        guard let persisted else { return defaultBinding }
-        var merged = defaultBinding
-        merged.primaryShortcut = persisted.primaryShortcut
-        merged.alternateShortcuts = persisted.alternateShortcuts.filter {
-            persisted.primaryShortcut == nil || $0 != persisted.primaryShortcut
-        }
-        merged.presetSource = persisted.presetSource
-        return merged
-    }
-
-    private func migrateBuiltInSettingsWindowDefaultIfNeeded() {
-        guard !defaults.bool(forKey: BuiltInSettingsWindowDefaults.migrationKey) else { return }
-
-        var flags = storedFeatureFlags
-        let storedValue = flags[BellithFeatureFlag.builtInSettingsWindow.rawValue]
-        defer { defaults.set(true, forKey: BuiltInSettingsWindowDefaults.migrationKey) }
-
-        guard storedValue == nil || storedValue == BuiltInSettingsWindowDefaults.legacyDefault else {
-            return
-        }
-
-        flags[BellithFeatureFlag.builtInSettingsWindow.rawValue] = BuiltInSettingsWindowDefaults.currentDefault
-        defaults.set(flags, forKey: PersistedKeys.featureFlags)
-    }
-
-    private func migrateLegacyWindowPaddingIfNeeded() {
-        guard !defaults.bool(forKey: WindowPaddingDefaults.migrationKey) else { return }
-        guard defaults.object(forKey: "windowPaddingX") != nil,
-              defaults.object(forKey: "windowPaddingY") != nil else { return }
-
-        let storedX = defaults.integer(forKey: "windowPaddingX")
-        let storedY = defaults.integer(forKey: "windowPaddingY")
-        defer { defaults.set(true, forKey: WindowPaddingDefaults.migrationKey) }
-        guard storedX == WindowPaddingDefaults.legacyX,
-              storedY == WindowPaddingDefaults.legacyY else { return }
-
-        defaults.set(WindowPaddingDefaults.current, forKey: "windowPaddingX")
-        defaults.set(WindowPaddingDefaults.current, forKey: "windowPaddingY")
-    }
-
-    /// Pull the default profile's appearance fields (opacity/tint) back up into
-    /// the global settings now that frame translucency and wallpaper tint are
-    /// window-level. Runs once per install and only if the user had customized
-    /// the default profile.
-    private func migrateLegacyProfileAppearanceToGlobalIfNeeded() {
-        let list = profiles
-        guard let defaultProfile = list.first(where: { $0.id == TerminalProfile.defaultID }) else {
-            return
-        }
-        if let opacity = defaultProfile.legacyBackgroundOpacity,
-           defaults.object(forKey: "backgroundOpacity") == nil {
-            backgroundOpacity = opacity
-        }
-        if let tint = defaultProfile.legacyWallpaperTint,
-           defaults.object(forKey: "wallpaperTint") == nil {
-            wallpaperTint = tint
-        }
-    }
-
-    static let defaultKeybindings: [KeyBindingEntry] = defaultKeybindings(for: .bellithHybrid, legacyPaneSupport: false)
-
-    static func defaultKeybindings(
-        for preset: ShortcutPresetID,
-        legacyPaneSupport: Bool
-    ) -> [KeyBindingEntry] {
-        ShortcutDefinitionLibrary.bindings(for: preset, legacyPaneSupport: legacyPaneSupport)
-    }
-
-    static let legacyPaneActionIDs: Set<String> = [
-        "splitRight",
-        "splitDown",
-        "closePane",
-        "navLeft",
-        "navDown",
-        "navUp",
-        "navRight",
-        "resizeLeft",
-        "resizeDown",
-        "resizeUp",
-        "resizeRight",
-        "zoomPane",
-        "equalizePanes",
-        "broadcastInput",
-    ]
 
     func notify() {
         persistSettingsFileIfNeeded()
@@ -838,12 +754,28 @@ final class BellithSettings {
         if NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast {
             return resolvedIsDark ? .highContrastDark : .highContrastLight
         }
-        let name = resolvedIsDark ? darkThemeName : lightThemeName
-        var theme = ThemeColors.allThemes.first { $0.name == name } ?? .tokyonight
-        if resolvedIsDark && !theme.isLight && oledChromeForDarkThemes {
-            theme.darkChromeStyle = .oled
+        return ThemeColors.appearance(
+            accent: appearanceAccentColor,
+            name: appearanceAccentThemeName,
+            id: appearanceAccentThemeID,
+            isDark: resolvedIsDark
+        )
+    }
+
+    private var appearanceAccentThemeName: String {
+        let color = appearanceAccentColor
+        if let palette = AppearancePalette.all.first(where: { $0.accent.isEqual(color) }) {
+            return palette.name
         }
-        return theme
+        return "Custom"
+    }
+
+    private var appearanceAccentThemeID: String {
+        let color = appearanceAccentColor
+        if let palette = AppearancePalette.all.first(where: { $0.accent.isEqual(color) }) {
+            return palette.id
+        }
+        return "custom-\(appearanceAccentColorHex.trimmingCharacters(in: CharacterSet(charactersIn: "#")))"
     }
 
     var shellIntegrationMode: String {
@@ -873,226 +805,52 @@ final class BellithSettings {
             .appendingPathComponent("settings.json", isDirectory: false)
     }
 
-    private var storedFeatureFlags: [String: Bool] {
+    private static func paletteID(forLegacyThemeName name: String) -> String? {
+        switch name {
+        case "Midnight OLED", "Nord", "Solarized Dark", "Solarized Light":
+            return AppearancePalette.steel.id
+        case "Gruvbox Dark":
+            return AppearancePalette.ember.id
+        case "Rosé Pine", "Dracula", "Catppuccin Mocha", "Catppuccin Latte":
+            return AppearancePalette.iris.id
+        case "Kanagawa Wave":
+            return AppearancePalette.moss.id
+        case "One Light":
+            return AppearancePalette.mono.id
+        case "Tokyo Night", "Tokyo Night Light":
+            return AppearancePalette.aurora.id
+        default:
+            return AppearancePalette.all.first { $0.name == name || $0.id == name }?.id
+        }
+    }
+
+    var storedFeatureFlags: [String: Bool] {
         guard let object = defaults.dictionary(forKey: PersistedKeys.featureFlags) else { return [:] }
         return Self.featureFlags(from: object)
     }
 
-    private static func featureFlags(from object: [String: Any]) -> [String: Bool] {
-        object.reduce(into: [String: Bool]()) { result, entry in
-            guard let number = entry.value as? NSNumber else { return }
-            result[entry.key] = number.boolValue
-        }
-    }
+}
 
-    private var featureFlagsForSettingsFile: [String: Bool] {
-        var flags = storedFeatureFlags
-        for feature in BellithFeatureFlag.allCases {
-            flags[feature.rawValue] = isFeatureEnabled(feature)
-        }
-        return flags
-    }
-
-    private func loadSettingsFileIfNeeded() {
-        guard let settingsFileURL,
-              let data = try? Data(contentsOf: settingsFileURL) else {
-            return
-        }
-
-        applySettingsFileData(data)
-    }
-
-    private func applySettingsFileData(_ data: Data) {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return
-        }
-
-        PersistedKeys.all.forEach { defaults.removeObject(forKey: $0) }
-        for (key, value) in object {
-            applyPersistedValue(value, forKey: key)
-        }
-        lastPersistedSettingsFileData = data
-    }
-
-    private func applyPersistedValue(_ value: Any, forKey key: String) {
-        switch key {
-        case PersistedKeys.keybindings:
-            guard JSONSerialization.isValidJSONObject(value),
-                  let jsonData = try? JSONSerialization.data(withJSONObject: value),
-                  let decoded = try? JSONDecoder().decode([KeyBindingEntry].self, from: jsonData),
-                  let encoded = try? JSONEncoder().encode(decoded) else { return }
-            defaults.set(encoded, forKey: key)
-
-        case _ where PersistedKeys.stringKeys.contains(key):
-            guard let stringValue = value as? String else { return }
-            defaults.set(stringValue, forKey: key)
-
-        case _ where PersistedKeys.intKeys.contains(key):
-            guard let number = value as? NSNumber else { return }
-            defaults.set(number.intValue, forKey: key)
-
-        case _ where PersistedKeys.doubleKeys.contains(key):
-            guard let number = value as? NSNumber else { return }
-            defaults.set(number.doubleValue, forKey: key)
-
-        case _ where PersistedKeys.boolKeys.contains(key):
-            guard let number = value as? NSNumber else { return }
-            defaults.set(number.boolValue, forKey: key)
-
-        case PersistedKeys.featureFlags:
-            guard let dictionaryValue = value as? [String: Any] else { return }
-            defaults.set(Self.featureFlags(from: dictionaryValue), forKey: key)
-
-        case PersistedKeys.terminalProfiles:
-            guard JSONSerialization.isValidJSONObject(value),
-                  let jsonData = try? JSONSerialization.data(withJSONObject: value),
-                  let decoded = try? JSONDecoder().decode([TerminalProfile].self, from: jsonData),
-                  let encoded = try? JSONEncoder().encode(decoded) else { return }
-            defaults.set(encoded, forKey: key)
-
-        case _ where PersistedKeys.stringArrayKeys.contains(key):
-            guard let arrayValue = value as? [String] else { return }
-            defaults.set(arrayValue, forKey: key)
-
-        default:
-            return
-        }
-    }
-
-    private func persistSettingsFileIfNeeded() {
-        guard let settingsFileURL else { return }
-        let directory = settingsFileURL.deletingLastPathComponent()
-
-        do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let data = try settingsFileData()
-            try data.write(to: settingsFileURL, options: .atomic)
-            lastPersistedSettingsFileData = data
-        } catch {
-            return
-        }
-    }
-
-    private func settingsFileData() throws -> Data {
-        let encodedKeybindings: Any
-        do {
-            let encoded = try JSONEncoder().encode(keybindings)
-            encodedKeybindings = try JSONSerialization.jsonObject(with: encoded)
-        } catch {
-            encodedKeybindings = []
-        }
-
-        let encodedProfiles: Any
-        do {
-            let encoded = try JSONEncoder().encode(profiles)
-            encodedProfiles = try JSONSerialization.jsonObject(with: encoded)
-        } catch {
-            encodedProfiles = []
-        }
-
-        let object: [String: Any] = [
-            "activeTerminalProfileID": activeProfileID,
-            "appearanceMode": appearanceMode.rawValue,
-            "backgroundOpacity": roundedForSettingsFile(backgroundOpacity),
-            "bellMode": bellMode,
-            "commandCompletionNotificationThreshold": commandCompletionNotificationThreshold,
-            "commandCompletionNotificationsEnabled": commandCompletionNotificationsEnabled,
-            "errorFixSuggestionsEnabled": errorFixSuggestionsEnabled,
-            "confirmClose": confirmClose,
-            "cursorBlink": cursorBlink,
-            "cursorStyle": cursorStyle,
-            "darkThemeName": darkThemeName,
-            "fontFamily": fontFamily,
-            "fontLigaturesEnabled": fontLigaturesEnabled,
-            "fontSize": fontSize,
-            "featureFlags": featureFlagsForSettingsFile,
-            "inlineImagesEnabled": inlineImagesEnabled,
-            "keybindings": encodedKeybindings,
-            "lightThemeName": lightThemeName,
-            "mouseHideWhileTyping": mouseHideWhileTyping,
-            "noiseIntensity": roundedForSettingsFile(noiseIntensity),
-            "oledChromeForDarkThemes": oledChromeForDarkThemes,
-            "wallpaperTint": wallpaperTint,
-            "restoreSession": restoreSession,
-            "scrollbackLines": scrollbackLines,
-            "scrollbackMinimapEnabled": scrollbackMinimapEnabled,
-            "shell": shell,
-            "legacyPaneSupport": legacyPaneSupport,
-            "localSessionBootstrap": localSessionBootstrap.rawValue,
-            "shellIntegrationCursor": shellIntegrationCursor,
-            "shellIntegrationEnabled": shellIntegrationEnabled,
-            "shellIntegrationPath": shellIntegrationPath,
-            "shellIntegrationSSHEnv": shellIntegrationSSHEnv,
-            "shellIntegrationSSHTerminfo": shellIntegrationSSHTerminfo,
-            "shellIntegrationTitle": shellIntegrationTitle,
-            "showStatusBar": showStatusBar,
-            "showStatusBarContext": showStatusBarContext,
-            "showStatusBarGitBranch": showStatusBarGitBranch,
-            "showStatusBarGitHub": showStatusBarGitHub,
-            "showStatusBarGitWorktree": showStatusBarGitWorktree,
-            "showStatusBarPath": showStatusBarPath,
-            "showStatusBarProcess": showStatusBarProcess,
-            "showStatusBarSize": showStatusBarSize,
-            "shortcutPreset": shortcutPreset.rawValue,
-            "sidebarAutoHide": sidebarAutoHide,
-            "sidebarPinned": sidebarPinned,
-            "sidebarShowTools": sidebarShowTools,
-            "sidebarTools": sidebarTools,
-            "tabMode": tabMode,
-            "terminalProfiles": encodedProfiles,
-            "terminalOptionKeyBehavior": terminalOptionKeyBehavior.rawValue,
-            "terminalTerm": terminalTerm,
-            "trafficLightAutoHide": trafficLightAutoHide,
-            "visorHeightPercent": roundedForSettingsFile(visorHeightPercent),
-            "visorHideOnFocusLoss": visorHideOnFocusLoss,
-            "visorPosition": visorPosition,
-            "visorWidthPercent": roundedForSettingsFile(visorWidthPercent),
-            "windowPaddingX": windowPaddingX,
-            "windowPaddingY": windowPaddingY,
-            "workingDirectory": workingDirectory,
-        ]
-
-        return try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
-    }
-
-    private func roundedForSettingsFile(_ value: Double) -> Double {
-        (value * 100).rounded() / 100
-    }
-
-    private func startObservingSettingsFileIfNeeded() {
-        guard let settingsFileURL else { return }
-        let directoryURL = settingsFileURL.deletingLastPathComponent()
-        try? FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-
-        settingsFileObserver?.cancel()
-        settingsFileObserver = nil
-
-        let descriptor = open(directoryURL.path, O_EVTONLY)
-        guard descriptor >= 0 else { return }
-
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: descriptor,
-            eventMask: [.write, .rename, .delete],
-            queue: .main
+private extension NSColor {
+    static func bellithColor(fromHex hex: String) -> NSColor? {
+        var value = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.hasPrefix("#") { value.removeFirst() }
+        guard value.count == 6, let intValue = UInt64(value, radix: 16) else { return nil }
+        return NSColor(
+            srgbRed: CGFloat((intValue >> 16) & 0xFF) / 255,
+            green: CGFloat((intValue >> 8) & 0xFF) / 255,
+            blue: CGFloat(intValue & 0xFF) / 255,
+            alpha: 1
         )
-        source.setEventHandler { [weak self] in
-            self?.reloadSettingsFileFromDiskIfNeeded()
-        }
-        source.setCancelHandler { [descriptor] in
-            close(descriptor)
-        }
-        settingsFileObserver = source
-        source.resume()
     }
 
-    private func reloadSettingsFileFromDiskIfNeeded() {
-        guard let settingsFileURL,
-              let data = try? Data(contentsOf: settingsFileURL),
-              data != lastPersistedSettingsFileData else {
-            return
-        }
-
-        applySettingsFileData(data)
-        NotificationCenter.default.post(name: Self.didChangeNotification, object: self)
+    var bellithHexRGB: String {
+        let resolved = usingColorSpace(.sRGB) ?? self
+        return String(
+            format: "#%02X%02X%02X",
+            Int((resolved.redComponent * 255).rounded()),
+            Int((resolved.greenComponent * 255).rounded()),
+            Int((resolved.blueComponent * 255).rounded())
+        )
     }
 }
