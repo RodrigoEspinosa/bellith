@@ -258,6 +258,18 @@ enum ShortcutDefinitionLibrary {
             shortcut(key, command: true, option: true)
         }
 
+        func commandShiftArrowShortcut(_ key: String) -> KeyShortcut {
+            shortcut(key, command: true, shift: true)
+        }
+
+        func navAlternates(for index: Int) -> [KeyShortcut] {
+            var alternates = [commandShiftArrowShortcut(["leftArrow", "downArrow", "upArrow", "rightArrow"][index])]
+            if !alternateNavKeys.isEmpty {
+                alternates.append(navShortcut(alternateNavKeys[index]))
+            }
+            return alternates
+        }
+
         func resizeShortcut(_ key: String) -> KeyShortcut {
             shortcut(key, command: true, option: true, control: true)
         }
@@ -299,7 +311,7 @@ enum ShortcutDefinitionLibrary {
                 scope: .windowChrome,
                 discoverabilityText: "Move focus to the pane on the left",
                 primaryShortcut: navShortcut(primaryNavKeys[0]),
-                alternateShortcuts: alternateNavKeys.isEmpty ? [] : [navShortcut(alternateNavKeys[0])],
+                alternateShortcuts: navAlternates(for: 0),
                 presetSource: preset
             ),
             KeyBindingEntry(
@@ -309,7 +321,7 @@ enum ShortcutDefinitionLibrary {
                 scope: .windowChrome,
                 discoverabilityText: "Move focus to the pane below",
                 primaryShortcut: navShortcut(primaryNavKeys[1]),
-                alternateShortcuts: alternateNavKeys.isEmpty ? [] : [navShortcut(alternateNavKeys[1])],
+                alternateShortcuts: navAlternates(for: 1),
                 presetSource: preset
             ),
             KeyBindingEntry(
@@ -319,7 +331,7 @@ enum ShortcutDefinitionLibrary {
                 scope: .windowChrome,
                 discoverabilityText: "Move focus to the pane above",
                 primaryShortcut: navShortcut(primaryNavKeys[2]),
-                alternateShortcuts: alternateNavKeys.isEmpty ? [] : [navShortcut(alternateNavKeys[2])],
+                alternateShortcuts: navAlternates(for: 2),
                 presetSource: preset
             ),
             KeyBindingEntry(
@@ -329,7 +341,7 @@ enum ShortcutDefinitionLibrary {
                 scope: .windowChrome,
                 discoverabilityText: "Move focus to the pane on the right",
                 primaryShortcut: navShortcut(primaryNavKeys[3]),
-                alternateShortcuts: alternateNavKeys.isEmpty ? [] : [navShortcut(alternateNavKeys[3])],
+                alternateShortcuts: navAlternates(for: 3),
                 presetSource: preset
             ),
             KeyBindingEntry(

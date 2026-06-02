@@ -12,6 +12,8 @@ final class RebrandStatusBar: NSView {
     private let centerInfo = NSTextField(labelWithString: "")
     private let trailing = NSTextField(labelWithString: "")
 
+    private static let segmentSeparator = "  │  "
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
@@ -21,16 +23,17 @@ final class RebrandStatusBar: NSView {
         addSubview(modePill)
         addSubview(muxPill)
 
-        muxInfo.stringValue = ""
         configureLabel(muxInfo, color: RebrandTokens.Color.fg3)
         addSubview(muxInfo)
 
-        centerInfo.stringValue = ""
         configureLabel(centerInfo, color: RebrandTokens.Color.fg4)
         centerInfo.alignment = .center
         addSubview(centerInfo)
 
-        trailing.stringValue = Self.paletteHint()
+        trailing.attributedStringValue = Self.trailingAttributed(parts: [
+            .hint(Self.paletteHint()),
+            .hint(Self.newTabHint()),
+        ])
         configureLabel(trailing, color: RebrandTokens.Color.fg3)
         trailing.alignment = .right
         addSubview(trailing)
@@ -54,9 +57,12 @@ final class RebrandStatusBar: NSView {
     func configure(_ summary: TerminalContainerView.EmbeddedStatusSummary?) {
         guard let summary else {
             muxPill.isHidden = true
-            muxInfo.stringValue = ""
-            centerInfo.stringValue = ""
-            trailing.stringValue = Self.paletteHint()
+            muxInfo.attributedStringValue = NSAttributedString()
+            centerInfo.attributedStringValue = NSAttributedString()
+            trailing.attributedStringValue = Self.trailingAttributed(parts: [
+                .hint(Self.paletteHint()),
+                .hint(Self.newTabHint()),
+            ])
             needsLayout = true
             return
         }
@@ -69,22 +75,85 @@ final class RebrandStatusBar: NSView {
         let paneText = summary.paneCount > 1
             ? "pane \(summary.focusedPaneIndex)/\(summary.paneCount)"
             : "pane 1/1"
-        muxInfo.stringValue = [summary.cwdDisplay, paneText, summary.gitBranch].compactMap { $0 }.joined(separator: "  ·  ")
 
-        var centerParts: [String] = []
-        if let process = summary.processDisplay { centerParts.append(process) }
-        centerInfo.stringValue = centerParts.joined(separator: "  ·  ")
+        var segments: [Segment] = []
+        // Lead with cwd at full brightness — it's the part that actually
+        // changes session-to-session, so it earns the strongest weight.
+        if let cwd = summary.cwdDisplay { segments.append(.primary(cwd)) }
+        segments.append(.secondary(paneText))
+        if let branch = summary.gitBranch { segments.append(.secondary(branch)) }
+        muxInfo.attributedStringValue = Self.segmentsAttributed(segments)
 
-        var trailingParts: [String] = []
-        if summary.paneCount > 1 { trailingParts.append("⌃a prefix") }
-        trailingParts.append(Self.paletteHint())
-        trailing.stringValue = trailingParts.joined(separator: "  ·  ")
+        var centerSegments: [Segment] = []
+        if let process = summary.processDisplay { centerSegments.append(.secondary(process)) }
+        centerInfo.attributedStringValue = Self.segmentsAttributed(centerSegments)
+
+        var trailingSegments: [Segment] = []
+        if summary.paneCount > 1 { trailingSegments.append(.hint("⌃a prefix")) }
+        trailingSegments.append(.hint(Self.paletteHint()))
+        trailingSegments.append(.hint(Self.newTabHint()))
+        trailing.attributedStringValue = Self.trailingAttributed(parts: trailingSegments)
         needsLayout = true
+    }
+
+    private enum Segment {
+        case primary(String)
+        case secondary(String)
+        case hint(String)
+    }
+
+    private static func segmentsAttributed(_ segments: [Segment]) -> NSAttributedString {
+        guard !segments.isEmpty else { return NSAttributedString() }
+        let result = NSMutableAttributedString()
+        for (idx, segment) in segments.enumerated() {
+            if idx > 0 { result.append(separatorAttributed()) }
+            result.append(attributed(for: segment))
+        }
+        return result
+    }
+
+    private static func trailingAttributed(parts: [Segment]) -> NSAttributedString {
+        segmentsAttributed(parts)
+    }
+
+    private static func attributed(for segment: Segment) -> NSAttributedString {
+        let font = RebrandTokens.Typography.mono(11, weight: .regular)
+        switch segment {
+        case let .primary(text):
+            return NSAttributedString(string: text, attributes: [
+                .font: RebrandTokens.Typography.mono(11, weight: .medium),
+                .foregroundColor: RebrandTokens.Color.fg2,
+            ])
+        case let .secondary(text):
+            return NSAttributedString(string: text, attributes: [
+                .font: font,
+                .foregroundColor: RebrandTokens.Color.fg3,
+            ])
+        case let .hint(text):
+            return NSAttributedString(string: text, attributes: [
+                .font: font,
+                .foregroundColor: RebrandTokens.Color.fg3,
+            ])
+        }
+    }
+
+    private static func separatorAttributed() -> NSAttributedString {
+        // Pipe is more visible than `·` at 11pt mono on dark, and dimmer than
+        // body text so it reads as a divider rather than another token.
+        NSAttributedString(string: segmentSeparator, attributes: [
+            .font: RebrandTokens.Typography.mono(11, weight: .regular),
+            .foregroundColor: RebrandTokens.Color.fg4.withAlphaComponent(0.6),
+        ])
     }
 
     private static func paletteHint() -> String {
         let shortcut = BellithSettings.shared.shortcutSummary(for: "commandPalette") ?? "⇧⌘P"
         return "\(shortcut) palette"
+    }
+
+    private static func newTabHint() -> String {
+        let shortcut = BellithSettings.shared.shortcutSummary(for: "newTab") ?? "⌘T"
+        return "\(shortcut) new tab"
     }
 
     override func layout() {
@@ -110,8 +179,7 @@ final class RebrandStatusBar: NSView {
             )
         }
 
-        let trailAttrs: [NSAttributedString.Key: Any] = [.font: trailing.font ?? RebrandTokens.Typography.mono(11)]
-        let trailW = ceil((trailing.stringValue as NSString).size(withAttributes: trailAttrs).width) + 4
+        let trailW = ceil(trailing.attributedStringValue.size().width) + 4
         trailing.frame = NSRect(
             x: bounds.width - padX - trailW,
             y: floor((bounds.height - 14) / 2),
@@ -120,8 +188,9 @@ final class RebrandStatusBar: NSView {
         )
 
         let muxX = (muxPill.isHidden ? modePill.frame.maxX : muxPill.frame.maxX) + 10
-        let muxAttrs: [NSAttributedString.Key: Any] = [.font: muxInfo.font ?? RebrandTokens.Typography.mono(11)]
-        let muxMeasuredW = muxInfo.stringValue.isEmpty ? 0 : ceil((muxInfo.stringValue as NSString).size(withAttributes: muxAttrs).width) + 4
+        let muxMeasuredW = muxInfo.attributedStringValue.length == 0
+            ? 0
+            : ceil(muxInfo.attributedStringValue.size().width) + 4
         let muxAvailableW = max(0, trailing.frame.minX - muxX - 12)
         muxInfo.frame = NSRect(
             x: muxX,

@@ -19,7 +19,7 @@ enum RebrandTokens {
 
         static let paneCornerRadius: CGFloat = 10
         static let paneGap: CGFloat = 8
-        static let paneHeaderHeight: CGFloat = 26
+        static let paneHeaderHeight: CGFloat = 24
 
         static let railCardSize: CGFloat = 46
         static let railCardSpacing: CGFloat = 10

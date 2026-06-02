@@ -67,6 +67,12 @@ final class TerminalConfig {
             "keybind = cmd+right=text:\\x05",
             "keybind = cmd+backspace=text:\\x15",
             "keybind = cmd+delete=text:\\x0b",
+
+            // Bellith maps Ghostty's split navigation action to its pane tree.
+            "keybind = cmd+shift+left=goto_split:left",
+            "keybind = cmd+shift+right=goto_split:right",
+            "keybind = cmd+shift+up=goto_split:up",
+            "keybind = cmd+shift+down=goto_split:down",
         ]
     }
 

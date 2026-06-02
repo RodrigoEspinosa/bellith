@@ -394,6 +394,25 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertTrue(summary?.contains("H") ?? false)
     }
 
+    func testPaneNavigationIncludesCommandShiftArrows() {
+        settings.legacyPaneSupport = true
+        settings.applyPreset(.bellithHybrid)
+
+        let expected: [(String, String)] = [
+            ("navLeft", "leftArrow"),
+            ("navDown", "downArrow"),
+            ("navUp", "upArrow"),
+            ("navRight", "rightArrow"),
+        ]
+
+        for (actionID, key) in expected {
+            XCTAssertTrue(
+                settings.shortcuts(for: actionID).contains(KeyShortcut(key: key, command: true, shift: true, option: false, control: false)),
+                "\(actionID) should include Command-Shift-\(key)"
+            )
+        }
+    }
+
     func testApplyPresetUpdatesShortcutPresetAndBindings() {
         settings.legacyPaneSupport = true
         settings.applyPreset(.vimNavigation)

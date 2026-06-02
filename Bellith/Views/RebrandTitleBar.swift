@@ -60,13 +60,20 @@ final class RebrandTitleBar: NSView {
         bgGradient.frame = bounds
         bottomLine.frame = NSRect(x: 0, y: 0, width: bounds.width, height: 1)
 
-        // Center-group: title label + pane pill. Measure each segment via
-        // NSString.size(withAttributes:) — `attributedStringValue.size()`
-        // returns 0 before AppKit has cached the run, which collapses the
-        // title to nothing on first paint.
-        let titleString = titleLabel.attributedStringValue.string
-        let titleAttrs: [NSAttributedString.Key: Any] = [.font: titleLabel.font ?? RebrandTokens.Typography.mono(13, weight: .medium)]
-        let titleW = ceil((titleString as NSString).size(withAttributes: titleAttrs).width)
+        // Center-group: title label + pane pill. The title is mixed-font
+        // (semibold workspace + lighter shell), so we sum up each run's
+        // measured width — `attributedStringValue.size()` returns 0 before
+        // AppKit caches the runs, which collapses the title on first paint.
+        let attributedTitle = titleLabel.attributedStringValue
+        var titleW: CGFloat = 0
+        attributedTitle.enumerateAttribute(
+            .font,
+            in: NSRange(location: 0, length: attributedTitle.length)
+        ) { value, range, _ in
+            let font = (value as? NSFont) ?? RebrandTokens.Typography.mono(13, weight: .medium)
+            let substring = attributedTitle.attributedSubstring(from: range).string as NSString
+            titleW += ceil(substring.size(withAttributes: [.font: font]).width)
+        }
         let pillSize = panePill.isHidden ? .zero : panePill.intrinsicContentSize
         let pillGap: CGFloat = panePill.isHidden ? 0 : 12
         let leftLimit = leadingTrafficLightInset + 6
@@ -106,20 +113,31 @@ final class RebrandTitleBar: NSView {
     }
 
     private func rebuildTitle() {
-        let primaryFont = RebrandTokens.Typography.mono(13.5, weight: .medium)
+        // Lead with the workspace (cwd-derived) — that's the part that
+        // actually changes — and trail with the shell name in a quieter
+        // weight. A copper-tinted dot anchors the workspace identity
+        // without burying the label itself in low-contrast color.
+        let primaryFont = RebrandTokens.Typography.mono(13.5, weight: .semibold)
+        let secondaryFont = RebrandTokens.Typography.mono(12, weight: .regular)
         let result = NSMutableAttributedString()
         result.append(NSAttributedString(
-            string: shellName.isEmpty ? "shell" : shellName,
-            attributes: [.font: primaryFont, .foregroundColor: RebrandTokens.Color.fg2]
-        ))
-        result.append(NSAttributedString(
-            string: " — ",
-            attributes: [.font: primaryFont, .foregroundColor: RebrandTokens.Color.fg4]
+            string: "● ",
+            attributes: [.font: secondaryFont, .foregroundColor: workspaceTint]
         ))
         result.append(NSAttributedString(
             string: workspaceName == "~" ? "home" : workspaceName,
-            attributes: [.font: primaryFont, .foregroundColor: workspaceTint]
+            attributes: [.font: primaryFont, .foregroundColor: RebrandTokens.Color.fg]
         ))
+        if !shellName.isEmpty {
+            result.append(NSAttributedString(
+                string: "  ",
+                attributes: [.font: secondaryFont, .foregroundColor: RebrandTokens.Color.fg4]
+            ))
+            result.append(NSAttributedString(
+                string: shellName,
+                attributes: [.font: secondaryFont, .foregroundColor: RebrandTokens.Color.fg4]
+            ))
+        }
         titleLabel.attributedStringValue = result
         titleLabel.sizeToFit()
 

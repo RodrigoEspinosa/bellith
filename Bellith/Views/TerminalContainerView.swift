@@ -295,7 +295,7 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
 
     private func applyChrome(to root: NSView) {
         root.wantsLayer = true
-        root.layer?.cornerRadius = embedInRebrandShell ? RebrandTokens.Layout.paneCornerRadius : contentRadius
+        root.layer?.cornerRadius = embedInRebrandShell ? 0 : contentRadius
         root.layer?.cornerCurve = .continuous
         root.layer?.maskedCorners = [
             .layerMinXMinYCorner,
@@ -306,14 +306,10 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         // Keep the outer rounded mask (for macOS-style window card) but don't
         // clip rigidly — the focused-pane decoration's shadow/glow must extend
         // outside the leaf when panes are split.
-        root.layer?.masksToBounds = true
-        root.layer?.borderWidth = embedInRebrandShell ? 1 : 0
-        root.layer?.borderColor = embedInRebrandShell
-            ? RebrandTokens.Color.line.cgColor
-            : NSColor.clear.cgColor
-        if embedInRebrandShell {
-            root.layer?.backgroundColor = RebrandTokens.Color.paneBg.cgColor
-        } else if activeProfileIsTranslucent {
+        root.layer?.masksToBounds = !embedInRebrandShell
+        root.layer?.borderWidth = 0
+        root.layer?.borderColor = NSColor.clear.cgColor
+        if embedInRebrandShell || activeProfileIsTranslucent {
             root.layer?.backgroundColor = NSColor.clear.cgColor
         } else {
             root.layer?.backgroundColor = Theme.surface.cgColor
@@ -476,7 +472,67 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
             closePane()
             return true
         }
+        if matches(event, action: "navLeft") || Self.matchesShortcut(event, key: "leftArrow", command: true, shift: true) {
+            navigatePane(.left)
+            return true
+        }
+        if matches(event, action: "navRight") || Self.matchesShortcut(event, key: "rightArrow", command: true, shift: true) {
+            navigatePane(.right)
+            return true
+        }
+        if matches(event, action: "navUp") || Self.matchesShortcut(event, key: "upArrow", command: true, shift: true) {
+            navigatePane(.up)
+            return true
+        }
+        if matches(event, action: "navDown") || Self.matchesShortcut(event, key: "downArrow", command: true, shift: true) {
+            navigatePane(.down)
+            return true
+        }
         return false
+    }
+
+    func interceptWindowKeyDown(_ event: NSEvent) -> Bool {
+        handlePaneKeyEquivalent(event)
+    }
+
+    func interceptTerminalText(_ text: String, from source: TerminalSurfaceView) -> Bool {
+        guard source === activeSurface else { return false }
+        guard let direction = paneNavigationDirection(fromArrowPayload: text) else { return false }
+        navigatePane(direction)
+        return true
+    }
+
+    private func paneNavigationDirection(fromArrowPayload text: String) -> SplitPaneView.Direction? {
+        let uppercased = text.uppercased()
+        guard !uppercased.isEmpty,
+              uppercased.count % 2 == 0,
+              uppercased.allSatisfy({ $0.isHexDigit }) else {
+            return nil
+        }
+
+        let pairs = stride(from: 0, to: uppercased.count, by: 2).map { offset -> String in
+            let start = uppercased.index(uppercased.startIndex, offsetBy: offset)
+            let end = uppercased.index(start, offsetBy: 2)
+            return String(uppercased[start..<end])
+        }
+
+        guard pairs.allSatisfy({ ["0A", "0B", "0C", "0D"].contains($0) }),
+              let last = pairs.last else {
+            return nil
+        }
+
+        switch last {
+        case "0A":
+            return .up
+        case "0B":
+            return .down
+        case "0C":
+            return .right
+        case "0D":
+            return .left
+        default:
+            return nil
+        }
     }
 
     private func removeEventMonitors() {
@@ -2679,6 +2735,13 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
         surface.onTextInserted = { [weak self] text, source in
             self?.broadcastText(text, from: source)
+        }
+        surface.onKeyDownIntercept = { [weak self] event, source in
+            guard let self, source === self.activeSurface else { return false }
+            return self.handlePaneKeyEquivalent(event)
+        }
+        surface.onTextIntercept = { [weak self] text, source in
+            self?.interceptTerminalText(text, from: source) ?? false
         }
         surface.onSizeChanged = { [weak self, weak surface] cols, rows in
             guard let self, let surface else { return }

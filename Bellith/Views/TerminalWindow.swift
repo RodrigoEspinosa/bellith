@@ -33,6 +33,7 @@ final class TerminalWindow: NSWindow {
     private let settings: BellithSettings
     private var settingsObserver: NSObjectProtocol?
     private var wallpaperObserver: NSObjectProtocol?
+    var onKeyDownIntercept: ((NSEvent) -> Bool)?
 
     override init(
         contentRect: NSRect,
@@ -249,6 +250,15 @@ final class TerminalWindow: NSWindow {
         positionTrafficLights()
         setupTrafficLightTracking()
         applyProfileAppearance()
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown,
+           onKeyDownIntercept?(event) == true {
+            return
+        }
+
+        super.sendEvent(event)
     }
 
     private var lastTrackingHeight: CGFloat = 0

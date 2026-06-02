@@ -372,17 +372,14 @@ final class SplitPaneView: NSView {
 
     // MARK: - Layout
 
-    private let dividerThickness: CGFloat = 6
-    private let dividerHitArea: CGFloat = 14
-    private let leafGutter: CGFloat = 3
+    private let dividerThickness: CGFloat = 1
+    private let leafGutter: CGFloat = 0
 
     /// Give the divider an expanded hit zone at the parent level. AppKit's
     /// default `hitTest` only descends into a subview if the click lands
     /// inside its actual frame — so the divider's own `hitTest` expansion
-    /// (which only fires once we've already descended) was unreachable. The
-    /// 8px divider was hard to grab as a result. We now claim a `±5px` /
-    /// `±4px` band on either side of the divider's frame for the divider
-    /// before falling through to the default.
+    /// (which only fires once we've already descended) was unreachable. Keep
+    /// the visible divider as a hairline while claiming a wider drag band.
     override func hitTest(_ point: NSPoint) -> NSView? {
         if !isLeaf, let divider, let orientation {
             let local = convert(point, from: superview)
@@ -465,8 +462,7 @@ fileprivate final class SplitDividerView: NSView {
         self.orientation = orientation
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = 4
-        layer?.cornerCurve = .continuous
+        layer?.cornerRadius = 0
 
         // Accessibility
         setAccessibilityRole(.splitter)
@@ -500,22 +496,22 @@ fileprivate final class SplitDividerView: NSView {
 
         if BellithSettings.shared.useRebrandShell {
             if isDragging {
-                color = RebrandTokens.Color.hoverOverlay
-                borderColor = RebrandTokens.Color.lineStrong.cgColor
-                borderWidth = 1
+                color = RebrandTokens.Color.lineStrong.withAlphaComponent(0.70)
+                borderColor = NSColor.clear.cgColor
+                borderWidth = 0
                 shadowColor = RebrandTokens.Color.lineStrong.withAlphaComponent(0.22).cgColor
                 shadowOpacity = 1
-                shadowRadius = 8
+                shadowRadius = 4
             } else if isHovered {
-                color = RebrandTokens.Color.hoverOverlay.withAlphaComponent(0.70)
-                borderColor = RebrandTokens.Color.line.withAlphaComponent(0.75).cgColor
-                borderWidth = 1
+                color = RebrandTokens.Color.line.withAlphaComponent(0.55)
+                borderColor = NSColor.clear.cgColor
+                borderWidth = 0
                 shadowColor = NSColor.clear.cgColor
                 shadowOpacity = 0
                 shadowRadius = 0
             } else {
-                color = RebrandTokens.Color.lineSoft.withAlphaComponent(0.22)
-                borderColor = RebrandTokens.Color.lineSoft.withAlphaComponent(0.45).cgColor
+                color = RebrandTokens.Color.lineSoft.withAlphaComponent(0.34)
+                borderColor = NSColor.clear.cgColor
                 borderWidth = 0
                 shadowColor = NSColor.clear.cgColor
                 shadowOpacity = 0

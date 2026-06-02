@@ -7,10 +7,9 @@ import QuartzCore
 /// pane-count badge and uses the workspace's own hue when active.
 final class RebrandWorkspaceRail: NSView {
     private let rightHairline = CALayer()
-    private let bottomDivider = CALayer()
     private var cards: [RebrandWorkspaceCard] = []
     private let addTile = RebrandAddTile()
-    private let settingsButton = RebrandRailGlyphButton(symbolName: "sun.max", fallback: "*", tooltip: "Switch to Light Mode")
+    private let settingsButton = RebrandRailFooterTile(symbolName: "sun.max", fallback: "L", tooltip: "Switch to Light Mode")
 
     var workspaces: [Workspace] = [] {
         didSet { rebuildCards() }
@@ -35,7 +34,6 @@ final class RebrandWorkspaceRail: NSView {
         wantsLayer = true
         layer?.backgroundColor = RebrandTokens.Color.windowBg.cgColor
         layer?.addSublayer(rightHairline)
-        layer?.addSublayer(bottomDivider)
 
         addTile.onClick = { [weak self] in self?.onAdd?() }
         settingsButton.onClick = { [weak self] in
@@ -90,22 +88,28 @@ final class RebrandWorkspaceRail: NSView {
             y -= L.railCardSize + L.railCardSpacing
         }
 
-        let addH: CGFloat = 38
-        let settingsSize: CGFloat = 28
+        // Footer tiles share the card column width and stack tightly so they
+        // read as a single grouped cluster (new-tab + theme toggle).
+        let addH: CGFloat = 34
+        let settingsH: CGFloat = 32
+        let footerSpacing: CGFloat = 6
         settingsButton.frame = NSRect(
-            x: floor((bounds.width - settingsSize) / 2),
+            x: cardX,
             y: L.railBottomInset,
-            width: settingsSize,
-            height: settingsSize
+            width: L.railCardSize,
+            height: settingsH
         )
-        bottomDivider.frame = NSRect(x: 16, y: settingsButton.frame.maxY + 12, width: bounds.width - 32, height: 1)
-        addTile.frame = NSRect(x: cardX, y: bottomDivider.frame.maxY + 12, width: L.railCardSize, height: addH)
+        addTile.frame = NSRect(
+            x: cardX,
+            y: settingsButton.frame.maxY + footerSpacing,
+            width: L.railCardSize,
+            height: addH
+        )
     }
 
     func applyTheme() {
         layer?.backgroundColor = RebrandTokens.Color.windowBg.cgColor
         rightHairline.backgroundColor = RebrandTokens.Color.lineSoft.cgColor
-        bottomDivider.backgroundColor = RebrandTokens.Color.lineSoft.cgColor
         cards.forEach { $0.applyTheme() }
         addTile.applyTheme()
         settingsButton.configure(
@@ -123,9 +127,11 @@ final class RebrandWorkspaceRail: NSView {
 final class RebrandWorkspaceCard: NSView {
     let workspaceID: UUID
     private let title: String
+    private let hotkeyDigit: Int?
     private let glyphLabel = NSTextField(labelWithString: "")
     private let badgeLayer = CALayer()
     private let badgeLabel = NSTextField(labelWithString: "")
+    private let indexLabel = NSTextField(labelWithString: "")
     private let accentStrip = CALayer()
 
     private var hue: CGFloat { RebrandWorkspaceTint.hue(for: title) }
@@ -138,6 +144,7 @@ final class RebrandWorkspaceCard: NSView {
     init(workspace: RebrandWorkspaceRail.Workspace) {
         self.workspaceID = workspace.id
         self.title = workspace.title
+        self.hotkeyDigit = workspace.hotkeyDigit
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = 12
@@ -145,7 +152,7 @@ final class RebrandWorkspaceCard: NSView {
         layer?.borderWidth = 1
         layer?.masksToBounds = false
 
-        accentStrip.cornerRadius = 2
+        accentStrip.cornerRadius = 1.5
         layer?.addSublayer(accentStrip)
 
         glyphLabel.stringValue = Self.glyph(from: title)
@@ -169,6 +176,18 @@ final class RebrandWorkspaceCard: NSView {
         badgeLabel.isBezeled = false
         badgeLabel.drawsBackground = false
         addSubview(badgeLabel)
+
+        // Hotkey digit subscript — the differentiator when many cards share
+        // a glyph (3 `R` workspaces become R₁ R₂ R₃ at a glance).
+        if let digit = workspace.hotkeyDigit {
+            indexLabel.stringValue = "\(digit)"
+        }
+        indexLabel.font = RebrandTokens.Typography.mono(8.5, weight: .medium)
+        indexLabel.alignment = .left
+        indexLabel.isEditable = false
+        indexLabel.isBezeled = false
+        indexLabel.drawsBackground = false
+        addSubview(indexLabel)
 
         toolTip = workspace.hotkeyDigit.map { "\(workspace.title)  ⌘\($0)" } ?? workspace.title
         applyTheme()
@@ -223,62 +242,78 @@ final class RebrandWorkspaceCard: NSView {
         } else {
             badgeLayer.opacity = 0
         }
-        // Accent strip is intentionally slim: enough to orient without making
-        // the rail feel like a launcher dock.
-        accentStrip.frame = NSRect(x: -15, y: 10, width: 4, height: max(0, bounds.height - 20))
+        // Hotkey digit sits in the bottom-left so each card has a unique mark
+        // even when several share the same glyph.
+        indexLabel.frame = NSRect(x: 5, y: 3, width: 12, height: 10)
+        // Accent strip lives on the inside left edge of the card — a 3px rail
+        // that reads strongly when active and is hidden otherwise.
+        accentStrip.frame = NSRect(x: 0, y: 8, width: 3, height: max(0, bounds.height - 16))
     }
 
     func applyTheme() {
         let bg: CGColor
         let border: CGColor
+        let borderWidth: CGFloat
         let glyph: NSColor
         let strip: CGColor
         let badgeFill: CGColor
         let badgeBorder: CGColor
         let badgeText: NSColor
+        let indexColor: NSColor
 
         if isSelected {
-            bg = accent.withAlphaComponent(0.14).cgColor
-            border = accent.withAlphaComponent(0.48).cgColor
+            bg = accent.withAlphaComponent(0.22).cgColor
+            border = accent.withAlphaComponent(0.78).cgColor
+            borderWidth = 1.25
             glyph = accent
             strip = accent.cgColor
             badgeFill = RebrandTokens.Color.windowBg.cgColor
             badgeBorder = accent.withAlphaComponent(0.7).cgColor
             badgeText = accent
-            layer?.shadowColor = accent.withAlphaComponent(0.28).cgColor
-            layer?.shadowOpacity = 0.32
+            indexColor = accent.withAlphaComponent(0.85)
+            layer?.shadowColor = accent.withAlphaComponent(0.34).cgColor
+            layer?.shadowOpacity = 0.42
             layer?.shadowRadius = 12
             layer?.shadowOffset = CGSize(width: 0, height: -1)
         } else if isHovered {
             bg = RebrandTokens.Color.hoverOverlay.withAlphaComponent(0.72).cgColor
             border = RebrandTokens.Color.lineSoft.cgColor
+            borderWidth = 1
             glyph = RebrandTokens.Color.fg
             strip = NSColor.clear.cgColor
             badgeFill = RebrandTokens.Color.windowBg.cgColor
             badgeBorder = RebrandTokens.Color.line.cgColor
             badgeText = RebrandTokens.Color.fg2
+            indexColor = RebrandTokens.Color.fg3
             layer?.shadowOpacity = 0
         } else {
             bg = NSColor.clear.cgColor
             border = NSColor.clear.cgColor
+            borderWidth = 1
             glyph = RebrandTokens.Color.fg2
             strip = NSColor.clear.cgColor
             badgeFill = RebrandTokens.Color.windowBg.cgColor
             badgeBorder = RebrandTokens.Color.line.cgColor
             badgeText = RebrandTokens.Color.fg4
+            indexColor = RebrandTokens.Color.fg4
             layer?.shadowOpacity = 0
         }
         layer?.backgroundColor = bg
         layer?.borderColor = border
+        layer?.borderWidth = borderWidth
         glyphLabel.textColor = glyph
         accentStrip.backgroundColor = strip
         badgeLayer.backgroundColor = badgeFill
         badgeLayer.borderColor = badgeBorder
         badgeLabel.textColor = badgeText
+        indexLabel.textColor = indexColor
     }
 }
 
-final class RebrandRailGlyphButton: NSView {
+/// Footer tile sitting under the workspace cards. Shares the rounded-rect
+/// chrome of `RebrandAddTile` so the bottom of the rail reads as one grouped
+/// strip rather than three orphaned controls.
+final class RebrandRailFooterTile: NSView {
     private let imageView = NSImageView()
     private let fallbackLabel = NSTextField(labelWithString: "")
     private var tracking: NSTrackingArea?
@@ -292,6 +327,9 @@ final class RebrandRailGlyphButton: NSView {
     init(symbolName: String, fallback: String, tooltip: String) {
         super.init(frame: .zero)
         wantsLayer = true
+        layer?.cornerRadius = 7
+        layer?.cornerCurve = .continuous
+        layer?.borderWidth = 1
         toolTip = tooltip
         setAccessibilityRole(.button)
         setAccessibilityLabel(tooltip)
@@ -302,7 +340,7 @@ final class RebrandRailGlyphButton: NSView {
             addSubview(imageView)
         } else {
             fallbackLabel.stringValue = fallback
-            fallbackLabel.font = RebrandTokens.Typography.mono(12, weight: .medium)
+            fallbackLabel.font = RebrandTokens.Typography.mono(11, weight: .medium)
             fallbackLabel.alignment = .center
             fallbackLabel.isEditable = false
             fallbackLabel.isBezeled = false
@@ -378,17 +416,21 @@ final class RebrandRailGlyphButton: NSView {
 
     override func layout() {
         super.layout()
-        layer?.cornerRadius = bounds.height / 2
-        let frame = bounds.insetBy(dx: 6, dy: 6)
+        let inset: CGFloat = 9
+        let frame = bounds.insetBy(dx: inset, dy: inset)
         imageView.frame = frame
         fallbackLabel.frame = frame
     }
 
     func applyTheme() {
-        layer?.backgroundColor = ((isHovered || isPressed)
+        let active = isHovered || isPressed
+        layer?.backgroundColor = (active
             ? RebrandTokens.Color.hoverOverlay.withAlphaComponent(0.85)
             : NSColor.clear).cgColor
-        let tint = (isHovered || isPressed) ? RebrandTokens.Color.fg2 : RebrandTokens.Color.fg4
+        layer?.borderColor = (active
+            ? RebrandTokens.Color.lineStrong
+            : RebrandTokens.Color.line).cgColor
+        let tint = active ? RebrandTokens.Color.fg : RebrandTokens.Color.fg4
         imageView.contentTintColor = tint
         fallbackLabel.textColor = tint
     }
@@ -456,7 +498,9 @@ final class RebrandAddTile: NSView {
     func applyTheme() {
         dashedBorder.fillColor = NSColor.clear.cgColor
         dashedBorder.lineWidth = 1
-        dashedBorder.lineDashPattern = [4, 4]
+        // Solid hairline to match the theme-toggle tile sitting below it.
+        // Dashed was a hold-over from when the `+` lived alone.
+        dashedBorder.lineDashPattern = nil
         dashedBorder.strokeColor = (isHovered
             ? RebrandTokens.Color.lineStrong
             : RebrandTokens.Color.line).cgColor

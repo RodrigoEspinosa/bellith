@@ -95,14 +95,8 @@ final class PaneContainerView: NSView {
             needsLayout = true
         }
         if showsCardChrome {
-            inactiveOverlay.setVisible(!isFocused)
-            borderOverlay.configure(
-                strokeColor: isFocused
-                ? workspaceTint.withAlphaComponent(0.45)
-                : RebrandTokens.Color.lineSoft.withAlphaComponent(0.65),
-                lineWidth: isFocused ? 1.5 : 1,
-                inset: isFocused ? 2 : 1.5
-            )
+            inactiveOverlay.setVisible(false)
+            borderOverlay.configure(strokeColor: .clear, lineWidth: 0)
             layer?.shadowOpacity = 0
         } else {
             inactiveOverlay.setVisible(false)
@@ -111,26 +105,16 @@ final class PaneContainerView: NSView {
         }
     }
 
-    /// Draw a per-pane card hairline + 8px corner only when there are multiple
-    /// panes — single panes lean on the outer window chrome for their card
-    /// look so we don't double up rounded layers.
+    /// Split panes are separated by gutters and headers. Avoid per-pane
+    /// rounded card strokes here; they read as an extra inner border inside
+    /// the rebrand shell.
     private func applyCardChrome() {
-        if showsCardChrome {
-            layer?.cornerRadius = RebrandTokens.Layout.paneCornerRadius
-            layer?.masksToBounds = true
-            layer?.borderWidth = 0
-        } else {
-            layer?.cornerRadius = 0
-            layer?.masksToBounds = false
-            layer?.borderWidth = 0
-        }
-        borderOverlay.isHidden = !showsCardChrome
-        inactiveOverlay.isHidden = !showsCardChrome
-        borderOverlay.configure(
-            strokeColor: showsCardChrome ? RebrandTokens.Color.lineSoft.withAlphaComponent(0.65) : .clear,
-            lineWidth: showsCardChrome ? 1 : 0,
-            inset: showsCardChrome ? 1.5 : 0
-        )
+        layer?.cornerRadius = 0
+        layer?.masksToBounds = false
+        layer?.borderWidth = 0
+        borderOverlay.isHidden = true
+        inactiveOverlay.isHidden = true
+        borderOverlay.configure(strokeColor: .clear, lineWidth: 0)
     }
 
     func refreshTheme() {
@@ -285,27 +269,27 @@ final class PaneHeaderView: NSView {
         backgroundLayer.frame = bounds
         bottomLineLayer.frame = NSRect(x: 0, y: 0, width: bounds.width, height: 1)
 
-        let pad: CGFloat = 10
-        let gap: CGFloat = 8
+        let pad: CGFloat = 12
+        let gap: CGFloat = 9
         let h = bounds.height
 
         // Status dot, anchored right.
-        let dotSize: CGFloat = 7
+        let dotSize: CGFloat = 6
         statusDot.frame = NSRect(
             x: bounds.width - pad - dotSize,
             y: floor((h - dotSize) / 2),
             width: dotSize,
             height: dotSize
         )
-        let rightAvailable = statusDot.frame.minX - 8
+        let rightAvailable = statusDot.frame.minX - 10
 
         let pidSize = pidPill.intrinsicContentSize
-        let pidWidth = max(30, ceil(pidSize.width))
+        let pidWidth = max(28, ceil(pidSize.width))
         pidPill.frame = NSRect(
             x: pad,
-            y: floor((h - 15) / 2),
+            y: floor((h - 13) / 2),
             width: pidWidth,
-            height: 15
+            height: 13
         )
 
         let titleX = pidPill.frame.maxX + gap
@@ -334,20 +318,25 @@ final class PaneHeaderView: NSView {
     }
 
     func refreshTheme() {
-        backgroundLayer.backgroundColor = NSColor.clear.cgColor
-        bottomLineLayer.backgroundColor = NSColor.clear.cgColor
+        backgroundLayer.backgroundColor = (isFocused
+            ? workspaceTint.withAlphaComponent(Theme.colors.isLight ? 0.035 : 0.055)
+            : RebrandTokens.Color.lineSoft.withAlphaComponent(Theme.colors.isLight ? 0.20 : 0.12)
+        ).cgColor
+        bottomLineLayer.backgroundColor = RebrandTokens.Color.lineSoft
+            .withAlphaComponent(Theme.colors.isLight ? 0.35 : 0.22)
+            .cgColor
 
-        titleLabel.textColor = isFocused ? RebrandTokens.Color.fg : RebrandTokens.Color.fg2
-        titleLabel.font = BellithFont.mono(11, weight: isFocused ? .semibold : .medium)
+        titleLabel.textColor = isFocused ? RebrandTokens.Color.fg2 : RebrandTokens.Color.fg3
+        titleLabel.font = BellithFont.mono(11, weight: isFocused ? .medium : .regular)
         cwdLabel.textColor = isFocused ? RebrandTokens.Color.fg3 : RebrandTokens.Color.fg4
 
         let dotColor: NSColor
         if isRunning {
             dotColor = RebrandTokens.Color.warn
         } else if isFocused {
-            dotColor = workspaceTint.withAlphaComponent(0.75)
+            dotColor = workspaceTint.withAlphaComponent(0.68)
         } else {
-            dotColor = Theme.textTertiary.withAlphaComponent(0.6)
+            dotColor = Theme.textTertiary.withAlphaComponent(0.42)
         }
         statusDot.backgroundColor = dotColor.cgColor
         applyDotPulse(isRunning: isRunning)
@@ -394,10 +383,11 @@ private final class PillLabel: NSView {
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.addSublayer(backgroundLayer)
-        backgroundLayer.cornerRadius = 3
+        backgroundLayer.cornerRadius = 4
         backgroundLayer.cornerCurve = .continuous
+        backgroundLayer.borderWidth = 1
 
-        textField.font = BellithFont.mono(10, weight: .semibold)
+        textField.font = BellithFont.mono(10, weight: .medium)
         textField.alignment = .center
         textField.isEditable = false
         textField.isBezeled = false
@@ -410,9 +400,9 @@ private final class PillLabel: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     override var intrinsicContentSize: NSSize {
-        let attrs: [NSAttributedString.Key: Any] = [.font: textField.font ?? BellithFont.mono(10, weight: .semibold)]
+        let attrs: [NSAttributedString.Key: Any] = [.font: textField.font ?? BellithFont.mono(10, weight: .medium)]
         let textWidth = ceil((textField.stringValue as NSString).size(withAttributes: attrs).width)
-        return NSSize(width: textWidth + 12, height: 14)
+        return NSSize(width: textWidth + 10, height: 13)
     }
 
     override func layout() {
@@ -424,15 +414,18 @@ private final class PillLabel: NSView {
     func refreshTheme(isFocused: Bool, tint: NSColor = Theme.accent) {
         let isLight = Theme.colors.isLight
         if isFocused {
-            backgroundLayer.backgroundColor = tint.withAlphaComponent(isLight ? 0.16 : 0.18).cgColor
-            textField.textColor = tint.withAlphaComponent(0.95)
+            backgroundLayer.backgroundColor = tint.withAlphaComponent(isLight ? 0.10 : 0.13).cgColor
+            backgroundLayer.borderColor = tint.withAlphaComponent(isLight ? 0.24 : 0.28).cgColor
+            textField.textColor = tint.withAlphaComponent(isLight ? 0.86 : 0.90)
         } else {
             // Header bg now matches paneBg (flush card), so the old windowBg
             // pill fill no longer reads. Use lineSoft as a quiet lift over
             // paneBg — visible enough to anchor the pid, quiet enough to stay
             // out of the way.
             backgroundLayer.backgroundColor = RebrandTokens.Color.lineSoft
-                .withAlphaComponent(isLight ? 0.55 : 0.7).cgColor
+                .withAlphaComponent(isLight ? 0.36 : 0.30).cgColor
+            backgroundLayer.borderColor = RebrandTokens.Color.lineSoft
+                .withAlphaComponent(isLight ? 0.45 : 0.36).cgColor
             textField.textColor = RebrandTokens.Color.fg3
         }
     }

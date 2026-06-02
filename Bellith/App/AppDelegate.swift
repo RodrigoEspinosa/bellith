@@ -236,6 +236,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             createInitialTab: createInitialTab,
             dependencies: dependencies
         )
+        window.onKeyDownIntercept = { [weak container] event in
+            container?.interceptWindowKeyDown(event) ?? false
+        }
         if dependencies.settings.useRebrandShell {
             // Rebrand path: hand off chrome to `RebrandShellView`, which hosts
             // the legacy container with its own title bar / rail / status bar
@@ -1069,6 +1072,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             activeEntry?.container.reloadConfig()
             return true
 
+        case GHOSTTY_ACTION_GOTO_SPLIT:
+            guard let direction = splitDirection(from: action.action.goto_split) else { return true }
+            let surfaceView = surfaceView(for: target)
+            (surfaceView.flatMap { container(for: $0) } ?? activeEntry?.container)?.focusPane(direction)
+            return true
+
         case GHOSTTY_ACTION_COMMAND_FINISHED:
             let info = action.action.command_finished
             let durationSec = Double(info.duration) / 1_000_000_000
@@ -1137,6 +1146,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         default:
             return false
+        }
+    }
+
+    private func splitDirection(from action: ghostty_action_goto_split_e) -> SplitPaneView.Direction? {
+        switch action {
+        case GHOSTTY_GOTO_SPLIT_LEFT:
+            return .left
+        case GHOSTTY_GOTO_SPLIT_RIGHT:
+            return .right
+        case GHOSTTY_GOTO_SPLIT_UP:
+            return .up
+        case GHOSTTY_GOTO_SPLIT_DOWN:
+            return .down
+        default:
+            return nil
         }
     }
 

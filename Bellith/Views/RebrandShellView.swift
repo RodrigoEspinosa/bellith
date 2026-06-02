@@ -15,6 +15,7 @@ final class RebrandShellView: NSView {
     private let rail = RebrandWorkspaceRail()
     private let body = RebrandBodyView()
     private let statusBar = RebrandStatusBar()
+    private let noiseOverlay = RebrandNoiseOverlayView(cornerRadius: RebrandTokens.Layout.windowCornerRadius)
     private var settingsObserver: NSObjectProtocol?
     private var themeObserver: NSObjectProtocol?
 
@@ -67,6 +68,7 @@ final class RebrandShellView: NSView {
         addSubview(rail)
         addSubview(body)
         addSubview(statusBar)
+        addSubview(noiseOverlay)
 
         // The legacy container lives inside the new body, with its own chrome
         // suppressed — the rebrand views own the visible look.
@@ -180,8 +182,11 @@ final class RebrandShellView: NSView {
         let noise = Float(min(max(BellithSettings.shared.noiseIntensity, 0.0), 1.0))
         let chromeOpacity = max(opacity, Theme.colors.isLight ? 0.92 : 0.88)
         layer?.backgroundColor = RebrandTokens.Color.windowBg.withAlphaComponent(chromeOpacity).cgColor
-        noiseLayer.opacity = noise * (Theme.colors.isLight ? 0.08 : 0.06)
+        // Noise was visibly heavy on the dark field — tuned down ~40% so the
+        // grain reads as texture rather than fog.
+        noiseLayer.opacity = noise * (Theme.colors.isLight ? 0.06 : 0.055)
         body.applyMaterialOpacity()
+        noiseOverlay.applyTheme()
     }
 
     private func applyTheme() {
@@ -206,6 +211,7 @@ final class RebrandShellView: NSView {
         let bodyH = max(0, h - L.titleBarHeight - L.statusBarHeight)
         body.frame = NSRect(x: bodyX, y: L.statusBarHeight, width: bodyW, height: bodyH)
         statusBar.frame = NSRect(x: bodyX, y: 0, width: bodyW, height: L.statusBarHeight)
+        noiseOverlay.frame = bounds
 
         outerStroke.frame = bounds.insetBy(dx: 0.5, dy: 0.5)
         outerStroke.cornerRadius = max(0, L.windowCornerRadius - 0.5)
@@ -241,10 +247,15 @@ final class RebrandShellView: NSView {
 /// migrate features, this view will own pane card layout directly.
 final class RebrandBodyView: NSView {
     private let paneDock = RebrandPaneDock()
+    private var trackingArea: NSTrackingArea?
+    private var isPaneDockVisible = false
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.backgroundColor = RebrandTokens.Color.windowBg.cgColor
+        paneDock.alphaValue = 0
+        paneDock.isHidden = true
         paneDock.onSplitRight = { [weak self] in self?.onSplitRight?() }
         paneDock.onSplitDown = { [weak self] in self?.onSplitDown?() }
         addSubview(paneDock)
@@ -260,7 +271,7 @@ final class RebrandBodyView: NSView {
     func embed(_ container: NSView) {
         hostedContainer?.removeFromSuperview()
         hostedContainer = container
-        addSubview(container)
+        addSubview(container, positioned: .below, relativeTo: paneDock)
         needsLayout = true
     }
 
@@ -283,6 +294,116 @@ final class RebrandBodyView: NSView {
             height: max(0, bounds.height - topPad - bottomPad)
         )
         paneDock.frame = NSRect(x: pad + 12, y: bottomPad + 12, width: 76, height: 44)
+        updatePaneDockVisibility(for: window?.mouseLocationOutsideOfEventStream)
+    }
+
+    override func updateTrackingAreas() {
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        updatePaneDockVisibility(for: event.locationInWindow)
+        super.mouseEntered(with: event)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        updatePaneDockVisibility(for: event.locationInWindow)
+        super.mouseMoved(with: event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        setPaneDockVisible(false)
+        super.mouseExited(with: event)
+    }
+
+    private func updatePaneDockVisibility(for windowLocation: NSPoint?) {
+        guard let windowLocation else {
+            setPaneDockVisible(false)
+            return
+        }
+        let localLocation = convert(windowLocation, from: nil)
+        setPaneDockVisible(paneDockHoverRect.contains(localLocation))
+    }
+
+    private var paneDockHoverRect: NSRect {
+        paneDock.frame.insetBy(dx: -8, dy: -8)
+    }
+
+    private func setPaneDockVisible(_ visible: Bool) {
+        guard isPaneDockVisible != visible else { return }
+        isPaneDockVisible = visible
+        if visible {
+            paneDock.isHidden = false
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.12
+            context.timingFunction = CAMediaTimingFunction(name: visible ? .easeOut : .easeIn)
+            paneDock.animator().alphaValue = visible ? 1 : 0
+        } completionHandler: { [weak self] in
+            guard let self, !self.isPaneDockVisible else { return }
+            self.paneDock.isHidden = true
+        }
+    }
+}
+
+private final class RebrandNoiseOverlayView: NSView {
+    private static let noiseImage: CGImage? = {
+        let size = 192
+        let totalBytes = size * size
+        var pixels = [UInt8](repeating: 0, count: totalBytes)
+        for i in 0..<totalBytes {
+            pixels[i] = UInt8.random(in: 0...255)
+        }
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData) else { return nil }
+        return CGImage(
+            width: size,
+            height: size,
+            bitsPerComponent: 8,
+            bitsPerPixel: 8,
+            bytesPerRow: size,
+            space: CGColorSpaceCreateDeviceGray(),
+            bitmapInfo: CGBitmapInfo(rawValue: 0),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+        )
+    }()
+
+    init(frame frameRect: NSRect = .zero, cornerRadius: CGFloat = RebrandTokens.Layout.paneCornerRadius) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.cornerRadius = cornerRadius
+        layer?.cornerCurve = .continuous
+        layer?.masksToBounds = true
+        if let noiseImage = Self.noiseImage {
+            let image = NSImage(cgImage: noiseImage, size: NSSize(width: noiseImage.width, height: noiseImage.height))
+            layer?.backgroundColor = NSColor(patternImage: image).cgColor
+        }
+        applyTheme()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    func applyTheme() {
+        let intensity = min(max(BellithSettings.shared.noiseIntensity, 0.0), 1.0)
+        // Cut overlay grain to ~40% of the prior ceiling — the dark field was
+        // foggy in flat panes. Keeps the texture without veiling the content.
+        let maxOpacity = Theme.colors.isLight ? 0.10 : 0.095
+        alphaValue = CGFloat(pow(intensity, 0.85) * maxOpacity)
     }
 }
 

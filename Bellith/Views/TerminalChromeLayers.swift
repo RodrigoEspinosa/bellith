@@ -187,9 +187,10 @@ final class TerminalChromeLayers {
         noiseLayer.frame = frame
     }
 
-    /// Settings slider 0–1 maps to 0–0.08 (dark) or 0–0.12 (light) actual opacity.
+    /// Settings slider 0–1 maps to a deliberately visible grain at the top end.
     func updateNoiseOpacity(intensity: Double, isLightTheme: Bool) {
-        let maxOpacity: Double = isLightTheme ? 0.12 : 0.08
-        noiseLayer.opacity = Float(intensity * maxOpacity)
+        let clamped = min(max(intensity, 0.0), 1.0)
+        let maxOpacity: Double = isLightTheme ? 0.26 : 0.24
+        noiseLayer.opacity = Float(pow(clamped, 0.85) * maxOpacity)
     }
 }
