@@ -296,7 +296,7 @@ final class CommandPaletteView: NSView {
 
         // Stagger row entry
         for (i, row) in resultRows.enumerated() {
-            let delay = Double(i) * 0.02
+            let delay = Theme.prefersReducedMotion ? 0 : Double(i) * 0.02
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 NSAnimationContext.runAnimationGroup { ctx in
                     ctx.duration = Theme.animFast

@@ -145,7 +145,7 @@ final class SSHPane: NSView {
         }
         sessionNameField = PrefTextField(text: "") { [weak self] value in self?.mutateSelectedProfile { $0.sessionName = value } }
         environmentField = PrefTextField(text: "") { [weak self] value in self?.mutateSelectedProfile { $0.environmentTag = value } }
-        sensitiveToggle = PrefToggle(isOn: false) { [weak self] value in self?.mutateSelectedProfile { $0.isSensitive = value } }
+        sensitiveToggle = PrefToggle(label: "Sensitive host", isOn: false) { [weak self] value in self?.mutateSelectedProfile { $0.isSensitive = value } }
         notesField = PrefTextField(text: "") { [weak self] value in self?.mutateSelectedProfile { $0.notes = value } }
         content.addSubview(sessionCard)
         for view: NSView in [

@@ -130,6 +130,7 @@ final class KeybindingsPane: NSView {
         paneTitleLabel.textColor = Theme.textDisplay
         paneSubtitleLabel.textColor = Theme.textSecondary
         heroCard.refresh()
+        heroCountLabel.textColor = Theme.textDisplay
         presetPopup.selectItem(at: ShortcutPresetID.allCases.firstIndex(of: settings.shortcutPreset) ?? 0)
         scopePopup.selectItem(at: ScopeFilter.allCases.firstIndex(of: scopeFilter) ?? 0)
         searchField.stringValue = searchQuery

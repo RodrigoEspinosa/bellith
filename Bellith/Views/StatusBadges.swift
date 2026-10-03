@@ -80,6 +80,8 @@ final class BroadcastBadge: NSView {
     }
 
     private func startPulse() {
+        dotView.layer?.removeAnimation(forKey: "pulse")
+        guard !Theme.prefersReducedMotion else { return }
         let pulse = CABasicAnimation(keyPath: "opacity")
         pulse.fromValue = 1.0
         pulse.toValue = 0.3

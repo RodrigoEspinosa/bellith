@@ -854,9 +854,9 @@ enum Theme {
     static let spacingLG: CGFloat = 16
 
     // Animation
-    static let animFast: TimeInterval = 0.15
-    static let animMedium: TimeInterval = 0.25
-    static let animSlow: TimeInterval = 0.4
+    static var animFast: TimeInterval { prefersReducedMotion ? 0 : 0.15 }
+    static var animMedium: TimeInterval { prefersReducedMotion ? 0 : 0.25 }
+    static var animSlow: TimeInterval { prefersReducedMotion ? 0 : 0.4 }
 
     /// Whether the user prefers reduced motion. Check this before running non-essential animations.
     static var prefersReducedMotion: Bool {

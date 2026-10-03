@@ -349,7 +349,7 @@ final class RebrandBodyView: NSView {
             paneDock.isHidden = false
         }
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.12
+            context.duration = Theme.prefersReducedMotion ? 0 : 0.12
             context.timingFunction = CAMediaTimingFunction(name: visible ? .easeOut : .easeIn)
             paneDock.animator().alphaValue = visible ? 1 : 0
         } completionHandler: { [weak self] in

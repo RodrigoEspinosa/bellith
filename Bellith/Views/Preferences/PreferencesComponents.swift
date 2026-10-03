@@ -106,6 +106,9 @@ final class ShortcutBadge: NSView {
     init(shortcut: KeyShortcut?) {
         self.shortcut = shortcut
         super.init(frame: .zero)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel("Keyboard shortcut")
         wantsLayer = true
 
         recordingLabel.font = BellithFont.mono(11, weight: .regular)
@@ -208,7 +211,7 @@ final class ShortcutBadge: NSView {
         }
     }
 
-    override func mouseDown(with event: NSEvent) {
+    private func beginRecording() {
         isRecording = true
         recordingLabel.stringValue = "Press shortcut\u{2026}"
         recordingLabel.isHidden = false
@@ -216,8 +219,23 @@ final class ShortcutBadge: NSView {
         needsDisplay = true
     }
 
+    override func mouseDown(with event: NSEvent) { beginRecording() }
+
+    override func accessibilityValue() -> Any? {
+        isRecording ? "Recording" : shortcut?.keycapStrings.joined(separator: " ") ?? emptyLabel
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        beginRecording()
+        return true
+    }
+
     override func keyDown(with event: NSEvent) {
-        guard isRecording else { super.keyDown(with: event); return }
+        guard isRecording else {
+            if event.keyCode == 49 || event.keyCode == 36 { beginRecording() }
+            else { super.keyDown(with: event) }
+            return
+        }
         if event.keyCode == 53 { cancelRecording(); return }
         if event.keyCode == 51 || event.keyCode == 117 {
             shortcut = nil
@@ -343,6 +361,7 @@ final class PrefSegment: NSView {
 
         for (i, title) in labels.enumerated() {
             let btn = NSButton(title: title.uppercased(), target: self, action: #selector(tapped(_:)))
+            btn.setAccessibilityLabel(title)
             btn.tag = i
             btn.isBordered = false
             btn.font = BellithFont.mono(11, weight: .regular)
@@ -358,6 +377,7 @@ final class PrefSegment: NSView {
 
     override func layout() {
         super.layout()
+        guard !buttons.isEmpty else { return }
         let count = CGFloat(buttons.count)
         let inset: CGFloat = 3
         let btnW = (bounds.width - inset * 2) / count
@@ -401,6 +421,7 @@ final class PrefSegment: NSView {
         layer?.borderColor = Theme.chromeHairline.cgColor
 
         for (i, btn) in buttons.enumerated() {
+            btn.setAccessibilityValue(i == selected ? 1 : 0)
             if i == selected {
                 btn.contentTintColor = selectedTextColor
                 btn.layer?.backgroundColor = selectedFillColor.cgColor
@@ -433,12 +454,16 @@ final class PrefToggle: NSView {
     private let knobD: CGFloat = 18
     private let knobInset: CGFloat = 3
 
-    init(isOn: Bool, onChange: @escaping (Bool) -> Void) {
+    init(label: String, isOn: Bool, onChange: @escaping (Bool) -> Void) {
         self.isOn = isOn
         self.onChange = onChange
         super.init(frame: .zero)
         wantsLayer = true
         layer?.masksToBounds = false
+
+        setAccessibilityElement(true)
+        setAccessibilityRole(.checkBox)
+        setAccessibilityLabel(label)
 
         // Track
         trackLayer.cornerRadius = trackH / 2
@@ -467,6 +492,7 @@ final class PrefToggle: NSView {
     }
 
     private func updateLayers(animated: Bool) {
+        let animated = animated && !Theme.prefersReducedMotion
         trackLayer.borderColor = BellithDesignSystem.Color.stroke.cgColor
         knobLayer.backgroundColor = BellithDesignSystem.Color.windowBackground.cgColor
 
@@ -546,6 +572,13 @@ final class PrefToggle: NSView {
         updateLayers(animated: false)
     }
 
+    override func accessibilityValue() -> Any? { isOn ? 1 : 0 }
+
+    override func accessibilityPerformPress() -> Bool {
+        toggle()
+        return true
+    }
+
     private func toggle() {
         isOn.toggle()
         onChange(isOn)
@@ -571,6 +604,9 @@ final class OpacityTrackView: NSView {
         self.percentLabel = NSTextField(labelWithString: "\(Int(value * 100))%")
         super.init(frame: .zero)
         wantsLayer = true
+        setAccessibilityElement(true)
+        setAccessibilityRole(.slider)
+        setAccessibilityLabel("Opacity")
         percentLabel.font = BellithFont.mono(10, weight: .regular)
         percentLabel.textColor = Theme.textSecondary
         percentLabel.alignment = .right
@@ -585,10 +621,11 @@ final class OpacityTrackView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let trackW = bounds.width - 52
-        let segments = max(10, Int(trackW / 14))
+        let trackW = max(0, bounds.width - 52)
+        guard trackW > 0 else { return }
+        let segments = max(1, Int(trackW / 14))
         let gap: CGFloat = 2
-        let segmentW = max(6, (trackW - CGFloat(segments - 1) * gap) / CGFloat(segments))
+        let segmentW = max(0, (trackW - CGFloat(segments - 1) * gap) / CGFloat(segments))
         let trackH: CGFloat = 10
         let trackY = (bounds.height - trackH) / 2
         let filledCount = Int(round(CGFloat(value) * CGFloat(segments)))
@@ -627,9 +664,24 @@ final class OpacityTrackView: NSView {
         needsDisplay = true
     }
 
+    override func accessibilityValue() -> Any? { value }
+    override func accessibilityMinValue() -> Any? { minValue }
+    override func accessibilityMaxValue() -> Any? { 1.0 }
+    override func accessibilityPerformIncrement() -> Bool {
+        setValue(value + 0.05)
+        onChange(value)
+        return true
+    }
+    override func accessibilityPerformDecrement() -> Bool {
+        setValue(value - 0.05)
+        onChange(value)
+        return true
+    }
+
     private func updateValue(from event: NSEvent) {
         let loc = convert(event.locationInWindow, from: nil)
-        let trackW = bounds.width - 52
+        let trackW = max(0, bounds.width - 52)
+        guard trackW > 0 else { return }
         setValue(Double(loc.x / trackW))
         onChange(value)
     }
@@ -747,6 +799,9 @@ final class StepButton: NSView {
         self.action = action
         self.symbol = NSImage(systemSymbolName: name, accessibilityDescription: name)
         super.init(frame: .zero)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(name == "plus" ? "Increase value" : "Decrease value")
         wantsLayer = true
         layer?.cornerRadius = BellithDesignSystem.Radius.control
     }
@@ -770,6 +825,11 @@ final class StepButton: NSView {
             tinted?.draw(in: NSRect(x: (bounds.width - s) / 2, y: (bounds.height - s) / 2, width: s, height: s),
                          from: .zero, operation: .sourceOver, fraction: isHovered ? 0.9 : 0.5)
         }
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        action()
+        return true
     }
 
     override func mouseDown(with event: NSEvent) { action() }
@@ -809,6 +869,9 @@ final class LinkButton: NSView {
 
         label.font = BellithFont.mono(11, weight: .regular)
         label.textColor = Theme.textSecondary
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(title)
         addSubview(label)
 
         arrow.image = NSImage(systemSymbolName: "arrow.right", accessibilityDescription: nil)
@@ -831,6 +894,11 @@ final class LinkButton: NSView {
             let underline = NSRect(x: 0, y: 0, width: label.attributedStringValue.size().width, height: 1)
             underline.fill()
         }
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        onClick?()
+        return true
     }
 
     override func mouseDown(with event: NSEvent) { onClick?() }
@@ -879,6 +947,9 @@ final class FontPickerButton: NSView {
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.cornerRadius = 7
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel("Choose terminal font")
         toolTip = "Choose font\u{2026}"
     }
 
@@ -906,6 +977,11 @@ final class FontPickerButton: NSView {
             tinted?.draw(in: NSRect(x: (bounds.width - s) / 2, y: (bounds.height - s) / 2, width: s, height: s),
                          from: .zero, operation: .sourceOver, fraction: isHovered ? 0.9 : 0.5)
         }
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        presentFontPanel()
+        return true
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -962,11 +1038,15 @@ final class ResetDefaultsButton: NSView {
     private var trackingArea: NSTrackingArea?
     private let label: NSTextField
 
+    override var acceptsFirstResponder: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
     init(title: String = "Reset to Defaults") {
         label = NSTextField(labelWithString: title)
         super.init(frame: .zero)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(title)
         wantsLayer = true
         layer?.cornerRadius = 8
         label.font = .systemFont(ofSize: 12, weight: .medium)
@@ -992,6 +1072,16 @@ final class ResetDefaultsButton: NSView {
         bp.stroke()
     }
 
+    override func accessibilityPerformPress() -> Bool {
+        onClick?()
+        return true
+    }
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 49, 36: onClick?()
+        default: super.keyDown(with: event)
+        }
+    }
     override func mouseDown(with event: NSEvent) { onClick?() }
     override func updateTrackingAreas() {
         if let a = trackingArea { removeTrackingArea(a) }

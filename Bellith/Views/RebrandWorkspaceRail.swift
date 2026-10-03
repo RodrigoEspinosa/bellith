@@ -8,6 +8,9 @@ import QuartzCore
 final class RebrandWorkspaceRail: NSView {
     private let rightHairline = CALayer()
     private var cards: [RebrandWorkspaceCard] = []
+    private let workspaceScroll = NSScrollView()
+    private let workspaceList = RebrandWorkspaceList()
+    private var needsRevealSelection = true
     private let addTile = RebrandAddTile()
     private let settingsButton = RebrandRailFooterTile(symbolName: "sun.max", fallback: "L", tooltip: "Switch to Light Mode")
 
@@ -46,6 +49,12 @@ final class RebrandWorkspaceRail: NSView {
                 PreferencesWindowController.shared.showWindow(selecting: "appearance")
             }
         }
+        workspaceScroll.drawsBackground = false
+        workspaceScroll.hasVerticalScroller = true
+        workspaceScroll.autohidesScrollers = true
+        workspaceScroll.scrollerStyle = .overlay
+        workspaceScroll.documentView = workspaceList
+        addSubview(workspaceScroll)
         addSubview(addTile)
         addSubview(settingsButton)
 
@@ -62,7 +71,7 @@ final class RebrandWorkspaceRail: NSView {
             let card = RebrandWorkspaceCard(workspace: ws)
             card.onClick = { [weak self] in self?.onSelect?(ws.id) }
             cards.append(card)
-            addSubview(card)
+            workspaceList.addSubview(card)
         }
         applySelection()
         needsLayout = true
@@ -72,6 +81,8 @@ final class RebrandWorkspaceRail: NSView {
         for card in cards {
             card.isSelected = (card.workspaceID == selectedID)
         }
+        needsRevealSelection = true
+        needsLayout = true
     }
 
     override func layout() {
@@ -80,14 +91,6 @@ final class RebrandWorkspaceRail: NSView {
         rightHairline.frame = NSRect(x: bounds.width - 1, y: 0, width: 1, height: bounds.height)
 
         let cardX = floor((bounds.width - L.railCardSize) / 2)
-        let topY = bounds.height - L.railTopInset
-        var y = topY
-        for card in cards {
-            let frame = NSRect(x: cardX, y: y - L.railCardSize, width: L.railCardSize, height: L.railCardSize)
-            card.frame = frame
-            y -= L.railCardSize + L.railCardSpacing
-        }
-
         // Footer tiles share the card column width and stack tightly so they
         // read as a single grouped cluster (new-tab + theme toggle).
         let addH: CGFloat = 34
@@ -105,6 +108,18 @@ final class RebrandWorkspaceRail: NSView {
             width: L.railCardSize,
             height: addH
         )
+        let listBottom = addTile.frame.maxY + L.railCardSpacing
+        let listHeight = max(0, bounds.height - L.railTopInset - listBottom)
+        workspaceScroll.frame = NSRect(x: 0, y: listBottom, width: bounds.width, height: listHeight)
+        let contentHeight = max(listHeight, CGFloat(cards.count) * (L.railCardSize + L.railCardSpacing) - L.railCardSpacing)
+        workspaceList.frame = NSRect(x: 0, y: 0, width: bounds.width, height: contentHeight)
+        for (index, card) in cards.enumerated() {
+            card.frame = NSRect(x: cardX, y: CGFloat(index) * (L.railCardSize + L.railCardSpacing), width: L.railCardSize, height: L.railCardSize)
+        }
+        if needsRevealSelection, let selected = cards.first(where: { $0.workspaceID == selectedID }) {
+            workspaceList.scrollToVisible(selected.frame)
+            needsRevealSelection = false
+        }
     }
 
     func applyTheme() {
@@ -146,6 +161,9 @@ final class RebrandWorkspaceCard: NSView {
         self.title = workspace.title
         self.hotkeyDigit = workspace.hotkeyDigit
         super.init(frame: .zero)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(workspace.title)
         wantsLayer = true
         layer?.cornerRadius = 12
         layer?.cornerCurve = .continuous
@@ -191,6 +209,21 @@ final class RebrandWorkspaceCard: NSView {
 
         toolTip = workspace.hotkeyDigit.map { "\(workspace.title)  ⌘\($0)" } ?? workspace.title
         applyTheme()
+    }
+
+    override var acceptsFirstResponder: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    override func accessibilityPerformPress() -> Bool {
+        onClick?()
+        return true
+    }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 49, 36: onClick?()
+        default: super.keyDown(with: event)
+        }
     }
 
     @available(*, unavailable)
@@ -350,6 +383,21 @@ final class RebrandRailFooterTile: NSView {
         applyTheme()
     }
 
+    override var acceptsFirstResponder: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    override func accessibilityPerformPress() -> Bool {
+        onClick?()
+        return true
+    }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 49, 36: onClick?()
+        default: super.keyDown(with: event)
+        }
+    }
+
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
@@ -453,6 +501,9 @@ final class RebrandAddTile: NSView {
 
     override init(frame: NSRect = .zero) {
         super.init(frame: frame)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel("New workspace")
         wantsLayer = true
         layer?.addSublayer(dashedBorder)
 
@@ -462,6 +513,21 @@ final class RebrandAddTile: NSView {
 
         toolTip = "New workspace"
         applyTheme()
+    }
+
+    override var acceptsFirstResponder: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    override func accessibilityPerformPress() -> Bool {
+        onClick?()
+        return true
+    }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 49, 36: onClick?()
+        default: super.keyDown(with: event)
+        }
     }
 
     @available(*, unavailable)
@@ -523,4 +589,8 @@ enum RebrandWorkspaceTint {
     static func accent(for title: String) -> NSColor {
         RebrandTokens.Color.copperGlow
     }
+}
+
+private final class RebrandWorkspaceList: NSView {
+    override var isFlipped: Bool { true }
 }

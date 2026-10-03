@@ -138,7 +138,7 @@ final class QuickTerminalController: NSObject {
         isVisible = true
 
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.25
+            ctx.duration = Theme.animMedium
             ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
             window.animator().setFrame(
                 NSRect(x: x, y: visibleY, width: width, height: height),
@@ -170,7 +170,7 @@ final class QuickTerminalController: NSObject {
         isVisible = false
 
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.18
+            ctx.duration = Theme.prefersReducedMotion ? 0 : 0.18
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
             window.animator().setFrame(
                 NSRect(x: frame.origin.x, y: hiddenY, width: frame.width, height: frame.height),

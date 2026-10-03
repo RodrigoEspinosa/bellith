@@ -153,7 +153,22 @@ final class PreferencesRootView: NSView {
         sidebar.refresh()
         for pane in panes.values {
             (pane as? PreferencesPaneRefreshable)?.refreshPreferencesPane()
+            refreshSharedControls(in: pane)
         }
+    }
+
+    private func refreshSharedControls(in view: NSView) {
+        switch view {
+        case let label as CardRowLabel: label.textColor = BellithDesignSystem.Color.textSecondary
+        case let label as SmallLabel: label.textColor = Theme.textTertiary
+        case let label as FooterNote: label.textColor = Theme.textTertiary
+        case let label as ValueBadge: label.textColor = BellithDesignSystem.Color.text
+        case let segment as PrefSegment: segment.refreshAppearance()
+        case let toggle as PrefToggle: toggle.refreshAppearance()
+        default: break
+        }
+        view.needsDisplay = true
+        view.subviews.forEach { refreshSharedControls(in: $0) }
     }
 
     func selectPane(_ id: String) {

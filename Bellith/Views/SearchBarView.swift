@@ -97,6 +97,7 @@ final class SearchBarView: NSView {
         inputField.cell?.sendsActionOnEndEditing = false
         inputField.target = self
         inputField.action = #selector(handleSubmit)
+        inputField.setAccessibilityLabel("Search terminal output")
         inputField.delegate = self
         addSubview(inputField)
 
@@ -113,15 +114,19 @@ final class SearchBarView: NSView {
         // Toggle buttons
         configureToggleButton(caseSensitiveButton, title: "Aa", action: #selector(handleToggleCase))
         caseSensitiveButton.toolTip = "Case Sensitive"
+        caseSensitiveButton.setAccessibilityLabel("Case sensitive")
         addSubview(caseSensitiveButton)
 
         configureToggleButton(regexButton, title: ".*", action: #selector(handleToggleRegex))
         regexButton.toolTip = "Regular Expression"
+        regexButton.setAccessibilityLabel("Regular expression")
         addSubview(regexButton)
 
         // Nav buttons
         configureNavButton(prevButton, symbolName: "chevron.up", action: #selector(handlePrev))
         configureNavButton(nextButton, symbolName: "chevron.down", action: #selector(handleNext))
+        prevButton.setAccessibilityLabel("Previous match")
+        nextButton.setAccessibilityLabel("Next match")
         prevButton.toolTip = "Previous Match (Shift+Enter)"
         nextButton.toolTip = "Next Match (Enter)"
         addSubview(prevButton)
@@ -157,6 +162,7 @@ final class SearchBarView: NSView {
     }
 
     private func updateToggleAppearance(_ button: NSButton, isActive: Bool) {
+        button.setAccessibilityValue(isActive ? 1 : 0)
         Theme.animate { _ in
             if isActive {
                 button.layer?.backgroundColor = Theme.accent.withAlphaComponent(0.2).cgColor
@@ -212,23 +218,27 @@ final class SearchBarView: NSView {
         regexButton.frame = NSRect(x: bounds.width - 116, y: toggleY, width: 24, height: 20)
         caseSensitiveButton.frame = NSRect(x: bounds.width - 140, y: toggleY, width: 24, height: 20)
 
-        let countW: CGFloat = 64
+        countLabel.isHidden = bounds.width < 320
+        let countW: CGFloat = countLabel.isHidden ? 0 : 64
         countLabel.frame = NSRect(x: bounds.width - 140 - countW - 4, y: (h - 16) / 2, width: countW, height: 16)
 
         let inputX: CGFloat = 32
         let inputW = bounds.width - inputX - 140 - countW - 12
-        inputField.frame = NSRect(x: inputX, y: (h - 20) / 2, width: max(inputW, 40), height: 20)
+        inputField.frame = NSRect(x: inputX, y: (h - 20) / 2, width: max(inputW, 0), height: 20)
     }
 
     // MARK: - Public
 
     func setQuery(_ text: String) {
         inputField.stringValue = text
+        updateCount(selected: 0, total: 0)
     }
 
     func updateCount(selected: Int, total: Int) {
         searchSelected = selected
         searchTotal = total
+        prevButton.isEnabled = total > 0
+        nextButton.isEnabled = total > 0
         if total > 0 {
             countLabel.stringValue = "\(selected)/\(total)"
             countLabel.textColor = Theme.textSecondary
@@ -251,7 +261,7 @@ final class SearchBarView: NSView {
     // MARK: - Show / Hide
 
     func show(in parent: NSView, rightMargin: CGFloat = 16, topMargin: CGFloat = 50) {
-        let width: CGFloat = 380
+        let width: CGFloat = min(380, max(0, parent.bounds.width - rightMargin * 2))
         let height: CGFloat = 36
         let x = parent.bounds.width - width - rightMargin
         let y = parent.bounds.height - height - topMargin
@@ -259,7 +269,7 @@ final class SearchBarView: NSView {
         frame = NSRect(x: x, y: y + 8, width: width, height: height)
         parent.addSubview(self)
         inputField.stringValue = ""
-        countLabel.stringValue = ""
+        updateCount(selected: 0, total: 0)
 
         let finalFrame = NSRect(x: x, y: y, width: width, height: height)
         NSAnimationContext.runAnimationGroup { ctx in
@@ -336,7 +346,8 @@ extension SearchBarView: NSTextFieldDelegate {
     func controlTextDidChange(_ obj: Notification) {
         let text = inputField.stringValue
         if text.isEmpty {
-            countLabel.stringValue = ""
+            updateCount(selected: 0, total: 0)
+            onSearch?(text)
         } else {
             onSearch?(text)
         }

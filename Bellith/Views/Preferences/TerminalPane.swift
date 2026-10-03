@@ -165,7 +165,7 @@ final class TerminalPane: NSView {
             self.sizeValue.stringValue = "\(self.settings.fontSize)"
             self.updateHero()
         }
-        ligaturesToggle = PrefToggle(isOn: settings.fontLigaturesEnabled) { [weak self] value in
+        ligaturesToggle = PrefToggle(label: "Font ligatures", isOn: settings.fontLigaturesEnabled) { [weak self] value in
             self?.settings.fontLigaturesEnabled = value
         }
         content.addSubview(fontCard)
@@ -177,7 +177,7 @@ final class TerminalPane: NSView {
             self?.settings.cursorStyle = ["block", "bar", "underline"][idx]
             self?.updateHero()
         }
-        blinkToggle = PrefToggle(isOn: settings.cursorBlink) { [weak self] value in
+        blinkToggle = PrefToggle(label: "Blink cursor", isOn: settings.cursorBlink) { [weak self] value in
             self?.settings.cursorBlink = value
             self?.updateHero()
         }
@@ -234,28 +234,28 @@ final class TerminalPane: NSView {
             sessionCard.addSubview(view)
         }
 
-        shellIntegrationEnabledToggle = PrefToggle(isOn: settings.shellIntegrationEnabled) { [weak self] value in
+        shellIntegrationEnabledToggle = PrefToggle(label: "Enable shell integration", isOn: settings.shellIntegrationEnabled) { [weak self] value in
             self?.settings.shellIntegrationEnabled = value
         }
-        shellIntegrationCursorToggle = PrefToggle(isOn: settings.shellIntegrationCursor) { [weak self] value in
+        shellIntegrationCursorToggle = PrefToggle(label: "Cursor at prompt", isOn: settings.shellIntegrationCursor) { [weak self] value in
             self?.settings.shellIntegrationCursor = value
         }
-        shellIntegrationTitleToggle = PrefToggle(isOn: settings.shellIntegrationTitle) { [weak self] value in
+        shellIntegrationTitleToggle = PrefToggle(label: "Update window title", isOn: settings.shellIntegrationTitle) { [weak self] value in
             self?.settings.shellIntegrationTitle = value
         }
-        shellIntegrationPathToggle = PrefToggle(isOn: settings.shellIntegrationPath) { [weak self] value in
+        shellIntegrationPathToggle = PrefToggle(label: "Add Ghostty to PATH", isOn: settings.shellIntegrationPath) { [weak self] value in
             self?.settings.shellIntegrationPath = value
         }
-        shellIntegrationSSHEnvToggle = PrefToggle(isOn: settings.shellIntegrationSSHEnv) { [weak self] value in
+        shellIntegrationSSHEnvToggle = PrefToggle(label: "SSH environment compatibility", isOn: settings.shellIntegrationSSHEnv) { [weak self] value in
             self?.settings.shellIntegrationSSHEnv = value
         }
-        shellIntegrationSSHTerminfoToggle = PrefToggle(isOn: settings.shellIntegrationSSHTerminfo) { [weak self] value in
+        shellIntegrationSSHTerminfoToggle = PrefToggle(label: "Install SSH terminfo", isOn: settings.shellIntegrationSSHTerminfo) { [weak self] value in
             self?.settings.shellIntegrationSSHTerminfo = value
         }
-        commandNotificationsToggle = PrefToggle(isOn: settings.commandCompletionNotificationsEnabled) { [weak self] value in
+        commandNotificationsToggle = PrefToggle(label: "Command completion notifications", isOn: settings.commandCompletionNotificationsEnabled) { [weak self] value in
             self?.settings.commandCompletionNotificationsEnabled = value
         }
-        errorFixSuggestionsToggle = PrefToggle(isOn: settings.errorFixSuggestionsEnabled) { [weak self] value in
+        errorFixSuggestionsToggle = PrefToggle(label: "Error fix suggestions", isOn: settings.errorFixSuggestionsEnabled) { [weak self] value in
             self?.settings.errorFixSuggestionsEnabled = value
         }
         commandNotificationThresholdField = MiniNumberField(
@@ -296,10 +296,10 @@ final class TerminalPane: NSView {
         optionKeyPopup.action = #selector(handleOptionKeyBehaviorChanged)
         TerminalOptionKeyBehavior.allCases.forEach { optionKeyPopup.addItem(withTitle: $0.title) }
 
-        inlineImagesToggle = PrefToggle(isOn: settings.inlineImagesEnabled) { [weak self] value in
+        inlineImagesToggle = PrefToggle(label: "Inline images", isOn: settings.inlineImagesEnabled) { [weak self] value in
             self?.settings.inlineImagesEnabled = value
         }
-        minimapToggle = PrefToggle(isOn: settings.scrollbackMinimapEnabled) { [weak self] value in
+        minimapToggle = PrefToggle(label: "Scrollback minimap", isOn: settings.scrollbackMinimapEnabled) { [weak self] value in
             self?.settings.scrollbackMinimapEnabled = value
         }
         content.addSubview(graphicsCard)
@@ -310,9 +310,9 @@ final class TerminalPane: NSView {
             graphicsCard.addSubview(view)
         }
 
-        hideMouseToggle = PrefToggle(isOn: settings.mouseHideWhileTyping) { [weak self] value in self?.settings.mouseHideWhileTyping = value }
-        confirmToggle = PrefToggle(isOn: settings.confirmClose) { [weak self] value in self?.settings.confirmClose = value }
-        restoreToggle = PrefToggle(isOn: settings.restoreSession) { [weak self] value in self?.settings.restoreSession = value }
+        hideMouseToggle = PrefToggle(label: "Hide cursor while typing", isOn: settings.mouseHideWhileTyping) { [weak self] value in self?.settings.mouseHideWhileTyping = value }
+        confirmToggle = PrefToggle(label: "Confirm before closing", isOn: settings.confirmClose) { [weak self] value in self?.settings.confirmClose = value }
+        restoreToggle = PrefToggle(label: "Restore previous session", isOn: settings.restoreSession) { [weak self] value in self?.settings.restoreSession = value }
         content.addSubview(behaviorCard)
         for view: NSView in [
             optionKeyLabel,
@@ -382,6 +382,9 @@ final class TerminalPane: NSView {
     }
 
     private func updateHero() {
+        heroSizeLabel.textColor = Theme.textDisplay
+        heroFamilyLabel.textColor = Theme.textSecondary
+        heroMetaLabel.textColor = Theme.textSecondary
         heroSizeLabel.stringValue = "\(settings.fontSize) PX"
         heroFamilyLabel.stringValue = settings.fontFamily.uppercased()
         heroMetaLabel.stringValue = "[ \(settings.cursorStyle.uppercased()) ]   [ \(settings.cursorBlink ? "BLINK" : "STATIC") ]   [ \(settings.scrollbackLines) LINES ]"
@@ -419,10 +422,10 @@ final class TerminalPane: NSView {
 
         let heroHeight: CGFloat = 172
         heroCard.frame = NSRect(x: contentX, y: y, width: cardW, height: heroHeight)
-        heroSizeLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 68, width: innerW * 0.45, height: 46)
-        heroFamilyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 118, width: innerW * 0.45, height: 14)
-        heroPreviewLabel.frame = NSRect(x: PreferencesLayout.cardPad + innerW * 0.48, y: 78, width: innerW * 0.48, height: 24)
-        heroMetaLabel.frame = NSRect(x: PreferencesLayout.cardPad + innerW * 0.48, y: 106, width: innerW * 0.48, height: 16)
+        heroSizeLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 48, width: innerW * 0.35, height: 46)
+        heroFamilyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 106, width: innerW, height: 14)
+        heroPreviewLabel.frame = NSRect(x: PreferencesLayout.cardPad + innerW * 0.38, y: 58, width: innerW * 0.62, height: 24)
+        heroMetaLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 20, width: innerW, height: 16)
         y += heroHeight + PreferencesLayout.sectionGap
 
         let fontCardHeight = fontCard.headerHeight + 210

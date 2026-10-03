@@ -36,7 +36,7 @@ final class FeaturesPane: NSView {
         paneSubtitleLabel.textColor = Theme.textSecondary
         content.addSubview(paneSubtitleLabel)
 
-        builtInSettingsToggle = PrefToggle(isOn: settings.builtInSettingsWindowEnabled) { [weak self] value in
+        builtInSettingsToggle = PrefToggle(label: "Use built-in settings", isOn: settings.builtInSettingsWindowEnabled) { [weak self] value in
             self?.settings.builtInSettingsWindowEnabled = value
         }
 

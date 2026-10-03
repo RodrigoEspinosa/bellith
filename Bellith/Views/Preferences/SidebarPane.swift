@@ -53,10 +53,10 @@ final class SidebarPane: NSView {
         paneSubtitleLabel.textColor = Theme.textSecondary
         content.addSubview(paneSubtitleLabel)
 
-        pinnedToggle = PrefToggle(isOn: settings.sidebarPinned) { [weak self] value in
+        pinnedToggle = PrefToggle(label: "Pin sidebar by default", isOn: settings.sidebarPinned) { [weak self] value in
             self?.settings.sidebarPinned = value
         }
-        autoHideToggle = PrefToggle(isOn: settings.sidebarAutoHide) { [weak self] value in
+        autoHideToggle = PrefToggle(label: "Auto-hide floating sidebar", isOn: settings.sidebarAutoHide) { [weak self] value in
             self?.settings.sidebarAutoHide = value
         }
         content.addSubview(behaviorCard)
@@ -65,7 +65,7 @@ final class SidebarPane: NSView {
         behaviorCard.addSubview(autoHideLabel)
         behaviorCard.addSubview(autoHideToggle)
 
-        showToolsToggle = PrefToggle(isOn: settings.sidebarShowTools) { [weak self] value in
+        showToolsToggle = PrefToggle(label: "Show tools section", isOn: settings.sidebarShowTools) { [weak self] value in
             self?.settings.sidebarShowTools = value
             self?.updateToolToggleStates()
         }
@@ -81,7 +81,7 @@ final class SidebarPane: NSView {
         let enabledTools = settings.sidebarTools
         for plugin in smartPanelRegistry.allPlugins {
             let label = CardRowLabel(plugin.title)
-            let toggle = PrefToggle(isOn: enabledTools.contains(plugin.id)) { [weak self] enabled in
+            let toggle = PrefToggle(label: plugin.title, isOn: enabledTools.contains(plugin.id)) { [weak self] enabled in
                 self?.handleToolToggle(plugin: plugin, enabled: enabled)
             }
             toolsCard.addSubview(label)

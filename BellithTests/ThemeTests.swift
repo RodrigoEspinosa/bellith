@@ -54,12 +54,13 @@ final class ThemeTests: XCTestCase {
         wait(for: [expectation], timeout: 1.0)
     }
 
-    func testDerivedDarkAppearanceUsesOLEDChrome() {
+    func testDerivedDarkAppearanceUsesStandardChrome() {
         let theme = ThemeColors.appearance(palette: .aurora, isDark: true)
 
-        XCTAssertTrue(theme.usesOLEDChrome)
+        XCTAssertFalse(theme.usesOLEDChrome)
+        XCTAssertEqual(theme.darkChromeStyle, .standard)
         XCTAssertNotNil(theme.ghosttyThemeDefinition)
-        XCTAssertTrue(theme.frame.isEqual(theme.base))
-        XCTAssertTrue(theme.chrome.isEqual(theme.surface))
+        XCTAssertFalse(theme.frame.isEqual(theme.base))
+        XCTAssertFalse(theme.chrome.isEqual(theme.surface))
     }
 }

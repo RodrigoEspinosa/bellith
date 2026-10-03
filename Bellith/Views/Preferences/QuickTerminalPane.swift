@@ -49,7 +49,7 @@ final class QuickTerminalPane: NSView {
 
         hotkeyValue.font = BellithFont.mono(12, weight: .regular)
         hotkeyValue.textColor = Theme.textPrimary
-        hideToggle = PrefToggle(isOn: settings.visorHideOnFocusLoss) { [weak self] value in
+        hideToggle = PrefToggle(label: "Hide on focus loss", isOn: settings.visorHideOnFocusLoss) { [weak self] value in
             self?.settings.visorHideOnFocusLoss = value
         }
         content.addSubview(activationCard)

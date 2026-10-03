@@ -88,9 +88,11 @@ final class RebrandTitleBar: NSView {
         let leftLimit = leadingTrafficLightInset + 6
         studioButton.frame = NSRect(x: max(leftLimit, bounds.width - 84), y: floor((bounds.height - 24) / 2), width: 72, height: 24)
         let rightLimit = studioButton.frame.minX - 12
-        let maxGroupW = max(80, rightLimit - leftLimit)
-        let titleFrameW = min(titleW + 2, max(40, maxGroupW - pillGap - pillSize.width))
-        let groupW = titleFrameW + pillGap + pillSize.width
+        let maxGroupW = max(0, rightLimit - leftLimit)
+        let visiblePillW = pillSize.width + pillGap + 60 <= maxGroupW ? pillSize.width : 0
+        let visiblePillGap = visiblePillW > 0 ? pillGap : 0
+        let titleFrameW = min(titleW + 2, max(0, maxGroupW - visiblePillGap - visiblePillW))
+        let groupW = titleFrameW + visiblePillGap + visiblePillW
         var groupX = floor((bounds.width - groupW) / 2)
         if groupX < leftLimit { groupX = leftLimit }
         if groupX + groupW > rightLimit { groupX = max(leftLimit, rightLimit - groupW) }
@@ -103,9 +105,9 @@ final class RebrandTitleBar: NSView {
         )
         if !panePill.isHidden {
             panePill.frame = NSRect(
-                x: titleLabel.frame.maxX + pillGap,
+                x: titleLabel.frame.maxX + visiblePillGap,
                 y: floor((bounds.height - pillSize.height) / 2),
-                width: pillSize.width,
+                width: visiblePillW,
                 height: pillSize.height
             )
         }
@@ -153,6 +155,7 @@ final class RebrandTitleBar: NSView {
         }
         titleLabel.attributedStringValue = result
         titleLabel.sizeToFit()
+        titleLabel.toolTip = "\(workspaceName) · \(shellName)"
 
         if let muxLabel, paneCount > 0 {
             panePill.text = "\(muxLabel.lowercased()) · \(paneCount) pane\(paneCount == 1 ? "" : "s")"
@@ -193,6 +196,7 @@ final class RebrandPaneCountPill: NSView {
         label.isBezeled = false
         label.drawsBackground = false
         label.maximumNumberOfLines = 1
+        label.lineBreakMode = .byTruncatingTail
         addSubview(label)
         applyTheme()
     }

@@ -460,6 +460,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // it a fresh instance each rebuild. `appearanceAccentMenu` is reassigned below
         // for the same reason.
         workspacesMenu = NSMenu(title: "Workspaces")
+        recentCreativeProjectsMenu = NSMenu(title: "Open Recent Media Project")
 
         let mainMenu = NSMenu()
 

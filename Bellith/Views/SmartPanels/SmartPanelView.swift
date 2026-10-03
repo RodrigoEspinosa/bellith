@@ -167,6 +167,8 @@ class SmartPanelView: NSView {
         headerView.addSubview(headerIcon)
 
         headerLabel.stringValue = panelTitle.uppercased()
+        headerLabel.maximumNumberOfLines = 1
+        headerLabel.lineBreakMode = .byTruncatingTail
         headerLabel.font = BellithFont.mono(11, weight: .regular)
         headerLabel.textColor = Theme.textSecondary
         headerView.addSubview(headerLabel)
@@ -192,8 +194,8 @@ class SmartPanelView: NSView {
         if showsHeader {
             headerView.frame = NSRect(x: 0, y: bounds.height - Metrics.headerHeight, width: bounds.width, height: Metrics.headerHeight)
             headerIcon.frame = NSRect(x: 12, y: (Metrics.headerHeight - Metrics.headerIconSize) / 2, width: Metrics.headerIconSize, height: Metrics.headerIconSize)
-            headerLabel.frame = NSRect(x: 32, y: (Metrics.headerHeight - Metrics.headerLabelHeight) / 2, width: bounds.width - 44, height: Metrics.headerLabelHeight)
-            scrollView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height - Metrics.headerHeight)
+            headerLabel.frame = NSRect(x: 32, y: (Metrics.headerHeight - Metrics.headerLabelHeight) / 2, width: max(0, bounds.width - 44), height: Metrics.headerLabelHeight)
+            scrollView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: max(0, bounds.height - Metrics.headerHeight))
         } else {
             scrollView.frame = bounds
         }

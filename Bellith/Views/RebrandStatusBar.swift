@@ -179,7 +179,8 @@ final class RebrandStatusBar: NSView {
             )
         }
 
-        let trailW = ceil(trailing.attributedStringValue.size().width) + 4
+        let leadingEnd = muxPill.isHidden ? modePill.frame.maxX : muxPill.frame.maxX
+        let trailW = min(ceil(trailing.attributedStringValue.size().width) + 4, max(0, bounds.width - padX - leadingEnd - 20))
         trailing.frame = NSRect(
             x: bounds.width - padX - trailW,
             y: floor((bounds.height - 14) / 2),
