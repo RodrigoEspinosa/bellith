@@ -142,13 +142,14 @@ final class SidebarPane: NSView {
         scroll.frame = bounds
 
         let width = bounds.width
-        let cardW = width - PreferencesLayout.hPad * 2
+        let cardW = min(PreferencesLayout.maximumContentWidth, width - PreferencesLayout.hPad * 2)
+        let contentX = (width - cardW) / 2
         let toggleLabelWidth = PreferencesLayout.labelWidth(toTrailingToggleIn: cardW)
 
         var y: CGFloat = PreferencesLayout.hPad
 
-        paneTitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: 280, height: 24)
-        paneSubtitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y + 28, width: cardW, height: 16)
+        paneTitleLabel.frame = NSRect(x: contentX, y: y, width: 280, height: 24)
+        paneSubtitleLabel.frame = NSRect(x: contentX, y: y + 28, width: cardW, height: 16)
         y += 60
 
         let behaviorRows: CGFloat = 2
@@ -156,7 +157,7 @@ final class SidebarPane: NSView {
             + behaviorRows * PreferencesLayout.rowH
             + PreferencesLayout.rowGap
             + PreferencesLayout.cardPad
-        behaviorCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: behaviorCardHeight)
+        behaviorCard.frame = NSRect(x: contentX, y: y, width: cardW, height: behaviorCardHeight)
         let br0 = behaviorCardHeight - behaviorCard.headerHeight - PreferencesLayout.rowH
         pinnedLabel.frame = BellithDesignSystem.Settings.leadingLabelFrame(rowY: br0, width: toggleLabelWidth)
         pinnedToggle.frame = BellithDesignSystem.Settings.trailingToggleFrame(cardWidth: cardW, rowY: br0)
@@ -173,7 +174,7 @@ final class SidebarPane: NSView {
             + 18
             + (showTools ? 112 + CGFloat(visibleToolRows) * toolRowStep : 0)
             + PreferencesLayout.cardPad
-        toolsCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: toolsCardHeight)
+        toolsCard.frame = NSRect(x: contentX, y: y, width: cardW, height: toolsCardHeight)
         let tr0 = toolsCardHeight - toolsCard.headerHeight - PreferencesLayout.rowH
         showToolsLabel.frame = BellithDesignSystem.Settings.leadingLabelFrame(rowY: tr0, width: toggleLabelWidth)
         showToolsToggle.frame = BellithDesignSystem.Settings.trailingToggleFrame(cardWidth: cardW, rowY: tr0)

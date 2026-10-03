@@ -6,6 +6,7 @@ enum PreferencesLayout {
     typealias DS = BellithDesignSystem
 
     static let hPad: CGFloat = DS.Settings.horizontalPadding
+    static let maximumContentWidth: CGFloat = DS.Settings.maximumContentWidth
     static let rowH: CGFloat = DS.Size.rowHeight
     static let sectionGap: CGFloat = DS.Settings.sectionGap
     static let rowGap: CGFloat = DS.Settings.rowGap

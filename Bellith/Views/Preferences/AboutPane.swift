@@ -3,6 +3,8 @@ import AppKit
 // MARK: - About Pane
 
 final class AboutPane: NSView {
+    private let scroll = NSScrollView()
+    private let content = FlippedView()
     private let paneTitleLabel = NSTextField(labelWithString: "About")
     private let paneSubtitleLabel = NSTextField(labelWithString: "Version, credits, links, and local data.")
     private let heroSection = GradientAboutHeroSection()
@@ -27,13 +29,23 @@ final class AboutPane: NSView {
         super.init(frame: frame)
         wantsLayer = true
 
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.scrollerStyle = .overlay
+        scroll.drawsBackground = false
+        scroll.automaticallyAdjustsContentInsets = false
+        scroll.documentView = content
+        addSubview(scroll)
+
         paneTitleLabel.font = BellithFont.ui(20, weight: .medium)
-        addSubview(paneTitleLabel)
+        content.addSubview(paneTitleLabel)
 
         paneSubtitleLabel.font = BellithFont.ui(12, weight: .regular)
-        addSubview(paneSubtitleLabel)
+        content.addSubview(paneSubtitleLabel)
 
-        addSubview(heroSection)
+        content.addSubview(heroSection)
+        content.addSubview(projectCard)
+        content.addSubview(dataCard)
 
         configureHeroSection()
         configureProjectCard()
@@ -73,28 +85,21 @@ final class AboutPane: NSView {
     override func layout() {
         super.layout()
 
-        let sideInset = PreferencesLayout.hPad
-        let topInset = PreferencesLayout.hPad
-        let bottomInset: CGFloat = 24
-        let contentWidth = bounds.width - sideInset * 2
-        let cardGap: CGFloat = 18
-        let heroOverlap: CGFloat = 18
-
-        paneTitleLabel.frame = NSRect(x: sideInset, y: bounds.height - topInset - 24, width: 280, height: 24)
-        paneSubtitleLabel.frame = NSRect(x: sideInset, y: bounds.height - topInset - 46, width: contentWidth, height: 16)
-
-        let cardsHeight = max(168, min(210, bounds.height * 0.29))
-        let cardsY = bottomInset
-        let heroTop = paneSubtitleLabel.frame.minY - 18
-        let heroBottom = cardsY + cardsHeight - heroOverlap
-        let heroHeight = max(250, heroTop - heroBottom)
-
-        heroSection.frame = NSRect(x: sideInset, y: heroBottom, width: contentWidth, height: heroHeight)
-
-        let dataCardWidth = max(176, min(212, floor(contentWidth * 0.34)))
-        let projectCardWidth = contentWidth - dataCardWidth - cardGap
-        projectCard.frame = NSRect(x: sideInset, y: cardsY, width: projectCardWidth, height: cardsHeight)
-        dataCard.frame = NSRect(x: projectCard.frame.maxX + cardGap, y: cardsY, width: dataCardWidth, height: cardsHeight)
+        scroll.frame = bounds
+        let contentWidth = min(PreferencesLayout.maximumContentWidth, bounds.width - PreferencesLayout.hPad * 2)
+        let contentX = (bounds.width - contentWidth) / 2
+        var y = PreferencesLayout.hPad
+        paneTitleLabel.frame = NSRect(x: contentX, y: y, width: contentWidth, height: 24)
+        paneSubtitleLabel.frame = NSRect(x: contentX, y: y + 28, width: contentWidth, height: 16)
+        y += 60
+        let heroHeight: CGFloat = contentWidth < 580 ? 460 : 280
+        heroSection.frame = NSRect(x: contentX, y: y, width: contentWidth, height: heroHeight)
+        y += heroHeight + PreferencesLayout.sectionGap
+        projectCard.frame = NSRect(x: contentX, y: y, width: contentWidth, height: 248)
+        y += 248 + PreferencesLayout.sectionGap
+        dataCard.frame = NSRect(x: contentX, y: y, width: contentWidth, height: 200)
+        y += 200 + PreferencesLayout.hPad
+        content.frame = NSRect(x: 0, y: 0, width: bounds.width, height: max(y, bounds.height))
 
         layoutProjectCard()
         layoutDataCard()
@@ -412,8 +417,9 @@ private final class GradientAboutHeroSection: NSView {
         sheenLayer.frame = bounds
 
         let pad: CGFloat = 26
+        let compact = bounds.width < 580
         let infoWidth = max(170, min(206, bounds.width * 0.4))
-        let leftWidth = bounds.width - infoWidth - pad * 3
+        let leftWidth = compact ? bounds.width - pad * 2 : bounds.width - infoWidth - pad * 3
 
         watermarkHalo.frame = NSRect(x: bounds.width - 220, y: bounds.height - 212, width: 220, height: 220)
         watermarkLogo.frame = NSRect(x: bounds.width - 214, y: bounds.height - 204, width: 204, height: 204)
@@ -426,7 +432,7 @@ private final class GradientAboutHeroSection: NSView {
         titleLabel.frame = NSRect(x: textX, y: bounds.height - pad - 48, width: leftWidth - 32, height: 34)
         subtitleLabel.frame = NSRect(x: pad, y: bounds.height - pad - 108, width: leftWidth, height: 40)
 
-        let pillY: CGFloat = 28
+        let pillY: CGFloat = compact ? 224 : 28
         let versionWidth = versionPill.width(forHeight: 28)
         let buildWidth = buildPill.width(forHeight: 28)
         let runtimeWidth = min(runtimePill.width(forHeight: 28), max(92, leftWidth - versionWidth - buildWidth - 20))
@@ -435,7 +441,8 @@ private final class GradientAboutHeroSection: NSView {
         buildPill.frame = NSRect(x: versionPill.frame.maxX + 8, y: pillY, width: buildWidth, height: 28)
         runtimePill.frame = NSRect(x: buildPill.frame.maxX + 8, y: pillY, width: runtimeWidth, height: 28)
 
-        infoPlate.frame = NSRect(x: bounds.width - pad - infoWidth, y: 26, width: infoWidth, height: min(154, bounds.height - 52))
+        infoPlate.frame = NSRect(x: compact ? pad : bounds.width - pad - infoWidth, y: 26,
+                                 width: compact ? bounds.width - pad * 2 : infoWidth, height: 180)
         layoutInfoPlate()
     }
 

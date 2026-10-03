@@ -5,6 +5,9 @@ import AppKit
 /// from the PR Popover v2 design tokens. AppDelegate decides whether to use
 /// this or the legacy chrome based on `BellithSettings.useRebrandShell`.
 final class RebrandShellView: NSView {
+    var onOpenStudio: (() -> Void)? {
+        didSet { titleBar.onOpenStudio = onOpenStudio }
+    }
     let container: TerminalContainerView
     private let outerStroke = CALayer()
     private let noiseLayer = CALayer()

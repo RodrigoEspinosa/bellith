@@ -152,7 +152,7 @@ final class AppearancePane: NSView {
 
         let width = bounds.width
         let availableWidth = max(320, width - PreferencesLayout.hPad * 2)
-        let cardWidth = min(availableWidth, 660)
+        let cardWidth = min(availableWidth, PreferencesLayout.maximumContentWidth)
         let contentX = PreferencesLayout.hPad + max(0, (availableWidth - cardWidth) / 2)
         var y: CGFloat = PreferencesLayout.hPad
 

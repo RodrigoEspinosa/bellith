@@ -41,7 +41,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     var onTextIntercept: ((String, TerminalSurfaceView) -> Bool)?
     var shouldReportMousePosition: (() -> Bool)?
 
-    init(app: TerminalApp, baseConfig: ghostty_surface_config_s? = nil) {
+    init(app: TerminalApp, baseConfig: ghostty_surface_config_s? = nil, startupCommand: String? = nil, workingDirectory: String? = nil) {
         self.terminalApp = app
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
 
@@ -68,7 +68,20 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         )
         config.scale_factor = Double(NSScreen.main?.backingScaleFactor ?? 2.0)
 
-        surface = ghostty_surface_new(ghosttyApp, &config)
+        if let startupCommand {
+            // Ghostty copies these C strings during synchronous surface creation.
+            // No command is typed into a shell or an existing terminal surface.
+            startupCommand.withCString { command in
+                config.command = command
+                config.wait_after_command = true
+                if let workingDirectory {
+                    workingDirectory.withCString { directory in
+                        config.working_directory = directory
+                        surface = ghostty_surface_new(ghosttyApp, &config)
+                    }
+                } else { surface = ghostty_surface_new(ghosttyApp, &config) }
+            }
+        } else { surface = ghostty_surface_new(ghosttyApp, &config) }
         if surface == nil {
             Logger.surface.error("Failed to create ghostty surface")
             return

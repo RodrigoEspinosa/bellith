@@ -204,3 +204,40 @@ indirect enum SplitNodeState: Codable {
         }
     }
 }
+
+/// Preserves terminal sessions while Studio is used without opening a terminal.
+enum TerminalSessionArchive {
+    static func read(_ defaults: UserDefaults) -> [WindowSessionState] {
+        if let data = defaults.data(forKey: "savedWindowSessions"),
+           let windows = try? JSONDecoder().decode([WindowSessionState].self, from: data) {
+            return windows.filter { !$0.session.tabs.isEmpty }
+        }
+        if let data = defaults.data(forKey: "savedAllSessions"),
+           let strings = try? JSONDecoder().decode([String].self, from: data) {
+            let sessions = strings.compactMap { string -> WindowSessionState? in
+                guard let data = Data(base64Encoded: string),
+                      let session = try? JSONDecoder().decode(SessionState.self, from: data), !session.tabs.isEmpty else { return nil }
+                return WindowSessionState(session: session, frameDescriptor: nil)
+            }
+            if !sessions.isEmpty { return sessions }
+        }
+        if let data = defaults.data(forKey: "savedSession"),
+           let session = try? JSONDecoder().decode(SessionState.self, from: data), !session.tabs.isEmpty {
+            return [WindowSessionState(session: session, frameDescriptor: nil)]
+        }
+        return []
+    }
+
+    static func save(_ live: [WindowSessionState], restorationAttempted: Bool, defaults: UserDefaults) throws {
+        // A Studio-only visit must leave existing archive bytes untouched.
+        guard restorationAttempted || !live.isEmpty else { return }
+        let windows = live + (restorationAttempted ? [] : read(defaults))
+        let data = try JSONEncoder().encode(windows)
+        let sessions = try windows.map { try JSONEncoder().encode($0.session) }
+        let allData = try JSONEncoder().encode(sessions.map { $0.base64EncodedString() })
+        defaults.set(data, forKey: "savedWindowSessions")
+        defaults.set(allData, forKey: "savedAllSessions")
+        if let primary = sessions.first { defaults.set(primary, forKey: "savedSession") }
+        else { defaults.removeObject(forKey: "savedSession") }
+    }
+}

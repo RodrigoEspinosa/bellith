@@ -11,6 +11,10 @@ func printUsage() {
       bellith split [--right|--down] [cmd...]
                                        Split the active pane and optionally run a command
       bellith ssh <profile>            Launch a saved SSH profile by name
+      bellith creative status          Read saved Resolve evidence as JSON (not live state)
+      bellith review <resolve|logic|logic-track> <proposal-id> [--print-url]
+                                       Open a proposal for native review; never execute it
+      bellith mcp                      Serve saved evidence and review-only proposals over MCP stdio
       bellith --help                   Show this help
       bellith --version                Print the CLI version
 
@@ -43,7 +47,7 @@ func buildURL(host: String, items: [URLQueryItem]) -> URL {
 func openURL(_ url: URL) {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-    process.arguments = ["-a", "Bellith", url.absoluteString]
+    process.arguments = ["-b", "com.rec.bellith", url.absoluteString]
     do {
         try process.run()
         process.waitUntilExit()
@@ -63,6 +67,14 @@ guard let command = args.first else {
 }
 
 switch command {
+case "review":
+    guard args.count == 3 || (args.count == 4 && args[3] == "--print-url"),
+          let tool = CreativeReviewLink.Tool(rawValue: args[1]), let id = UUID(uuidString: args[2]) else {
+        die("usage: bellith review <resolve|logic|logic-track> <proposal-id> [--print-url]")
+    }
+    let url = CreativeReviewLink(tool: tool, proposalID: id).url
+    if args.count == 4 { print(url.absoluteString) }
+    else { openURL(url) }
 case "--help", "-h", "help":
     printUsage()
     exit(0)
@@ -70,6 +82,40 @@ case "--help", "-h", "help":
 case "--version", "-v":
     print("bellith \(version)")
     exit(0)
+
+case "creative", "mcp":
+    var file = CreativeEvidence.defaultSessionFile
+    var logicFile = LogicTransportInbox.defaultFile
+    var creativeScope: String?
+    var logicObservationID: UUID?
+    let remaining = command == "creative" ? Array(args.dropFirst(2)) : Array(args.dropFirst())
+    if command == "creative", args.count < 2 || args[1] != "status" { die("usage: bellith creative status") }
+    var index = 0
+    var seen = Set<String>()
+    while index < remaining.count {
+        let option = remaining[index]
+        guard index + 1 < remaining.count, seen.insert(option).inserted else { die("unexpected evidence arguments") }
+        let url = URL(fileURLWithPath: absolutePath(remaining[index + 1]))
+        switch option {
+        case "--session-file": file = url
+        case "--logic-session-file": logicFile = url
+        case "--creative-scope":
+            guard command == "mcp", ["resolve", "logic"].contains(remaining[index + 1]) else { die("invalid creative scope") }
+            creativeScope = remaining[index + 1]
+        case "--logic-observation-id":
+            guard command == "mcp", let id = UUID(uuidString: remaining[index + 1]) else { die("invalid Logic observation ID") }
+            logicObservationID = id
+        default: die("unexpected evidence arguments")
+        }
+        index += 2
+    }
+    if command == "mcp" { CreativeEvidence.serve(file: file, logicFile: logicFile, logicObservationID: logicObservationID, scope: creativeScope) }
+    else {
+        do {
+            let data = try JSONSerialization.data(withJSONObject: CreativeEvidence.read(file), options: [.prettyPrinted, .sortedKeys])
+            FileHandle.standardOutput.write(data + Data([10]))
+        } catch { die("saved session could not be read or validated") }
+    }
 
 case "open":
     let rawPath = args.count >= 2 ? args[1] : FileManager.default.currentDirectoryPath

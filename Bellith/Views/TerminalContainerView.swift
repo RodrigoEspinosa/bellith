@@ -701,13 +701,17 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         titleOverride: String? = nil,
         context: TerminalContext = .local,
         localSessionBootstrap overrideBootstrap: SSHSessionBootstrap? = nil,
-        localSessionName overrideSessionName: String? = nil
+        localSessionName overrideSessionName: String? = nil,
+        startupCommand: String? = nil
     ) -> TerminalSurfaceView? {
         guard let terminalApp else { return nil }
 
         let id = UUID()
-        let surface = makeSurface(tabId: id, app: terminalApp, context: context)
-        let localSessionBootstrap = context.source == .local
+        guard startupCommand == nil || context == .local else { return nil }
+        let surface = makeSurface(tabId: id, app: terminalApp, context: context,
+                                  startupCommand: startupCommand, workingDirectory: initialWorkingDirectory)
+        guard startupCommand == nil || surface.isReady else { return nil }
+        let localSessionBootstrap = context.source == .local && startupCommand == nil
             ? (overrideBootstrap ?? dependencies.settings.localSessionBootstrap)
             : .none
         let localSessionName = localSessionBootstrap == .none
@@ -729,7 +733,12 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         selectTab(tabs.count - 1)
         refreshTabUI()
 
-        if let bootstrapCommand = LocalSessionLaunchBuilder.command(
+        if startupCommand != nil {
+            surface.currentCwd = initialCwd
+            titleBar.updatePath(initialCwd)
+            statusBar.updateCwd(initialCwd)
+            refreshStatusBarAsync(cwd: initialCwd)
+        } else if let bootstrapCommand = LocalSessionLaunchBuilder.command(
             bootstrap: localSessionBootstrap,
             sessionName: localSessionName,
             workingDirectory: initialWorkingDirectory
@@ -2697,8 +2706,9 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         }
     }
 
-    private func makeSurface(tabId: UUID, app: TerminalApp, context: TerminalContext) -> TerminalSurfaceView {
-        let surface = TerminalSurfaceView(app: app)
+    private func makeSurface(tabId: UUID, app: TerminalApp, context: TerminalContext,
+                             startupCommand: String? = nil, workingDirectory: String? = nil) -> TerminalSurfaceView {
+        let surface = TerminalSurfaceView(app: app, startupCommand: startupCommand, workingDirectory: workingDirectory)
         surface.terminalContext = context
         bindSurfaceCallbacks(for: surface, tabId: tabId)
         return surface

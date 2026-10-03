@@ -292,21 +292,22 @@ final class SSHPane: NSView {
         scroll.frame = bounds
 
         let width = bounds.width
-        let cardW = width - PreferencesLayout.hPad * 2
+        let cardW = min(PreferencesLayout.maximumContentWidth, width - PreferencesLayout.hPad * 2)
+        let contentX = (width - cardW) / 2
         let labelW: CGFloat = 146
         let controlX = PreferencesLayout.cardPad + labelW
         let controlW = cardW - controlX - PreferencesLayout.cardPad
 
         var y: CGFloat = PreferencesLayout.hPad
 
-        paneTitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: 280, height: 24)
-        paneSubtitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y + 28, width: cardW, height: 16)
+        paneTitleLabel.frame = NSRect(x: contentX, y: y, width: 280, height: 24)
+        paneSubtitleLabel.frame = NSRect(x: contentX, y: y + 28, width: cardW, height: 16)
         y += 60
 
         let rowCount = max(profileRows.count, 1)
         let profileRowsHeight = CGFloat(rowCount) * 38 + CGFloat(max(0, rowCount - 1)) * 6
         let profilesCardHeight = profilesCard.headerHeight + 34 + profileRowsHeight + PreferencesLayout.cardPad
-        profilesCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: profilesCardHeight)
+        profilesCard.frame = NSRect(x: contentX, y: y, width: cardW, height: profilesCardHeight)
         addButton.frame = NSRect(x: cardW - PreferencesLayout.cardPad - 64, y: profilesCardHeight - profilesCard.headerHeight + 4, width: 28, height: 28)
         removeButton.frame = NSRect(x: cardW - PreferencesLayout.cardPad - 30, y: profilesCardHeight - profilesCard.headerHeight + 4, width: 28, height: 28)
 
@@ -333,7 +334,7 @@ final class SSHPane: NSView {
                 + proxyJumpHeight
                 + 6 * PreferencesLayout.rowGap
                 + PreferencesLayout.cardPad
-            connectionCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: connectionHeight)
+            connectionCard.frame = NSRect(x: contentX, y: y, width: cardW, height: connectionHeight)
             var rowY = connectionHeight - connectionCard.headerHeight - PreferencesLayout.rowH
             for (label, control) in [
                 (nameLabel, nameField as NSView),
@@ -362,7 +363,7 @@ final class SSHPane: NSView {
                 + 7 * PreferencesLayout.rowH
                 + 6 * PreferencesLayout.rowGap
                 + PreferencesLayout.cardPad
-            sessionCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: sessionHeight)
+            sessionCard.frame = NSRect(x: contentX, y: y, width: cardW, height: sessionHeight)
             var sessionRowY = sessionHeight - sessionCard.headerHeight - PreferencesLayout.rowH
             for (label, control) in [
                 (cwdLabel, cwdField as NSView),

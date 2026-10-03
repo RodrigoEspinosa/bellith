@@ -13,6 +13,7 @@ struct ForegroundProcessPresentation: Equatable {
 
 enum AIToolSessionDetector {
     private enum KnownTool: String {
+        case codex = "codex"
         case claude = "claude"
         case claudeCode = "claude-code"
         case copilot = "copilot"
@@ -20,6 +21,8 @@ enum AIToolSessionDetector {
 
         var displayName: String {
             switch self {
+            case .codex:
+                return "Codex"
             case .claude, .claudeCode:
                 return "Claude Code"
             case .copilot:
@@ -31,6 +34,8 @@ enum AIToolSessionDetector {
 
         var iconName: String {
             switch self {
+            case .codex:
+                return "terminal.fill"
             case .claude, .claudeCode:
                 return "sparkles.rectangle.stack"
             case .copilot:

@@ -31,6 +31,17 @@ final class AIToolSessionDetectorTests: XCTestCase {
         XCTAssertTrue(presentation?.text.contains("Sonnet") ?? false)
     }
 
+    func testPresentationHighlightsCodexSessions() {
+        let process = TerminalProcessInfo(pid: 42, ppid: 1, name: "codex", cpuUsage: 0,
+                                          memoryBytes: 0, startTime: nil)
+        let presentation = AIToolSessionDetector.presentation(for: process) { _ in
+            ["codex", "--model", "gpt-5-codex"]
+        }
+        XCTAssertEqual(presentation?.style, .tool)
+        XCTAssertEqual(presentation?.iconName, "terminal.fill")
+        XCTAssertEqual(presentation?.text, "Codex · gpt-5-codex")
+    }
+
     func testPresentationFallsBackToStandardProcessDisplay() {
         let process = TerminalProcessInfo(
             pid: 7,

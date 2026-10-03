@@ -26,10 +26,15 @@ targets:
           - "*.entitlements"
           - "Info.plist"
           - "PrivacyInfo.xcprivacy"
+          - "Resources/ResolveHarness"
+      - path: Bellith/Resources/ResolveHarness
+        buildPhase: resources
       - path: Bellith/PrivacyInfo.xcprivacy
         buildPhase: resources
     settings:
       base:
+        DEFINES_MODULE: YES
+        SWIFT_INSTALL_MODULE: YES
         PRODUCT_BUNDLE_IDENTIFIER: com.rec.bellith
         INFOPLIST_FILE: Bellith/Info.plist
         CODE_SIGN_ENTITLEMENTS: Bellith/Bellith.entitlements
@@ -80,9 +85,13 @@ targets:
     platform: macOS
     sources:
       - path: BellithCLI
+      - path: Bellith/Models/ResolveGoalSession.swift
+      - path: Bellith/Models/LogicTransport.swift
+      - path: Bellith/Models/CreativeReviewLink.swift
     settings:
       base:
         PRODUCT_NAME: bellith
+        PRODUCT_MODULE_NAME: BellithCLI
         SKIP_INSTALL: YES
         CODE_SIGN_STYLE: Automatic
         ENABLE_HARDENED_RUNTIME: YES

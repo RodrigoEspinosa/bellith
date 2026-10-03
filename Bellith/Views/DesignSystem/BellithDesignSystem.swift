@@ -58,6 +58,7 @@ enum BellithDesignSystem {
 
     enum Settings {
         static let horizontalPadding: CGFloat = Space.xxl
+        static let maximumContentWidth: CGFloat = 660
         static let sectionGap: CGFloat = Space.xxl
         static let rowGap: CGFloat = Space.xs
         static let cardPadding: CGFloat = 18

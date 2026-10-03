@@ -11,6 +11,8 @@ final class RebrandTitleBar: NSView {
     private let bottomLine = CALayer()
     private let titleLabel = NSTextField(labelWithString: "")
     private let panePill = RebrandPaneCountPill()
+    private let studioButton = NSButton(title: "Studio", target: nil, action: nil)
+    var onOpenStudio: (() -> Void)?
 
     private let leadingTrafficLightInset: CGFloat = 110
 
@@ -48,6 +50,13 @@ final class RebrandTitleBar: NSView {
         panePill.isHidden = true
         addSubview(panePill)
 
+        studioButton.bezelStyle = .rounded
+        studioButton.controlSize = .small
+        studioButton.target = self
+        studioButton.action = #selector(openStudio)
+        studioButton.toolTip = "Open Bellith Studio (⇧⌘S)"
+        studioButton.setAccessibilityLabel("Open Bellith Studio")
+        addSubview(studioButton)
         rebuildTitle()
         applyTheme()
     }
@@ -77,12 +86,14 @@ final class RebrandTitleBar: NSView {
         let pillSize = panePill.isHidden ? .zero : panePill.intrinsicContentSize
         let pillGap: CGFloat = panePill.isHidden ? 0 : 12
         let leftLimit = leadingTrafficLightInset + 6
-        let maxGroupW = max(80, bounds.width - leftLimit - 12)
+        studioButton.frame = NSRect(x: max(leftLimit, bounds.width - 84), y: floor((bounds.height - 24) / 2), width: 72, height: 24)
+        let rightLimit = studioButton.frame.minX - 12
+        let maxGroupW = max(80, rightLimit - leftLimit)
         let titleFrameW = min(titleW + 2, max(40, maxGroupW - pillGap - pillSize.width))
         let groupW = titleFrameW + pillGap + pillSize.width
         var groupX = floor((bounds.width - groupW) / 2)
         if groupX < leftLimit { groupX = leftLimit }
-        if groupX + groupW > bounds.width - 12 { groupX = max(leftLimit, bounds.width - 12 - groupW) }
+        if groupX + groupW > rightLimit { groupX = max(leftLimit, rightLimit - groupW) }
 
         titleLabel.frame = NSRect(
             x: groupX,
@@ -99,6 +110,8 @@ final class RebrandTitleBar: NSView {
             )
         }
     }
+
+    @objc private func openStudio() { onOpenStudio?() }
 
     func applyTheme() {
         // Dark/light gradient — `linear-gradient(to bottom, oklch(0.22), oklch(0.18))`.
