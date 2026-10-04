@@ -8,11 +8,11 @@ final class StudioModel: ObservableObject {
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .home: return "Start here"
-            case .demo: return "Try the workflow"
+            case .home: return "Start Here"
+            case .demo: return "Try the Workflow"
             case .resolve: return "DaVinci Resolve"
             case .logic: return "Logic Pro"
-            case .media: return "Media library"
+            case .media: return "Media Library"
             }
         }
         var symbol: String {
@@ -26,6 +26,8 @@ final class StudioModel: ObservableObject {
         }
     }
     @Published var destination: Destination = .home
+    @Published var sidebarVisibility: NavigationSplitViewVisibility = .all
+    @Published var showsInspector = true
     @Published private(set) var connections: [CreativeAppConnection] = []
     @Published private(set) var checking = false
     let media: CreativeWorkspaceModel
@@ -119,58 +121,156 @@ struct StudioView: View {
     var startCompanion: (CreativeCompanionLaunch) -> Bool
     var startCLISetup: (CreativePlannerProvider) -> Bool = { _ in false }
     var body: some View {
-        GeometryReader { geometry in
-            HStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("Bellith Studio", systemImage: "waveform.path").font(.headline).padding(.horizontal, 14).padding(.top, 20)
-                    Text("Your creative companion").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 14)
-                    List(selection: $model.destination) {
-                        Section("Get started") {
-                            row(.home)
-                            row(.demo)
-                        }
-                        Section("Your work") {
-                            row(.resolve)
-                            row(.logic)
-                            row(.media)
-                        }
-                    }.listStyle(.sidebar)
-                    Divider()
-                    Button(action: openTerminal) { Label("Open terminal", systemImage: "terminal").frame(maxWidth: .infinity, alignment: .leading) }
-                        .buttonStyle(.plain).padding(14).disabled(model.previewOnly)
-                }.frame(width: 220)
-                Divider()
-                VStack(spacing: 0) {
-                    StudioWorkflowBar(studio: model, resolve: model.resolve, logic: model.logic, media: model.media)
-                    Group {
-                    switch model.destination {
-                    case .home: StudioHomeView(model: model, openTerminal: openTerminal, startCLISetup: startCLISetup)
-                    case .demo: StudioDemoView(model: model.demo)
-                    case .resolve:
-                        ResolveHarnessView(model: model.resolve, embeddedInStudio: true,
-                            startCompanion: startCompanion, openMedia: { model.destination = .media }, openTerminal: openTerminal)
-                    case .logic:
-                        LogicTransportView(model: model.logic, startCompanion: startCompanion)
-                    case .media:
-                        CreativeWorkspaceView(model: model.media, openTerminal: openTerminal,
-                            startCompanion: startCompanion, companionLaunchEnabled: !model.previewOnly, embeddedInStudio: true)
-                    }
-                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
-                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+        NavigationSplitView(columnVisibility: $model.sidebarVisibility) {
+            List(selection: Binding(get: { model.destination }, set: { if let value = $0 { model.destination = value } })) {
+                Section("Get Started") {
+                    row(.home)
+                    row(.demo)
+                }
+                Section("Your Work") {
+                    row(.resolve)
+                    row(.logic)
+                    row(.media)
+                }
             }
-            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 280)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Button(action: openTerminal) {
+                    Label("Open Terminal", systemImage: "terminal").frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.borderless).foregroundStyle(.secondary)
+                .padding(.horizontal, 18).padding(.vertical, 12)
+                .disabled(model.previewOnly)
+                .help("Open a Bellith terminal window")
+            }
+        } detail: {
+            StudioDetail(studio: model, resolve: model.resolve, logic: model.logic, media: model.media,
+                openTerminal: openTerminal, startCompanion: startCompanion, startCLISetup: startCLISetup)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
-        .tint(.accentColor)
+        // Sidebar, the Resolve action row and the inspector fit side by side at this width.
+        .frame(minWidth: 1100, minHeight: 680)
     }
     private func row(_ destination: StudioModel.Destination) -> some View {
         Label(destination.title, systemImage: destination.symbol).tag(destination)
     }
 }
 
+/// The detail column owns the window title, subtitle and toolbar for the selected workspace.
+private struct StudioDetail: View {
+    @ObservedObject var studio: StudioModel
+    @ObservedObject var resolve: ResolveHarnessModel
+    @ObservedObject var logic: LogicTransportModel
+    @ObservedObject var media: CreativeWorkspaceModel
+    var openTerminal: () -> Void
+    var startCompanion: (CreativeCompanionLaunch) -> Bool
+    var startCLISetup: (CreativePlannerProvider) -> Bool
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationTitle(studio.destination.title)
+            .navigationSubtitle(subtitle)
+            .toolbar { toolbar }
+    }
+
+    @ViewBuilder private var content: some View {
+        switch studio.destination {
+        case .home: StudioHomeView(model: studio, openTerminal: openTerminal, startCLISetup: startCLISetup)
+        case .demo: StudioDemoView(model: studio.demo)
+        case .resolve:
+            ResolveHarnessView(model: resolve, embeddedInStudio: true, inspectorPresented: $studio.showsInspector,
+                startCompanion: startCompanion, openMedia: { studio.destination = .media }, openTerminal: openTerminal)
+        case .logic:
+            LogicTransportView(model: logic, startCompanion: startCompanion)
+        case .media:
+            CreativeWorkspaceView(model: media, openTerminal: openTerminal,
+                startCompanion: startCompanion, companionLaunchEnabled: !studio.previewOnly, embeddedInStudio: true)
+        }
+    }
+
+    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
+        if studio.destination == .resolve, resolve.busy {
+            ToolbarItem {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Button(resolve.pauseRequested ? "Pausing…" : "Pause", action: resolve.pause)
+                        .disabled(resolve.pauseRequested)
+                        .help("Stop at the next verified checkpoint")
+                }
+            }
+        }
+        if studio.destination == .resolve {
+            ToolbarItem {
+                Button(action: resolve.newSession) { Label("New Session", systemImage: "square.and.pencil") }
+                    .disabled(resolve.busy)
+                    .help("Start a new goal session (⌥⌘N)")
+            }
+        }
+        if [.resolve, .logic, .media].contains(studio.destination) {
+            ToolbarItem {
+                Button(action: studio.requestCompanion) { Label("AI Companion", systemImage: "sparkles") }
+                    .disabled(companionUnavailableReason != nil)
+                    .help(companionUnavailableReason ?? "Start an AI companion with this project's context (⇧⌘J)")
+            }
+        }
+        if studio.destination == .resolve {
+            ToolbarItem {
+                Button { studio.showsInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
+                    .help(studio.showsInspector ? "Hide inspector (⌃⌘I)" : "Show inspector (⌃⌘I)")
+            }
+        }
+        if studio.destination == .demo {
+            ToolbarItem {
+                Button(action: studio.demo.reset) { Label("Start Over", systemImage: "arrow.counterclockwise") }
+                    .help("Restart the demo")
+            }
+        }
+    }
+
+    private var companionUnavailableReason: String? {
+        if studio.previewOnly { return "Companions are unavailable in preview builds" }
+        switch studio.destination {
+        case .resolve:
+            if resolve.busy { return "Wait for the current action to finish" }
+            return resolve.session.source == nil ? "Inspect a Resolve timeline to give the companion context" : nil
+        case .logic:
+            if logic.busy { return "Wait for the current action to finish" }
+            return logic.snapshot == nil ? "Inspect a Logic project to give the companion context" : nil
+        case .media:
+            if media.busy { return "Wait for the current action to finish" }
+            return media.isSample ? "Open a media folder to give the companion context" : nil
+        case .home, .demo: return nil
+        }
+    }
+
+    private var subtitle: String {
+        switch studio.destination {
+        case .home: return "Bellith Studio"
+        case .demo: return "Sample timeline · nothing leaves this window"
+        case .resolve:
+            if !resolve.accessibilityAvailable { return "Access needed" }
+            let timeline = resolve.session.working?.timelineName ?? resolve.session.source?.timelineName ?? "No timeline inspected"
+            return resolve.session.phase.label + " · " + timeline
+        case .logic:
+            guard let snapshot = logic.snapshot else { return "No project inspected" }
+            return snapshot.windowTitle
+        case .media:
+            return media.root?.lastPathComponent ?? "Sample project"
+        }
+    }
+}
+
+extension View {
+    /// One prominent action at a time; everything else stays a standard bordered button.
+    @ViewBuilder func prominent(_ isPrimary: Bool) -> some View {
+        if isPrimary { buttonStyle(.borderedProminent) } else { buttonStyle(.bordered) }
+    }
+}
+
 enum StudioResolveGuidance {
     static func nextStep(session: ResolveGoalSession, busy: Bool, accessibilityAvailable: Bool) -> String {
-        if busy { return "Working · wait for the checkpoint, or pause the session below." }
+        if busy { return "Working · wait for the checkpoint, or pause from the toolbar." }
         if !accessibilityAvailable { return "1 · Enable Accessibility access below to inspect your Resolve timeline." }
         switch session.phase {
         case .paused:
@@ -182,64 +282,9 @@ enum StudioResolveGuidance {
         case .accepted:
             return "Result accepted · start a new session for another goal."
         case .draft, .inspecting, .planning, .review:
-            if session.source == nil { return "1 · Open a timeline in Resolve, then choose Inspect Resolve below." }
+            if session.source == nil { return "1 · Open a timeline in Resolve, then choose Inspect Resolve." }
             if session.plan == nil { return "2 · Set your goal, then ask the companion or planner for a proposal." }
             return "3 · Review the exact plan below before running it on a working copy."
-        }
-    }
-}
-
-private struct StudioWorkflowBar: View {
-    @ObservedObject var studio: StudioModel
-    @ObservedObject var resolve: ResolveHarnessModel
-    @ObservedObject var logic: LogicTransportModel
-    @ObservedObject var media: CreativeWorkspaceModel
-    var body: some View {
-        if [.resolve, .logic, .media].contains(studio.destination) {
-            VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(studio.destination.title).font(.headline)
-                        Text(nextStep).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer()
-                    if studio.destination == .resolve {
-                        Button("New session", systemImage: "plus", action: resolve.newSession).disabled(resolve.busy)
-                    }
-                    Button("AI companion…", systemImage: "sparkles", action: studio.requestCompanion)
-                        .disabled(!canStartCompanion)
-                }.padding(.horizontal, 24).padding(.vertical, 14)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .layoutPriority(1)
-                Divider()
-            }
-        }
-    }
-    private var canStartCompanion: Bool {
-        switch studio.destination {
-        case .resolve: return !resolve.busy && resolve.session.source != nil && !studio.previewOnly
-        case .logic: return !logic.busy && logic.snapshot != nil && !studio.previewOnly
-        case .media: return !media.busy && !media.isSample && !studio.previewOnly
-        case .home, .demo: return false
-        }
-    }
-    private var nextStep: String {
-        switch studio.destination {
-        case .resolve:
-            return StudioResolveGuidance.nextStep(session: resolve.session, busy: resolve.busy,
-                accessibilityAvailable: resolve.accessibilityAvailable)
-        case .logic:
-            if logic.busy { return "Working · cancellation cannot undo a host action already submitted." }
-            if logic.lastAttempt?.requiresInspection == true || logic.lastTrackAttempt?.requiresInspection == true {
-                return "Needs review · inspect Logic and acknowledge its current state below before planning another action."
-            }
-            if logic.snapshot == nil { return "1 · Open one saved project in Logic, then choose Inspect Logic below." }
-            if logic.snapshot?.recording == true { return "Recording · finish recording in Logic, then inspect again before reviewing controls." }
-            if logic.reviewedProposal != nil || logic.reviewedTrackRequest != nil { return "3 · Review the prepared request below. Track execution remains unavailable." }
-            return "2 · Start a companion with a goal, or choose a playback action below."
-        case .media:
-            return media.isSample ? "1 · Open a media folder to preview files and start a project companion." : "2 · Select media to preview, then start a companion with your project goal."
-        case .home, .demo: return ""
         }
     }
 }
@@ -365,11 +410,6 @@ private struct StudioDemoView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                HStack {
-                    Text("Try the workflow").font(.largeTitle.bold())
-                    Spacer()
-                    Button("Start over", action: model.reset)
-                }
                 Label("Demo · synthetic timeline · no host or AI connection", systemImage: "play.rectangle")
                     .font(.callout).foregroundStyle(.secondary)
                 Text("Walk through a creative request. The suggestion is a prepared example, and the result is simulated entirely in memory.")
@@ -417,7 +457,9 @@ private struct StudioDemoView: View {
                         }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                if let error = model.error { Text(error).foregroundStyle(.orange) }
+                if let error = model.error {
+                    Label(error, systemImage: "exclamationmark.triangle.fill").symbolRenderingMode(.multicolor)
+                }
             }.padding(32).frame(maxWidth: 940, alignment: .leading).frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
@@ -436,31 +478,68 @@ private struct StudioDemoView: View {
 }
 
 @MainActor
-final class StudioWindowController: NSWindowController {
+final class StudioWindowController: NSWindowController, NSMenuItemValidation {
     let model: StudioModel
     init(previewOnly: Bool = false, storage: URL? = nil,
          openTerminal: @escaping () -> Void, startCompanion: @escaping (CreativeCompanionLaunch) -> Bool,
          startCLISetup: @escaping (CreativePlannerProvider) -> Bool = { _ in false }) {
         model = StudioModel(previewOnly: previewOnly, storage: storage)
+        let hosting = NSHostingController(rootView: StudioView(model: model, openTerminal: openTerminal, startCompanion: startCompanion, startCLISetup: startCLISetup))
+        // Only the minimum flows to the window. A section's ideal size must not resize it.
+        hosting.sizingOptions = [.minSize]
+        // SwiftUI supplies the unified toolbar, title and subtitle.
+        hosting.sceneBridgingOptions = [.toolbars, .title]
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 820),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
+        window.contentViewController = hosting
+        window.toolbarStyle = .unified
         super.init(window: window)
-        window.title = "Bellith — Studio"
+        window.title = "Bellith Studio"
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 1140, height: 740)
-        let hosting = NSHostingView(rootView: StudioView(model: model, openTerminal: openTerminal, startCompanion: startCompanion, startCLISetup: startCLISetup))
-        // The window owns its geometry. A section's ideal size must not resize it.
-        hosting.sizingOptions = []
-        hosting.autoresizingMask = [.width, .height]
-        window.contentView = hosting
+        window.setContentSize(NSSize(width: 1280, height: 820))
         window.setFrameAutosaveName(previewOnly ? "StudioPreview" : "Studio")
         window.center()
     }
     required init?(coder: NSCoder) { fatalError() }
     func show(_ destination: StudioModel.Destination) {
         model.destination = destination
+        let opening = window?.isVisible != true
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate()
+        // AppKit focuses the first text field on open, selecting the whole goal. Start with nothing focused.
+        if opening { DispatchQueue.main.async { [weak self] in self?.window?.makeFirstResponder(nil) } }
+    }
+
+    // MARK: Studio menu commands (reached through the responder chain)
+
+    @objc func newResolveSession(_ sender: Any?) {
+        model.destination = .resolve
+        model.resolve.newSession()
+    }
+    @objc func inspectResolveTimeline(_ sender: Any?) {
+        model.destination = .resolve
+        model.resolve.inspect()
+    }
+    @objc func planResolveEdit(_ sender: Any?) {
+        model.destination = .resolve
+        model.resolve.planWithCLI()
+    }
+    @objc func toggleStudioInspector(_ sender: Any?) { model.showsInspector.toggle() }
+    func toggleSidebar() {
+        model.sidebarVisibility = model.sidebarVisibility == .detailOnly ? .all : .detailOnly
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        let resolve = model.resolve
+        switch menuItem.action {
+        case #selector(newResolveSession(_:)): return !resolve.busy
+        case #selector(inspectResolveTimeline(_:)): return resolve.canInspect
+        case #selector(planResolveEdit(_:)): return resolve.canPlan
+        case #selector(toggleStudioInspector(_:)):
+            menuItem.title = model.showsInspector ? "Hide Inspector" : "Show Inspector"
+            return model.destination == .resolve
+        default: return true
+        }
     }
 }

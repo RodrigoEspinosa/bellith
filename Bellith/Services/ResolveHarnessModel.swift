@@ -7,7 +7,7 @@ final class ResolveHarnessModel: ObservableObject {
     @Published var session = ResolveGoalSession()
     @Published var busy = false
     @Published var pauseRequested = false
-    @Published var accessibilityAvailable = AXIsProcessTrusted()
+    @Published var accessibilityAvailable = HostAccessibility.isTrusted
     @Published var provider: CreativePlannerProvider = .codex
     @Published private(set) var proposalReviewRequest: CreativeReviewRequest?
     @Published private(set) var companionReviewRequest: UUID?
@@ -44,9 +44,22 @@ final class ResolveHarnessModel: ObservableObject {
 
     var directory: URL { storage.appendingPathComponent(session.id.uuidString, isDirectory: true) }
     var canInspect: Bool { hostOperationsEnabled && !busy && accessibilityAvailable }
+    var canPlan: Bool {
+        hostOperationsEnabled && !busy && provider.executable != nil && session.source != nil && session.working == nil
+            && !session.goal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
     var canRun: Bool { hostOperationsEnabled && accessibilityAvailable && !busy && [.review, .paused].contains(session.phase) && session.plan?.blockedReason.isEmpty == true }
 
-    func refreshPermissions() { accessibilityAvailable = adapter.accessibilityAvailable }
+    func refreshPermissions() {
+        let available = adapter.accessibilityAvailable
+        if available != accessibilityAvailable { accessibilityAvailable = available }
+        // A stop caused only by missing access is resolved once access is granted.
+        if available, !busy, session.error == ResolveComputerAdapter.accessibilityRequiredMessage {
+            session.error = nil
+            if session.phase == .needsAttention { session.phase = session.plan == nil ? .draft : .review }
+            saveOrReport()
+        }
+    }
 
     func newSession() {
         guard !busy else { return }
@@ -55,7 +68,8 @@ final class ResolveHarnessModel: ObservableObject {
     }
 
     func updateGoal(_ goal: String) {
-        guard !busy, session.working == nil else { return }
+        // Text fields write back unchanged values on focus changes; only a real edit invalidates the plan.
+        guard !busy, session.working == nil, goal != session.goal else { return }
         session.goal = goal
         session.plan = nil
         session.phase = .draft
@@ -269,7 +283,13 @@ final class ResolveHarnessModel: ObservableObject {
         }
     }
 
-    private func record(_ title: String, _ detail: String) {
+    func record(_ title: String, _ detail: String) {
+        if let last = session.events.indices.last,
+           session.events[last].title == title, session.events[last].detail == detail {
+            session.events[last].repeatCount = (session.events[last].repeatCount ?? 1) + 1
+            session.events[last].date = Date()
+            return
+        }
         session.events.append(.init(title: title, detail: detail))
     }
 

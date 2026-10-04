@@ -35,6 +35,47 @@ final class ResolveGoalSessionTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
     }
 
+    @MainActor func testRepeatedEventsFoldIntoOneRow() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let model = ResolveHarnessModel(storage: root)
+        model.record("Stopped for attention", "Access needed")
+        model.record("Stopped for attention", "Access needed")
+        model.record("Inspected", "Timeline")
+        model.record("Stopped for attention", "Access needed")
+        XCTAssertEqual(model.session.events.map(\.title), ["Stopped for attention", "Inspected", "Stopped for attention"])
+        XCTAssertEqual(model.session.events.map { $0.repeatCount ?? 1 }, [2, 1, 1])
+    }
+
+    func testSavedRepeatedEventsFoldWhenDisplayed() throws {
+        var session = ResolveGoalSession()
+        let late = Date(timeIntervalSince1970: 200)
+        session.events = [.init(date: Date(timeIntervalSince1970: 100), title: "Stopped", detail: "Same"),
+                          .init(date: late, title: "Stopped", detail: "Same"),
+                          .init(title: "Stopped", detail: "Different")]
+        // Sessions saved before folding have no repeat count and must still decode.
+        let decoded = try JSONDecoder().decode(ResolveGoalSession.self, from: JSONEncoder().encode(session))
+        let folded = decoded.foldedEvents
+        XCTAssertEqual(folded.count, 2)
+        XCTAssertEqual(folded[0].repeatCount, 2)
+        XCTAssertEqual(folded[0].date, late)
+        XCTAssertNil(folded[1].repeatCount)
+    }
+
+    @MainActor func testUnchangedGoalWriteKeepsReviewedPlan() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let model = ResolveHarnessModel(storage: root)
+        model.session.source = snapshot()
+        model.session.plan = ResolveEditPlan(summary: "Copy", blockedReason: "", removeClipKeys: [])
+        model.session.phase = .review
+        model.updateGoal(model.session.goal)
+        XCTAssertEqual(model.session.phase, .review)
+        XCTAssertNotNil(model.session.plan)
+        model.updateGoal(model.session.goal + " Then add a note.")
+        XCTAssertEqual(model.session.phase, .draft)
+        XCTAssertNil(model.session.plan)
+    }
+
     private func snapshot(clips: [ResolveClip]? = nil) -> ResolveSnapshot {
         ResolveSnapshot(projectID: "project", projectName: "Fixture", timelineID: "source", timelineName: "Source",
                         startFrame: 0, endFrame: 48, frameRate: "24", product: "Resolve", version: "21.1",

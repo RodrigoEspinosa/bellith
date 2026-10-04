@@ -188,7 +188,7 @@ struct CreativeWorkspaceView: View {
         }
         .foregroundStyle(embeddedInStudio ? Color.primary : Color(nsColor: RebrandTokens.Color.fg))
         .background(Color(nsColor: embeddedInStudio ? .windowBackgroundColor : RebrandTokens.Color.windowBg))
-        .tint(accent)
+        .tint(embeddedInStudio ? nil : accent)
         .frame(minWidth: embeddedInStudio ? 0 : 900, minHeight: embeddedInStudio ? 0 : 620)
         .sheet(isPresented: $model.reviewingCompanion) { companionReview }
         .sheet(isPresented: $model.reviewingDelivery) { deliveryReview }
@@ -205,16 +205,14 @@ struct CreativeWorkspaceView: View {
     private var libraryControls: some View {
         HStack(spacing: 12) {
             Picker("Media type", selection: $model.filter) {
-                Text("All media").tag(Optional<CreativeAsset.Kind>.none)
+                Text("All Media").tag(Optional<CreativeAsset.Kind>.none)
                 ForEach(CreativeAsset.Kind.allCases, id: \.self) { kind in
                     Text(kind.rawValue).tag(Optional(kind))
                 }
-            }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 400)
+            }.pickerStyle(.segmented).labelsHidden().fixedSize()
             Spacer()
-            Text(model.isSample ? "Sample project" : "Local project")
-                .font(.caption).foregroundStyle(.secondary)
             if !model.recentProjects.isEmpty {
-                Menu("Recent folders") {
+                Menu("Recent Folders") {
                     ForEach(model.recentProjects) { project in
                         Button(project.name) { model.openProject(project.url) }
                     }
@@ -222,8 +220,8 @@ struct CreativeWorkspaceView: View {
                     Button("Clear recent list", action: model.clearRecentProjects)
                 }.disabled(model.busy)
             }
-            Button("Open folder", systemImage: "folder.badge.plus", action: model.openFolder)
-                .disabled(model.busy).keyboardShortcut("o")
+            Button("Open Folder…", systemImage: "folder.badge.plus", action: model.openFolder)
+                .disabled(model.busy).help("Choose a project folder (⌘O)")
         }
     }
 
@@ -284,13 +282,15 @@ struct CreativeWorkspaceView: View {
     private var heading: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 7) {
-                eyebrow(model.isSample ? "A SPACE FOR YOUR NEXT RELEASE" : "YOUR CREATIVE PROJECT")
-                Text(model.projectName).font(.system(size: 30, weight: .semibold)).lineLimit(1)
+                if !embeddedInStudio { eyebrow(model.isSample ? "A SPACE FOR YOUR NEXT RELEASE" : "YOUR CREATIVE PROJECT") }
+                Text(model.projectName).font(embeddedInStudio ? .largeTitle.bold() : .system(size: 30, weight: .semibold)).lineLimit(1)
                 Text(model.isSample ? "The music, the visuals, and everything in between." : "Preview your media and prepare a clean handoff.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                    .font(embeddedInStudio ? .title3 : .system(size: 12)).foregroundStyle(.secondary)
             }
             Spacer()
-            Image(systemName: "waveform.circle").font(.system(size: 45, weight: .ultraLight)).foregroundStyle(accent)
+            if !embeddedInStudio {
+                Image(systemName: "waveform.circle").font(.system(size: 45, weight: .ultraLight)).foregroundStyle(accent)
+            }
         }
     }
 
@@ -447,8 +447,12 @@ struct CreativeWorkspaceView: View {
         }.buttonStyle(.plain).accessibilityAddTraits(model.filter == kind ? [.isSelected] : [])
     }
 
-    private func eyebrow(_ title: String) -> some View {
-        Text(title).font(.system(size: 9, weight: .medium, design: .monospaced)).tracking(1.2).foregroundStyle(.secondary)
+    @ViewBuilder private func eyebrow(_ title: String) -> some View {
+        if embeddedInStudio {
+            Text(title.localizedCapitalized).font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
+        } else {
+            Text(title).font(.system(size: 9, weight: .medium, design: .monospaced)).tracking(1.2).foregroundStyle(.secondary)
+        }
     }
 
     private func detail(_ label: String, _ value: String) -> some View {

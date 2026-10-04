@@ -14,7 +14,9 @@ final class ResolveComputerAdapter {
         let error: String?
     }
 
-    var accessibilityAvailable: Bool { AXIsProcessTrusted() }
+    static let accessibilityRequiredMessage = "Enable Bellith in System Settings → Privacy & Security → Accessibility, then inspect again."
+
+    var accessibilityAvailable: Bool { HostAccessibility.isTrusted }
     var installedVersion: String {
         let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.bundleID)
         return url.flatMap(Bundle.init(url:))?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Not installed"
@@ -25,17 +27,11 @@ final class ResolveComputerAdapter {
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
     }
 
-    func requestAccessibility() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
-        }
-    }
+    func requestAccessibility() { HostAccessibility.request() }
 
     func invoke(operation: String, directory: URL, fields: [String: String] = [:], removeKeys: [String] = [], markerNotes: [ResolveMarkerNote] = []) async throws -> ResolveSnapshot {
         guard accessibilityAvailable else {
-            throw HarnessError.message("Enable Bellith in System Settings → Privacy & Security → Accessibility, then inspect again.")
+            throw HarnessError.message(Self.accessibilityRequiredMessage)
         }
         guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleID).first else {
             throw HarnessError.message("Open DaVinci Resolve and select a project and timeline first.")

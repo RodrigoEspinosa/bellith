@@ -223,6 +223,8 @@ struct ResolveGoalSession: Codable, Identifiable {
         var date = Date()
         var title: String
         var detail: String
+        /// Consecutive identical events are folded into one row. Absent in older sessions.
+        var repeatCount: Int?
     }
     var id = UUID()
     var goal = "Create a working copy of the current timeline for a new edit."
@@ -233,6 +235,18 @@ struct ResolveGoalSession: Codable, Identifiable {
     var events: [Event] = []
     var error: String?
     var copyName: String { "Bellith - \(id.uuidString)" }
+
+    /// Events with consecutive repeats folded into one, including sessions saved before folding existed.
+    var foldedEvents: [Event] {
+        events.reduce(into: []) { folded, event in
+            if let last = folded.indices.last, folded[last].title == event.title, folded[last].detail == event.detail {
+                folded[last].repeatCount = (folded[last].repeatCount ?? 1) + (event.repeatCount ?? 1)
+                folded[last].date = max(folded[last].date, event.date)
+            } else {
+                folded.append(event)
+            }
+        }
+    }
 
     mutating func recoverAfterLaunch() {
         if [.inspecting, .planning, .duplicating, .editing].contains(phase) {

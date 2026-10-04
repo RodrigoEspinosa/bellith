@@ -9,7 +9,8 @@ enum WorkflowPreview {
         ["com.rec.bellith.qa", "com.rec.bellith.qa.review", "com.rec.bellith.qa.studio"].contains(Bundle.main.bundleIdentifier ?? "")
     }
     static func makeWindows() -> [NSWindowController] {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("Bellith-Studio-Preview-\(UUID().uuidString)")
+        let root = ProcessInfo.processInfo.environment["BELLITH_QA_STORAGE"].map { URL(fileURLWithPath: $0) }
+            ?? FileManager.default.temporaryDirectory.appendingPathComponent("Bellith-Studio-Preview-\(UUID().uuidString)")
         let controller = StudioWindowController(previewOnly: true, storage: root,
             openTerminal: {}, startCompanion: { _ in false })
         let menu = NSMenu()
@@ -19,7 +20,8 @@ enum WorkflowPreview {
         appItem.submenu = appMenu
         menu.addItem(appItem)
         NSApp.mainMenu = menu
-        controller.show(.home)
+        let requested = ProcessInfo.processInfo.environment["BELLITH_QA_DESTINATION"] ?? ""
+        controller.show(StudioModel.Destination(rawValue: requested) ?? .home)
         return [controller]
     }
 

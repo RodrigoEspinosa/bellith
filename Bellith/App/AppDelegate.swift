@@ -605,6 +605,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         viewMenuItem.submenu = viewMenu
         mainMenu.addItem(viewMenuItem)
 
+        // Studio menu — enabled only while the Studio window is in the responder chain.
+        let studioMenu = NSMenu(title: "Studio")
+        func studioCommand(_ title: String, _ action: Selector, _ key: String, _ modifiers: NSEvent.ModifierFlags) {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            item.keyEquivalentModifierMask = modifiers
+            studioMenu.addItem(item)
+        }
+        studioCommand("New Resolve Session", #selector(StudioWindowController.newResolveSession(_:)), "n", [.command, .option])
+        studioCommand("Inspect Resolve", #selector(StudioWindowController.inspectResolveTimeline(_:)), "i", [.command, .shift])
+        studioCommand("Plan Edit", #selector(StudioWindowController.planResolveEdit(_:)), "\r", [.command])
+        studioMenu.addItem(.separator())
+        studioCommand("Show Inspector", #selector(StudioWindowController.toggleStudioInspector(_:)), "i", [.command, .control])
+        let studioMenuItem = NSMenuItem()
+        studioMenuItem.submenu = studioMenu
+        mainMenu.addItem(studioMenuItem)
+
         // Tools menu — built-in smart panel plugins
         let toolsMenu = NSMenu(title: "Tools")
         for plugin in dependencies.smartPanelRegistry.allPlugins {
@@ -835,7 +851,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func handleRenameTab() { activeEntry?.container.promptRenameTab() }
     @objc private func handleNextTab() { activeEntry?.container.advanceToNextTerminalTab() }
     @objc private func handlePrevTab() { activeEntry?.container.advanceToPreviousTerminalTab() }
-    @objc private func handleToggleSidebar() { activeEntry?.container.sidebar.toggle() }
+    @MainActor @objc private func handleToggleSidebar() {
+        if let studio, studio.window?.isKeyWindow == true { studio.toggleSidebar(); return }
+        activeEntry?.container.sidebar.toggle()
+    }
     @objc private func handleTogglePalette() { activeEntry?.container.toggleCommandPalette() }
     @objc private func handleShowKeyboardShortcuts() { activeEntry?.container.toggleShortcutCheatSheet() }
     @objc func handleToggleStatusBar() { dependencies.settings.showStatusBar.toggle() }

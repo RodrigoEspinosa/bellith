@@ -270,30 +270,29 @@ struct LogicTransportView: View {
     @State private var reviewingCompanion = false
     @State private var reviewingTrack = false
     @State private var reviewingTrackProposals = false
-    @State private var accessibilityAvailable = AXIsProcessTrusted()
+    @State private var accessibilityAvailable = HostAccessibility.isTrusted
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    Label("Logic project", systemImage: "waveform").font(.title2)
+                    if !accessibilityAvailable {
+                        HostAccessCard(appName: "Logic Pro", actionEnabled: model.operationsEnabled,
+                            request: HostAccessibility.request, refresh: { accessibilityAvailable = HostAccessibility.isTrusted })
+                    }
                     Text("Inspect your saved project to give the companion context. Review its playback or track proposals here; apply playback separately after checking the requested action.")
                         .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    if !accessibilityAvailable {
-                        GroupBox("Set up Logic access") {
-                            HStack(alignment: .top, spacing: 12) {
-                                Image(systemName: "hand.raised").font(.title2)
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Enable Bellith in System Settings → Privacy & Security → Accessibility. Then return here and inspect your saved Logic project.")
-                                        .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                                    Button("Open Accessibility Settings") {
-                                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                                            NSWorkspace.shared.open(url)
-                                        }
-                                    }.disabled(!model.operationsEnabled)
-                                }
-                            }.frame(maxWidth: .infinity, alignment: .leading).padding(6)
+                    HStack {
+                        Button(model.busy ? "Working…" : "Inspect Logic", systemImage: "viewfinder", action: model.inspect)
+                            .prominent(model.snapshot == nil && canInspect)
+                            .disabled(!canInspect).keyboardShortcut("i", modifiers: .command)
+                        if model.busy {
+                            Button("Cancel Operation", action: model.cancelOperation)
                         }
+                        Button("Playback Proposals…") { model.requestProposalReview(nil) }
+                            .disabled(model.busy || model.snapshot == nil)
+                        Button("Track Proposals…") { model.requestTrackProposalReview(nil) }
+                            .disabled(model.busy || model.snapshot == nil)
                     }
                     if let snapshot = model.snapshot {
                         GroupBox("Observed project") {
@@ -321,8 +320,20 @@ struct LogicTransportView: View {
                             }.frame(maxWidth: .infinity, alignment: .leading).padding(6)
                         }
                     }
+                    GroupBox("Playback") {
+                        HStack {
+                            Picker("Action", selection: $action) {
+                                ForEach(LogicTransportAction.allCases) { Text($0.label).tag($0) }
+                            }.labelsHidden().fixedSize().disabled(model.busy)
+                            Spacer()
+                            Button("Apply Playback Action") { model.apply(action) }
+                                .prominent(model.snapshot != nil)
+                                .disabled(model.busy || !model.operationsEnabled || model.requiresRecoveryReview || model.snapshot == nil || model.snapshot?.recording == true)
+                                .help(model.snapshot == nil ? "Inspect Logic first" : "Send the selected transport action to Logic")
+                        }.padding(6)
+                    }
                     if let error = model.error {
-                        Label(error, systemImage: "exclamationmark.circle").foregroundStyle(.orange).textSelection(.enabled)
+                        Label(error, systemImage: "exclamationmark.triangle.fill").symbolRenderingMode(.multicolor).textSelection(.enabled)
                     }
                     if let result = model.result { Label(result, systemImage: "checkmark.circle") }
                     if let request = model.reviewedTrackRequest {
@@ -362,35 +373,15 @@ struct LogicTransportView: View {
                     }
                     Text("Playback actions are available; mute/solo requests can be reviewed, but track Apply is not enabled yet. Recording, region edits, plug-ins, and sound analysis are not supported. Open a single Tracks window with English transport controls visible.")
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }.frame(maxWidth: .infinity, alignment: .leading)
-            }
-            HStack {
-                Button(model.busy ? "Working…" : "Inspect Logic", action: model.inspect)
-                    .disabled(model.busy || !model.operationsEnabled).keyboardShortcut("i", modifiers: .command)
-                if model.busy {
-                    Button("Cancel operation", action: model.cancelOperation)
                 }
-                Button("Playback proposals…") { model.requestProposalReview(nil) }
-                    .disabled(model.busy || model.snapshot == nil)
-                Button("AI companion…", action: model.requestCompanionReview)
-                    .disabled(model.busy || model.snapshot == nil)
-                Button("Track proposals…") { model.requestTrackProposalReview(nil) }
-                    .disabled(model.busy || model.snapshot == nil)
-                Spacer()
+                .padding(.horizontal, 28).padding(.vertical, 24)
+                .frame(maxWidth: 820, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            HStack {
-                Picker("Action", selection: $action) {
-                    ForEach(LogicTransportAction.allCases) { Text($0.label).tag($0) }
-                }.labelsHidden().fixedSize().disabled(model.busy)
-                Spacer()
-                Button("Apply playback action") { model.apply(action) }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(model.busy || !model.operationsEnabled || model.requiresRecoveryReview || model.snapshot == nil || model.snapshot?.recording == true)
-            }
-        }.padding(24).frame(minWidth: 560, idealWidth: 600, minHeight: 440)
-            .onAppear { accessibilityAvailable = AXIsProcessTrusted() }
+        }.frame(minWidth: 560, idealWidth: 600, minHeight: 440)
+            .onAppear { accessibilityAvailable = HostAccessibility.isTrusted }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-                accessibilityAvailable = AXIsProcessTrusted()
+                accessibilityAvailable = HostAccessibility.isTrusted
             }
             .sheet(isPresented: $reviewingProposals, onDismiss: model.dismissProposalReview) { LogicProposalReview(model: model) }
             .sheet(isPresented: $reviewingTrack, onDismiss: model.dismissTrackReview) { LogicTrackControlReview(model: model) }
@@ -408,6 +399,8 @@ struct LogicTransportView: View {
             .onChange(of: model.reviewedProposal) { _, proposal in if let proposal { action = proposal.action } }
             .onChange(of: model.trackReviewRequest, initial: true) { _, request in if request != nil { reviewingTrack = true } }
     }
+
+    private var canInspect: Bool { !model.busy && model.operationsEnabled && accessibilityAvailable }
 
     private func review(_ track: LogicTrackObservation, control: LogicTrackControlRequest.Control, enabled: Bool, snapshot: LogicTransportSnapshot) {
         model.reviewTrack(.init(observationID: snapshot.id, trackNumber: track.number, trackName: track.name, control: control, enabled: enabled))

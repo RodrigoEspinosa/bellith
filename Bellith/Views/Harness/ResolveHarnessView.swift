@@ -10,7 +10,9 @@ struct ResolveHarnessView: View {
     @State private var companionGoal = ""
     @State private var clipSearch = ""
     @State private var selectedClipsOnly = false
+    @State private var showingPlanningPrivacy = false
     var embeddedInStudio = false
+    var inspectorPresented: Binding<Bool> = .constant(true)
     var startCompanion: (CreativeCompanionLaunch) -> Bool = { _ in false }
     var openMedia: () -> Void
     var openTerminal: () -> Void
@@ -20,6 +22,167 @@ struct ResolveHarnessView: View {
     private var surface: Color { Color(nsColor: embeddedInStudio ? .controlBackgroundColor : RebrandTokens.Color.paneBg) }
 
     var body: some View {
+        Group {
+            if embeddedInStudio { studioBody } else { standaloneBody }
+        }
+        .tint(embeddedInStudio ? nil : accent)
+        .sheet(isPresented: $reviewingProposals, onDismiss: model.dismissProposalReview) { ResolveProposalReview(model: model) }
+        .sheet(isPresented: $reviewingCompanion, onDismiss: model.dismissCompanionReview) {
+            CreativeCompanionReview(root: model.directory, title: model.session.source?.projectName ?? "Resolve goal session", selected: nil,
+                resolveSession: model.session, companionLaunchEnabled: model.hostOperationsEnabled, startCompanion: startCompanion,
+                companionProvider: $companionProvider, companionGoal: $companionGoal)
+        }
+        .onChange(of: model.companionReviewRequest, initial: true) { _, request in
+            if request != nil { companionProvider = model.provider; companionGoal = model.session.goal; reviewingCompanion = true }
+        }
+        .onChange(of: model.proposalReviewRequest, initial: true) { _, request in if request != nil { reviewingProposals = true } }
+        .onChange(of: model.session.id) { _, _ in clipSearch = ""; selectedClipsOnly = false }
+        .onAppear { model.refreshPermissions() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in model.refreshPermissions() }
+    }
+
+    // MARK: Studio layout
+
+    private var studioBody: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                if !model.accessibilityAvailable {
+                    HostAccessCard(appName: "DaVinci Resolve", detail: hostSummary, actionEnabled: model.hostOperationsEnabled,
+                        request: model.adapter.requestAccessibility, refresh: model.refreshPermissions)
+                } else {
+                    Label(nextStep, systemImage: "arrow.forward.circle")
+                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                studioGoal
+                if let error = visibleError {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .symbolRenderingMode(.multicolor).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                }
+                if let source = model.session.source { timeline(source) }
+                if let plan = model.session.plan { planReview(plan) }
+                activity
+            }
+            .padding(.horizontal, 28).padding(.vertical, 24)
+            .frame(maxWidth: 820, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .inspector(isPresented: inspectorPresented) {
+            studioInspector.inspectorColumnWidth(min: 240, ideal: 280, max: 360)
+        }
+    }
+
+    private var nextStep: String {
+        StudioResolveGuidance.nextStep(session: model.session, busy: model.busy, accessibilityAvailable: model.accessibilityAvailable)
+    }
+
+    private var hostSummary: String {
+        "Resolve \(model.adapter.installedVersion) · \(model.provider.rawValue) \(model.provider.executable == nil ? "not found" : "installed")"
+    }
+
+    /// The access card already explains a permission stop; repeating it below adds nothing.
+    private var visibleError: String? {
+        guard let error = model.session.error else { return nil }
+        if !model.accessibilityAvailable && error == ResolveComputerAdapter.accessibilityRequiredMessage { return nil }
+        return error
+    }
+
+    private var studioGoal: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Goal").font(.headline)
+            TextField("Describe what this edit should achieve", text: Binding(get: { model.session.goal }, set: model.updateGoal), axis: .vertical)
+                .textFieldStyle(.roundedBorder).lineLimit(3...8)
+                .disabled(model.busy || model.session.working != nil)
+                .accessibilityLabel("Editing goal")
+            Text("Bellith can make a working copy, remove named whole clips while keeping their gaps, and add notes at specific frames. For example: “Make a copy and remove the clip named Camera test.”")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                Button("Inspect Resolve", systemImage: "viewfinder", action: model.inspect)
+                    .prominent(model.session.source == nil && model.canInspect)
+                    .disabled(!model.canInspect).help(inspectHelp)
+                Button("Plan with \(model.provider.rawValue)", systemImage: "sparkle", action: model.planWithCLI)
+                    .prominent(model.session.source != nil && model.session.plan == nil && model.canPlan)
+                    .disabled(!model.canPlan).help(planHelp)
+                Picker("Planner", selection: $model.provider) {
+                    ForEach(CreativePlannerProvider.allCases) { Text($0.rawValue).tag($0) }
+                }.labelsHidden().fixedSize().disabled(model.busy).help("Choose the CLI that plans edits")
+                Button { showingPlanningPrivacy.toggle() } label: { Image(systemName: "info.circle") }
+                    .buttonStyle(.borderless).help("What planning shares")
+                    .accessibilityLabel("What planning shares")
+                    .popover(isPresented: $showingPlanningPrivacy, arrowEdge: .bottom) {
+                        Text("Planning sends your goal and timeline metadata, including clip names, frame positions and existing marker text, to \(model.provider.rawValue) using your existing CLI login. Media files and screen images stay on your Mac.")
+                            .fixedSize(horizontal: false, vertical: true).frame(width: 300).padding(14)
+                    }
+                Spacer(minLength: 0)
+                Menu {
+                    Button("Prepare a Copy-Only Plan", action: model.copyOnlyPlan)
+                        .disabled(model.session.source == nil || model.session.working != nil)
+                    Button("Review CLI Proposals…", action: showProposals)
+                        .disabled(model.session.source == nil || model.session.working != nil)
+                    Divider()
+                    Button("Show Session Files in Finder", action: model.revealSession)
+                } label: {
+                    Label("More", systemImage: "ellipsis.circle")
+                }.menuIndicator(.hidden).fixedSize().disabled(model.busy).help("More actions")
+            }
+        }
+    }
+
+    private var inspectHelp: String {
+        if !model.hostOperationsEnabled { return "Unavailable in preview builds" }
+        if !model.accessibilityAvailable { return "Allow Accessibility access first" }
+        if model.busy { return "Wait for the current action to finish" }
+        return "Read the open Resolve timeline (⇧⌘I)"
+    }
+
+    private var planHelp: String {
+        if !model.hostOperationsEnabled { return "Unavailable in preview builds" }
+        if model.busy { return "Wait for the current action to finish" }
+        if model.provider.executable == nil { return "\(model.provider.rawValue) is not installed" }
+        if model.session.source == nil { return "Inspect a timeline first" }
+        if model.session.working != nil { return "This session already has a working copy. Start a new session to plan again." }
+        if model.session.goal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Describe a goal first" }
+        return "Ask \(model.provider.rawValue) for a reviewable plan (⌘↩)"
+    }
+
+    private var studioInspector: some View {
+        Form {
+            Section("Timeline") {
+                if let observed = model.session.working ?? model.session.source {
+                    LabeledContent("Name") { Text(observed.timelineName).textSelection(.enabled) }
+                    LabeledContent("Project", value: observed.projectName)
+                    LabeledContent("Items", value: "\(observed.clips.count)")
+                    LabeledContent("Frame rate", value: "\(observed.frameRate) fps")
+                    LabeledContent("Working copy", value: model.session.working == nil ? "Not created" : "Created")
+                } else {
+                    Text("No timeline inspected yet. Open a project and timeline in Resolve, then choose Inspect Resolve.")
+                        .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Section {
+                LabeledContent("Resolve", value: model.adapter.installedVersion)
+                LabeledContent("Accessibility", value: model.accessibilityAvailable ? "Allowed" : "Not allowed")
+                LabeledContent("Planner", value: model.provider.executable == nil ? "\(model.provider.rawValue) not found" : model.provider.rawValue)
+                Button("Open Resolve", action: model.adapter.openResolve).disabled(!model.hostOperationsEnabled)
+            } header: {
+                Text("Connection")
+            }
+            Section {
+                Label("Source timeline is never modified", systemImage: "lock")
+                Label("Pauses at verified checkpoints", systemImage: "pause.circle")
+                Label("Session saved on this Mac", systemImage: "internaldrive")
+            } header: {
+                Text("Safeguards")
+            } footer: {
+                Text("Structural checks cannot judge pacing, continuity or sound. Review playback in Resolve before accepting a result.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    // MARK: Standalone layout
+
+    private var standaloneBody: some View {
         HStack(spacing: 0) {
             if !embeddedInStudio {
                 sidebar.frame(width: 210)
@@ -36,7 +199,7 @@ struct ResolveHarnessView: View {
                             if model.accessibilityAvailable { connection }
                             if let error = model.session.error {
                                 Label(error, systemImage: "exclamationmark.circle")
-                                    .font(.system(size: 12)).foregroundStyle(.orange).textSelection(.enabled)
+                                    .font(.callout).foregroundStyle(.orange).textSelection(.enabled)
                             }
                             if let source = model.session.source { timeline(source) }
                             if let plan = model.session.plan { planReview(plan) }
@@ -49,23 +212,9 @@ struct ResolveHarnessView: View {
                 footer
             }
         }
-        .frame(minWidth: embeddedInStudio ? 700 : 930, minHeight: embeddedInStudio ? 0 : 680)
-        .background(Color(nsColor: embeddedInStudio ? .windowBackgroundColor : RebrandTokens.Color.windowBg))
-        .foregroundStyle(embeddedInStudio ? Color.primary : Color(nsColor: RebrandTokens.Color.fg))
-        .tint(accent)
-        .sheet(isPresented: $reviewingProposals, onDismiss: model.dismissProposalReview) { ResolveProposalReview(model: model) }
-        .sheet(isPresented: $reviewingCompanion, onDismiss: model.dismissCompanionReview) {
-            CreativeCompanionReview(root: model.directory, title: model.session.source?.projectName ?? "Resolve goal session", selected: nil,
-                resolveSession: model.session, companionLaunchEnabled: model.hostOperationsEnabled, startCompanion: startCompanion,
-                companionProvider: $companionProvider, companionGoal: $companionGoal)
-        }
-        .onChange(of: model.companionReviewRequest, initial: true) { _, request in
-            if request != nil { companionProvider = model.provider; companionGoal = model.session.goal; reviewingCompanion = true }
-        }
-        .onChange(of: model.proposalReviewRequest, initial: true) { _, request in if request != nil { reviewingProposals = true } }
-        .onChange(of: model.session.id) { _, _ in clipSearch = ""; selectedClipsOnly = false }
-        .onAppear { model.refreshPermissions() }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in model.refreshPermissions() }
+        .frame(minWidth: 930, minHeight: 680)
+        .background(Color(nsColor: RebrandTokens.Color.windowBg))
+        .foregroundStyle(Color(nsColor: RebrandTokens.Color.fg))
     }
 
     private var sidebar: some View {
@@ -77,32 +226,32 @@ struct ResolveHarnessView: View {
             VStack(alignment: .leading, spacing: 9) {
                 eyebrow("CREATIVE TOOLS")
                 Label("DaVinci Resolve", systemImage: "film.stack")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.body.weight(.semibold))
                     .padding(12).frame(maxWidth: .infinity, alignment: .leading)
                     .background(accent.opacity(0.13), in: RoundedRectangle(cornerRadius: 8))
-                Text("Goal sessions").font(.system(size: 11)).foregroundStyle(.secondary).padding(.leading, 12)
+                Text("Goal sessions").font(.subheadline).foregroundStyle(.secondary).padding(.leading, 12)
             }
             VStack(alignment: .leading, spacing: 8) {
                 eyebrow("CURRENT SESSION")
                 Text(model.session.source?.projectName ?? "Connect your project")
-                    .font(.system(size: 12, weight: .medium)).lineLimit(2)
-                Text(model.session.phase.label).font(.system(size: 11)).foregroundStyle(.secondary)
+                    .font(.callout.weight(.medium)).lineLimit(2)
+                Text(model.session.phase.label).font(.subheadline).foregroundStyle(.secondary)
                 Button("New session", systemImage: "plus", action: model.newSession).disabled(model.busy)
             }
             Spacer()
             VStack(alignment: .leading, spacing: 8) {
                 Image(systemName: "scope").font(.title2).foregroundStyle(accent)
                 Text("You set the direction.")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.body.weight(.medium))
                 Text("A goal, a visible plan, and an editable result in your creative tools.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(4)
+                    .font(.subheadline).foregroundStyle(.secondary).lineSpacing(4)
             }
             Divider()
             Button("Media library", systemImage: "square.stack", action: openMedia).buttonStyle(.plain)
             Button("Terminal", systemImage: "terminal", action: openTerminal).buttonStyle(.plain)
             Button("AI companion…", systemImage: "sparkles", action: model.requestCompanionReview)
                 .disabled(model.busy || model.session.source == nil)
-        }.font(.system(size: 12)).padding(20)
+        }.font(.callout).padding(20)
     }
 
     private var header: some View {
@@ -110,14 +259,14 @@ struct ResolveHarnessView: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text("An editing session with a goal").font(.system(size: 20, weight: .semibold))
                 Text("DaVinci Resolve  /  \(model.session.source?.timelineName ?? "No timeline inspected")")
-                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                    .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()
             if model.busy { ProgressView().controlSize(.small) }
             if model.busy {
                 Button(model.pauseRequested ? "Pausing…" : "Pause", action: model.pause).disabled(model.pauseRequested)
             }
-            Text(model.session.phase.label).font(.system(size: 11, weight: .medium))
+            Text(model.session.phase.label).font(.subheadline.weight(.medium))
                 .padding(.horizontal, 11).padding(.vertical, 7)
                 .background(accent.opacity(0.12), in: Capsule())
         }.padding(24).fixedSize(horizontal: false, vertical: true)
@@ -135,7 +284,7 @@ struct ResolveHarnessView: View {
                 .disabled(model.busy || model.session.working != nil)
                 .accessibilityLabel("Editing goal")
             Text("Tool set: create a working copy, remove named whole clips while preserving gaps, or add notes at explicit frame offsets. Example: “Make a copy and remove the clip named Camera test.”")
-                .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
+                .font(.subheadline).foregroundStyle(.secondary).lineSpacing(3)
             HStack {
                 Button("Inspect Resolve", systemImage: "viewfinder", action: model.inspect)
                     .disabled(!model.canInspect).help("Enable Bellith in Accessibility settings, then open a timeline in Resolve.").keyboardShortcut("i", modifiers: [.command, .shift])
@@ -153,7 +302,7 @@ struct ResolveHarnessView: View {
                 }.fixedSize().disabled(model.busy)
             }
             Text("Planning sends your goal and timeline metadata, including clip names, frame positions, and existing marker text, to \(model.provider.rawValue) using your existing CLI login. Media files and screen images stay on your Mac.")
-                .font(.system(size: 10)).foregroundStyle(.secondary).lineSpacing(3)
+                .font(.footnote).foregroundStyle(.secondary).lineSpacing(3)
         }
     }
 
@@ -165,13 +314,13 @@ struct ResolveHarnessView: View {
                 .foregroundStyle(accent).font(.title2)
             VStack(alignment: .leading, spacing: 4) {
                 Text(model.accessibilityAvailable ? "Accessibility enabled" : "Set up Resolve access")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.callout.weight(.semibold))
                 if !model.accessibilityAvailable {
                     Text("Enable Bellith in System Settings → Privacy & Security → Accessibility, then return here to inspect your timeline.")
                         .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 Text("Resolve \(model.adapter.installedVersion) · Lua Console · \(model.provider.executable != nil ? "\(model.provider.rawValue) installed" : "\(model.provider.rawValue) not found")")
-                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundStyle(.secondary)
             }
             Spacer()
             if !model.accessibilityAvailable {
@@ -184,23 +333,23 @@ struct ResolveHarnessView: View {
 
     private func timeline(_ snapshot: ResolveSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            eyebrow("02 / OBSERVED CONTEXT")
+            heading("Timeline", legacy: "02 / OBSERVED CONTEXT")
             HStack {
-                Label(snapshot.timelineName, systemImage: "rectangle.stack").font(.system(size: 13, weight: .medium))
+                Label(snapshot.timelineName, systemImage: "rectangle.stack").font(.body.weight(.medium))
                 Spacer()
-                Text("\(snapshot.clips.count) items · \(snapshot.frameRate) fps").font(.system(size: 11)).foregroundStyle(.secondary)
+                Text("\(snapshot.clips.count) items · \(snapshot.frameRate) fps").font(.subheadline).foregroundStyle(.secondary)
             }
             Text("Source: \(snapshot.projectName). Every edit is made on a separate working timeline.")
-                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .font(.subheadline).foregroundStyle(.secondary)
         }
     }
 
     private func planReview(_ plan: ResolveEditPlan) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            eyebrow("03 / REVIEWABLE PLAN")
-            Text(plan.summary).font(.system(size: 13)).textSelection(.enabled)
+            heading("Plan", legacy: "03 / REVIEWABLE PLAN")
+            Text(plan.summary).font(.body).textSelection(.enabled)
             Label("Duplicate and verify the original timeline", systemImage: "square.on.square")
-                .font(.system(size: 12))
+                .font(.callout)
             if let source = model.session.source, !source.clips.isEmpty, plan.markerNotes.isEmpty {
                 DisclosureGroup("\(plan.removeClipKeys.count) whole items selected for removal") {
                     let selectedKeys = Set(plan.removeClipKeys)
@@ -221,7 +370,7 @@ struct ResolveHarnessView: View {
                         ForEach(visibleClips, id: \.offset) { _, clip in
                             Toggle(isOn: Binding(get: { model.session.plan?.removeClipKeys.contains(clip.key) == true }, set: { _ in model.toggleRemoval(clip.key) })) {
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(clip.name).font(.system(size: 12))
+                                    Text(clip.name).font(.callout)
                                     Text("\(clip.kind) \(clip.track) · frames \(Int(clip.startFrame))–\(Int(clip.endFrame))")
                                         .font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
                                     if let start = clip.sourceStartFrame, let end = clip.sourceEndFrame {
@@ -233,16 +382,16 @@ struct ResolveHarnessView: View {
                             }.toggleStyle(.checkbox).disabled(model.busy || model.session.phase != .review)
                         }
                     }.padding(.top, 8)
-                }.font(.system(size: 12))
+                }.font(.callout)
             }
             ForEach(Array(plan.markerNotes.enumerated()), id: \.offset) { _, marker in
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Blue marker · offset \(String(format: "%.0f", marker.frame)) frames · \(marker.name)").font(.system(size: 12, weight: .medium))
-                    Text(marker.note).font(.system(size: 12)).textSelection(.enabled)
+                    Text("Blue marker · offset \(String(format: "%.0f", marker.frame)) frames · \(marker.name)").font(.callout.weight(.medium))
+                    Text(marker.note).font(.callout).textSelection(.enabled)
                 }
             }
             Label("Check remaining clip positions and preserve the source", systemImage: "checkmark.shield")
-                .font(.system(size: 12))
+                .font(.callout)
             HStack {
                 if model.busy {
                     Button(model.pauseRequested ? "Pausing at checkpoint…" : "Pause after this step", action: model.pause)
@@ -262,22 +411,29 @@ struct ResolveHarnessView: View {
 
     private var activity: some View {
         VStack(alignment: .leading, spacing: 12) {
-            eyebrow("ACTIVITY & EVIDENCE")
+            heading("Activity", legacy: "ACTIVITY & EVIDENCE")
             if model.session.events.isEmpty {
-                Text("Each tool action and verification result will appear here.").font(.system(size: 12)).foregroundStyle(.secondary)
+                Text("Each tool action and verification result will appear here.").font(embeddedInStudio ? .callout : .system(size: 12)).foregroundStyle(.secondary)
             }
-            ForEach(model.session.events.reversed()) { event in
+            ForEach(model.session.foldedEvents.reversed()) { event in
                 HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "circle.fill").font(.system(size: 5)).foregroundStyle(accent).padding(.top, 5)
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(event.title).font(.system(size: 12, weight: .medium))
+                    Image(systemName: "circle.fill").font(.system(size: 5)).foregroundStyle(accent).padding(.top, 6)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(event.title).fontWeight(.medium)
+                            if let count = event.repeatCount, count > 1 {
+                                Text("×\(count)").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                                    .padding(.horizontal, 6).padding(.vertical, 1)
+                                    .background(.quaternary, in: Capsule())
+                                    .accessibilityLabel("\(count) times")
+                            }
                             Spacer()
-                            Text(event.date, style: .time).font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary)
+                            Text(event.date, style: .time).font(.caption).monospacedDigit().foregroundStyle(.secondary)
                         }
-                        Text(event.detail).font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
+                        Text(event.detail).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                }
+                }.font(embeddedInStudio ? .body : .system(size: 12))
             }
         }
     }
@@ -290,26 +446,26 @@ struct ResolveHarnessView: View {
                 Text(model.session.working?.timelineName ?? model.session.source?.timelineName ?? "Your timeline, in context")
                     .font(.system(size: 18, weight: .medium)).textSelection(.enabled)
                 if let observed = model.session.working ?? model.session.source {
-                    Text(observed.projectName).font(.system(size: 12)).foregroundStyle(.secondary)
+                    Text(observed.projectName).font(.callout).foregroundStyle(.secondary)
                     Divider()
                     stat("Timeline items", "\(observed.clips.count)")
                     stat("Frame rate", observed.frameRate)
                     stat("Resolve", observed.version)
                     stat("Working copy", model.session.working == nil ? "Not created" : "Recorded")
                     Text("This is the last verified structural snapshot. Inspect again after making changes in Resolve.")
-                        .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(4)
+                        .font(.subheadline).foregroundStyle(.secondary).lineSpacing(4)
                 } else {
                     Text("Open a project and timeline in Resolve, then inspect it. Bellith reads its structure through the Lua Console.")
-                        .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+                        .font(.callout).foregroundStyle(.secondary).lineSpacing(4)
                 }
                 Divider()
                 VStack(alignment: .leading, spacing: 10) {
                     Label("Source kept intact", systemImage: "lock")
                     Label("Pause at checkpoints", systemImage: "pause.circle")
                     Label("Session saved locally", systemImage: "internaldrive")
-                }.font(.system(size: 11)).foregroundStyle(.secondary)
+                }.font(.subheadline).foregroundStyle(.secondary)
                 Text("Structural verification cannot judge pacing, continuity, or sound. Playback review is part of finishing the goal.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(4)
+                    .font(.subheadline).foregroundStyle(.secondary).lineSpacing(4)
                 Button("Open Resolve", action: model.adapter.openResolve).disabled(!model.hostOperationsEnabled)
             }.padding(22)
         }.background(surface)
@@ -324,12 +480,16 @@ struct ResolveHarnessView: View {
         }.font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary).padding(.horizontal, 22).frame(height: 32)
     }
 
+    @ViewBuilder private func heading(_ title: String, legacy: String) -> some View {
+        if embeddedInStudio { Text(title).font(.headline) } else { eyebrow(legacy) }
+    }
+
     private func eyebrow(_ title: String) -> some View {
         Text(title).font(.system(size: 9, weight: .medium, design: .monospaced)).tracking(1.1).foregroundStyle(.secondary)
     }
 
     private func stat(_ label: String, _ value: String) -> some View {
-        HStack { Text(label).foregroundStyle(.secondary); Spacer(); Text(value) }.font(.system(size: 11))
+        HStack { Text(label).foregroundStyle(.secondary); Spacer(); Text(value) }.font(.subheadline)
     }
 }
 
