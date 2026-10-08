@@ -49,7 +49,7 @@ final class QuickTerminalPane: NSView {
 
         hotkeyValue.font = BellithFont.mono(12, weight: .regular)
         hotkeyValue.textColor = Theme.textPrimary
-        hideToggle = PrefToggle(isOn: settings.visorHideOnFocusLoss) { [weak self] value in
+        hideToggle = PrefToggle(label: "Hide on focus loss", isOn: settings.visorHideOnFocusLoss) { [weak self] value in
             self?.settings.visorHideOnFocusLoss = value
         }
         content.addSubview(activationCard)
@@ -98,7 +98,8 @@ final class QuickTerminalPane: NSView {
         scroll.frame = bounds
 
         let width = bounds.width
-        let cardW = width - PreferencesLayout.hPad * 2
+        let cardW = min(PreferencesLayout.maximumContentWidth, width - PreferencesLayout.hPad * 2)
+        let contentX = (width - cardW) / 2
         let labelW: CGFloat = 136
         let controlX = PreferencesLayout.cardPad + labelW
         let controlW = cardW - controlX - PreferencesLayout.cardPad
@@ -106,12 +107,12 @@ final class QuickTerminalPane: NSView {
 
         var y: CGFloat = PreferencesLayout.hPad
 
-        paneTitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: 280, height: 24)
-        paneSubtitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y + 28, width: cardW, height: 16)
+        paneTitleLabel.frame = NSRect(x: contentX, y: y, width: 280, height: 24)
+        paneSubtitleLabel.frame = NSRect(x: contentX, y: y + 28, width: cardW, height: 16)
         y += 60
 
         let activationCardHeight = activationCard.headerHeight + 2 * PreferencesLayout.rowH + 14 + PreferencesLayout.rowGap + PreferencesLayout.cardPad
-        activationCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: activationCardHeight)
+        activationCard.frame = NSRect(x: contentX, y: y, width: cardW, height: activationCardHeight)
         let ar0 = activationCardHeight - activationCard.headerHeight - PreferencesLayout.rowH
         hotkeyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ar0, width: labelW - 12, height: PreferencesLayout.rowH)
         hotkeyValue.frame = NSRect(x: controlX, y: ar0 + 12, width: controlW, height: 16)
@@ -122,7 +123,7 @@ final class QuickTerminalPane: NSView {
         y += activationCardHeight + PreferencesLayout.sectionGap
 
         let appearanceCardHeight = appearanceCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
-        appearanceCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: appearanceCardHeight)
+        appearanceCard.frame = NSRect(x: contentX, y: y, width: cardW, height: appearanceCardHeight)
         let gr0 = appearanceCardHeight - appearanceCard.headerHeight - PreferencesLayout.rowH
         posLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: gr0, width: labelW - 12, height: PreferencesLayout.rowH)
         posSegment.frame = NSRect(x: controlX, y: gr0 + 6, width: min(180, controlW), height: 28)

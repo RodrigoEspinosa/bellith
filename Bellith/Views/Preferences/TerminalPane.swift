@@ -165,7 +165,7 @@ final class TerminalPane: NSView {
             self.sizeValue.stringValue = "\(self.settings.fontSize)"
             self.updateHero()
         }
-        ligaturesToggle = PrefToggle(isOn: settings.fontLigaturesEnabled) { [weak self] value in
+        ligaturesToggle = PrefToggle(label: "Font ligatures", isOn: settings.fontLigaturesEnabled) { [weak self] value in
             self?.settings.fontLigaturesEnabled = value
         }
         content.addSubview(fontCard)
@@ -177,7 +177,7 @@ final class TerminalPane: NSView {
             self?.settings.cursorStyle = ["block", "bar", "underline"][idx]
             self?.updateHero()
         }
-        blinkToggle = PrefToggle(isOn: settings.cursorBlink) { [weak self] value in
+        blinkToggle = PrefToggle(label: "Blink cursor", isOn: settings.cursorBlink) { [weak self] value in
             self?.settings.cursorBlink = value
             self?.updateHero()
         }
@@ -234,28 +234,28 @@ final class TerminalPane: NSView {
             sessionCard.addSubview(view)
         }
 
-        shellIntegrationEnabledToggle = PrefToggle(isOn: settings.shellIntegrationEnabled) { [weak self] value in
+        shellIntegrationEnabledToggle = PrefToggle(label: "Enable shell integration", isOn: settings.shellIntegrationEnabled) { [weak self] value in
             self?.settings.shellIntegrationEnabled = value
         }
-        shellIntegrationCursorToggle = PrefToggle(isOn: settings.shellIntegrationCursor) { [weak self] value in
+        shellIntegrationCursorToggle = PrefToggle(label: "Cursor at prompt", isOn: settings.shellIntegrationCursor) { [weak self] value in
             self?.settings.shellIntegrationCursor = value
         }
-        shellIntegrationTitleToggle = PrefToggle(isOn: settings.shellIntegrationTitle) { [weak self] value in
+        shellIntegrationTitleToggle = PrefToggle(label: "Update window title", isOn: settings.shellIntegrationTitle) { [weak self] value in
             self?.settings.shellIntegrationTitle = value
         }
-        shellIntegrationPathToggle = PrefToggle(isOn: settings.shellIntegrationPath) { [weak self] value in
+        shellIntegrationPathToggle = PrefToggle(label: "Add Ghostty to PATH", isOn: settings.shellIntegrationPath) { [weak self] value in
             self?.settings.shellIntegrationPath = value
         }
-        shellIntegrationSSHEnvToggle = PrefToggle(isOn: settings.shellIntegrationSSHEnv) { [weak self] value in
+        shellIntegrationSSHEnvToggle = PrefToggle(label: "SSH environment compatibility", isOn: settings.shellIntegrationSSHEnv) { [weak self] value in
             self?.settings.shellIntegrationSSHEnv = value
         }
-        shellIntegrationSSHTerminfoToggle = PrefToggle(isOn: settings.shellIntegrationSSHTerminfo) { [weak self] value in
+        shellIntegrationSSHTerminfoToggle = PrefToggle(label: "Install SSH terminfo", isOn: settings.shellIntegrationSSHTerminfo) { [weak self] value in
             self?.settings.shellIntegrationSSHTerminfo = value
         }
-        commandNotificationsToggle = PrefToggle(isOn: settings.commandCompletionNotificationsEnabled) { [weak self] value in
+        commandNotificationsToggle = PrefToggle(label: "Command completion notifications", isOn: settings.commandCompletionNotificationsEnabled) { [weak self] value in
             self?.settings.commandCompletionNotificationsEnabled = value
         }
-        errorFixSuggestionsToggle = PrefToggle(isOn: settings.errorFixSuggestionsEnabled) { [weak self] value in
+        errorFixSuggestionsToggle = PrefToggle(label: "Error fix suggestions", isOn: settings.errorFixSuggestionsEnabled) { [weak self] value in
             self?.settings.errorFixSuggestionsEnabled = value
         }
         commandNotificationThresholdField = MiniNumberField(
@@ -296,10 +296,10 @@ final class TerminalPane: NSView {
         optionKeyPopup.action = #selector(handleOptionKeyBehaviorChanged)
         TerminalOptionKeyBehavior.allCases.forEach { optionKeyPopup.addItem(withTitle: $0.title) }
 
-        inlineImagesToggle = PrefToggle(isOn: settings.inlineImagesEnabled) { [weak self] value in
+        inlineImagesToggle = PrefToggle(label: "Inline images", isOn: settings.inlineImagesEnabled) { [weak self] value in
             self?.settings.inlineImagesEnabled = value
         }
-        minimapToggle = PrefToggle(isOn: settings.scrollbackMinimapEnabled) { [weak self] value in
+        minimapToggle = PrefToggle(label: "Scrollback minimap", isOn: settings.scrollbackMinimapEnabled) { [weak self] value in
             self?.settings.scrollbackMinimapEnabled = value
         }
         content.addSubview(graphicsCard)
@@ -310,9 +310,9 @@ final class TerminalPane: NSView {
             graphicsCard.addSubview(view)
         }
 
-        hideMouseToggle = PrefToggle(isOn: settings.mouseHideWhileTyping) { [weak self] value in self?.settings.mouseHideWhileTyping = value }
-        confirmToggle = PrefToggle(isOn: settings.confirmClose) { [weak self] value in self?.settings.confirmClose = value }
-        restoreToggle = PrefToggle(isOn: settings.restoreSession) { [weak self] value in self?.settings.restoreSession = value }
+        hideMouseToggle = PrefToggle(label: "Hide cursor while typing", isOn: settings.mouseHideWhileTyping) { [weak self] value in self?.settings.mouseHideWhileTyping = value }
+        confirmToggle = PrefToggle(label: "Confirm before closing", isOn: settings.confirmClose) { [weak self] value in self?.settings.confirmClose = value }
+        restoreToggle = PrefToggle(label: "Restore previous session", isOn: settings.restoreSession) { [weak self] value in self?.settings.restoreSession = value }
         content.addSubview(behaviorCard)
         for view: NSView in [
             optionKeyLabel,
@@ -382,6 +382,9 @@ final class TerminalPane: NSView {
     }
 
     private func updateHero() {
+        heroSizeLabel.textColor = Theme.textDisplay
+        heroFamilyLabel.textColor = Theme.textSecondary
+        heroMetaLabel.textColor = Theme.textSecondary
         heroSizeLabel.stringValue = "\(settings.fontSize) PX"
         heroFamilyLabel.stringValue = settings.fontFamily.uppercased()
         heroMetaLabel.stringValue = "[ \(settings.cursorStyle.uppercased()) ]   [ \(settings.cursorBlink ? "BLINK" : "STATIC") ]   [ \(settings.scrollbackLines) LINES ]"
@@ -403,54 +406,53 @@ final class TerminalPane: NSView {
         scroll.frame = bounds
 
         let width = bounds.width
-        let cardW = width - PreferencesLayout.hPad * 2
+        let cardW = min(PreferencesLayout.maximumContentWidth, width - PreferencesLayout.hPad * 2)
+        let contentX = (width - cardW) / 2
         let innerW = cardW - PreferencesLayout.cardPad * 2
         let labelW: CGFloat = 146
         let controlX = PreferencesLayout.cardPad + labelW
         let controlW = cardW - controlX - PreferencesLayout.cardPad
-        let trailingToggleX = PreferencesLayout.trailingToggleX(cardWidth: cardW)
         let trailingToggleLabelWidth = PreferencesLayout.labelWidth(toTrailingToggleIn: cardW)
 
         var y: CGFloat = PreferencesLayout.hPad
 
-        paneTitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: 280, height: 24)
-        paneSubtitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y + 28, width: cardW, height: 16)
+        paneTitleLabel.frame = NSRect(x: contentX, y: y, width: 280, height: 24)
+        paneSubtitleLabel.frame = NSRect(x: contentX, y: y + 28, width: cardW, height: 16)
         y += 60
 
         let heroHeight: CGFloat = 172
-        heroCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: heroHeight)
-        heroSizeLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 68, width: innerW * 0.45, height: 46)
-        heroFamilyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 118, width: innerW * 0.45, height: 14)
-        heroPreviewLabel.frame = NSRect(x: PreferencesLayout.cardPad + innerW * 0.48, y: 78, width: innerW * 0.48, height: 24)
-        heroMetaLabel.frame = NSRect(x: PreferencesLayout.cardPad + innerW * 0.48, y: 106, width: innerW * 0.48, height: 16)
+        heroCard.frame = NSRect(x: contentX, y: y, width: cardW, height: heroHeight)
+        heroSizeLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 48, width: innerW * 0.35, height: 46)
+        heroFamilyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 106, width: innerW, height: 14)
+        heroPreviewLabel.frame = NSRect(x: PreferencesLayout.cardPad + innerW * 0.38, y: 58, width: innerW * 0.62, height: 24)
+        heroMetaLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 20, width: innerW, height: 16)
         y += heroHeight + PreferencesLayout.sectionGap
 
-        let fontHeroBlockH: CGFloat = 52
-        let fontCardHeight = fontCard.headerHeight + fontHeroBlockH + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad + 10
-        fontCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: fontCardHeight)
-        let fontHeroTop = fontCardHeight - fontCard.headerHeight - 14
-        fontSummaryLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fontHeroTop - 18, width: innerW - 110, height: 16)
-        fontSizeHeroLabel.frame = NSRect(x: cardW - PreferencesLayout.cardPad - 96, y: fontHeroTop - 34, width: 96, height: 30)
-        fontPreviewNote.frame = NSRect(x: PreferencesLayout.cardPad, y: fontHeroTop - 34, width: innerW - 110, height: 14)
+        let fontCardHeight = fontCard.headerHeight + 210
+        fontCard.frame = NSRect(x: contentX, y: y, width: cardW, height: fontCardHeight)
+        let fontTop = fontCardHeight - fontCard.headerHeight - 24
+        fontSummaryLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fontTop, width: innerW - 140, height: 18)
+        fontPreviewNote.frame = NSRect(x: PreferencesLayout.cardPad, y: fontTop - 24, width: innerW - 140, height: 16)
+        fontSizeHeroLabel.frame = NSRect(x: cardW - PreferencesLayout.cardPad - 120, y: fontTop - 14, width: 120, height: 34)
 
-        let fr0 = fontHeroTop - fontHeroBlockH - 10
-        fontLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fr0, width: labelW - 12, height: PreferencesLayout.rowH)
+        let fr0 = fontTop - 72
+        fontLabel.frame = BellithDesignSystem.Settings.leadingLabelFrame(rowY: fr0, width: labelW - 12)
         let pickerW: CGFloat = 84
-        fontField.frame = NSRect(x: controlX, y: fr0 + 6, width: controlW - pickerW - 10, height: 28)
-        fontPickerBtn.frame = NSRect(x: controlX + controlW - pickerW, y: fr0 + 6, width: pickerW, height: 28)
-        let fr1 = fr0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        sizeLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fr1, width: labelW - 12, height: PreferencesLayout.rowH)
-        let stepSize: CGFloat = 28
+        fontField.frame = BellithDesignSystem.Settings.fieldFrame(x: controlX, rowY: fr0, width: controlW - pickerW - 10)
+        fontPickerBtn.frame = BellithDesignSystem.Settings.fieldFrame(x: controlX + controlW - pickerW, rowY: fr0, width: pickerW)
+        let fr1 = fr0 - 48
+        sizeLabel.frame = BellithDesignSystem.Settings.leadingLabelFrame(rowY: fr1, width: labelW - 12)
+        let stepSize: CGFloat = BellithDesignSystem.Size.stepButton
         sizeMinus.frame = NSRect(x: controlX, y: fr1 + 6, width: stepSize, height: stepSize)
         sizeValue.frame = NSRect(x: controlX + 42, y: fr1 + 10, width: 54, height: 20)
         sizePlus.frame = NSRect(x: controlX + 110, y: fr1 + 6, width: stepSize, height: stepSize)
-        let fr2 = fr1 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        ligaturesLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: fr2, width: trailingToggleLabelWidth, height: PreferencesLayout.rowH)
-        ligaturesToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: fr2)
+        let fr2 = fr1 - 48
+        ligaturesLabel.frame = BellithDesignSystem.Settings.leadingLabelFrame(rowY: fr2, width: trailingToggleLabelWidth)
+        ligaturesToggle.frame = BellithDesignSystem.Settings.trailingToggleFrame(cardWidth: cardW, rowY: fr2)
         y += fontCardHeight + PreferencesLayout.sectionGap
 
         let cursorCardHeight = cursorCard.headerHeight + 3 * PreferencesLayout.rowH + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
-        cursorCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: cursorCardHeight)
+        cursorCard.frame = NSRect(x: contentX, y: y, width: cardW, height: cursorCardHeight)
         let cr0 = cursorCardHeight - cursorCard.headerHeight - PreferencesLayout.rowH
         cursorLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: cr0, width: labelW - 12, height: PreferencesLayout.rowH)
         cursorSegment.frame = NSRect(x: controlX, y: cr0 + 6, width: min(250, controlW), height: 28)
@@ -463,7 +465,7 @@ final class TerminalPane: NSView {
         y += cursorCardHeight + PreferencesLayout.sectionGap
 
         let sessionCardHeight = sessionCard.headerHeight + 6 * PreferencesLayout.rowH + 4 * 14 + 5 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
-        sessionCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: sessionCardHeight)
+        sessionCard.frame = NSRect(x: contentX, y: y, width: cardW, height: sessionCardHeight)
         let sr0 = sessionCardHeight - sessionCard.headerHeight - PreferencesLayout.rowH
         shellLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: sr0, width: labelW - 12, height: PreferencesLayout.rowH)
         shellField.frame = NSRect(x: controlX, y: sr0 + 6, width: controlW, height: 28)
@@ -494,7 +496,7 @@ final class TerminalPane: NSView {
 
         let shellLabelW = PreferencesLayout.labelWidth(toTrailingToggleIn: cardW)
         let shellIntegrationCardHeight = shellIntegrationCard.headerHeight + 9 * PreferencesLayout.rowH + 8 * PreferencesLayout.rowGap + PreferencesLayout.cardPad + 14
-        shellIntegrationCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: shellIntegrationCardHeight)
+        shellIntegrationCard.frame = NSRect(x: contentX, y: y, width: cardW, height: shellIntegrationCardHeight)
         let ir0 = shellIntegrationCardHeight - shellIntegrationCard.headerHeight - PreferencesLayout.rowH
         shellIntegrationEnabledLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: ir0, width: shellLabelW, height: PreferencesLayout.rowH)
         shellIntegrationEnabledToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: ir0)
@@ -528,7 +530,7 @@ final class TerminalPane: NSView {
 
         let graphicsLabelW = PreferencesLayout.labelWidth(toTrailingToggleIn: cardW)
         let graphicsCardHeight = graphicsCard.headerHeight + 2 * PreferencesLayout.rowH + 2 * 14 + 2 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
-        graphicsCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: graphicsCardHeight)
+        graphicsCard.frame = NSRect(x: contentX, y: y, width: cardW, height: graphicsCardHeight)
         let gr0 = graphicsCardHeight - graphicsCard.headerHeight - PreferencesLayout.rowH
         inlineImagesLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: gr0, width: graphicsLabelW, height: PreferencesLayout.rowH)
         inlineImagesToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: gr0)
@@ -540,7 +542,7 @@ final class TerminalPane: NSView {
         y += graphicsCardHeight + PreferencesLayout.sectionGap
 
         let behaviorCardHeight = behaviorCard.headerHeight + 4 * PreferencesLayout.rowH + 14 + 3 * PreferencesLayout.rowGap + PreferencesLayout.cardPad
-        behaviorCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: behaviorCardHeight)
+        behaviorCard.frame = NSRect(x: contentX, y: y, width: cardW, height: behaviorCardHeight)
         let behaviorLabelW = PreferencesLayout.labelWidth(toTrailingToggleIn: cardW)
         let br0 = behaviorCardHeight - behaviorCard.headerHeight - PreferencesLayout.rowH
         optionKeyLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br0, width: labelW - 12, height: PreferencesLayout.rowH)

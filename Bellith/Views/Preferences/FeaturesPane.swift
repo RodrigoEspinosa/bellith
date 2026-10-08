@@ -36,7 +36,7 @@ final class FeaturesPane: NSView {
         paneSubtitleLabel.textColor = Theme.textSecondary
         content.addSubview(paneSubtitleLabel)
 
-        builtInSettingsToggle = PrefToggle(isOn: settings.builtInSettingsWindowEnabled) { [weak self] value in
+        builtInSettingsToggle = PrefToggle(label: "Use built-in settings", isOn: settings.builtInSettingsWindowEnabled) { [weak self] value in
             self?.settings.builtInSettingsWindowEnabled = value
         }
 
@@ -67,17 +67,18 @@ final class FeaturesPane: NSView {
         scroll.frame = bounds
 
         let width = bounds.width
-        let cardWidth = width - PreferencesLayout.hPad * 2
+        let cardWidth = min(PreferencesLayout.maximumContentWidth, width - PreferencesLayout.hPad * 2)
+        let contentX = (width - cardWidth) / 2
         let toggleLabelWidth = PreferencesLayout.labelWidth(toTrailingToggleIn: cardWidth)
 
         var y: CGFloat = PreferencesLayout.hPad
 
-        paneTitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: 280, height: 24)
-        paneSubtitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y + 28, width: cardWidth, height: 16)
+        paneTitleLabel.frame = NSRect(x: contentX, y: y, width: 280, height: 24)
+        paneSubtitleLabel.frame = NSRect(x: contentX, y: y + 28, width: cardWidth, height: 16)
         y += 60
 
         let featureCardHeight = featureCard.headerHeight + PreferencesLayout.rowH + 42 + 16 + PreferencesLayout.cardPad
-        featureCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardWidth, height: featureCardHeight)
+        featureCard.frame = NSRect(x: contentX, y: y, width: cardWidth, height: featureCardHeight)
         let rowY = featureCardHeight - featureCard.headerHeight - PreferencesLayout.rowH
         builtInSettingsLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: rowY, width: toggleLabelWidth, height: PreferencesLayout.rowH)
         builtInSettingsToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardWidth, rowY: rowY)

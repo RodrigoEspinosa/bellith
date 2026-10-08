@@ -1,19 +1,24 @@
 PROJECT = Bellith.xcodeproj
 SCHEME = Bellith
 CONFIG = Debug
-BUILD_DIR = $(shell xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIG) -showBuildSettings 2>/dev/null | grep " BUILT_PRODUCTS_DIR" | sed 's/.*= //')
+# Keep command-line builds separate from Xcode's default DerivedData database.
+DERIVED_DATA ?= $(CURDIR)/DerivedData/command-line
+BUILD_DIR = $(DERIVED_DATA)/Build/Products/$(CONFIG)
 
 generate:
 	xcodegen generate
 
 build:
-	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIG) build
+	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIG) -derivedDataPath "$(DERIVED_DATA)" build
 
 run: build
 	open "$(BUILD_DIR)/$(SCHEME).app"
 
 test:
-	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Debug test
+	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Debug -derivedDataPath "$(DERIVED_DATA)" test
+
+test-creative:
+	bash scripts/test-creative.sh
 
 lint:
 	@if command -v swiftlint >/dev/null 2>&1; then \
@@ -36,4 +41,4 @@ clean:
 loc:
 	@find Bellith -name "*.swift" -exec cat {} + | wc -l
 
-.PHONY: generate build run test lint lint-fix clean loc
+.PHONY: generate build run test test-creative lint lint-fix clean loc

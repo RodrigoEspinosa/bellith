@@ -1,7 +1,6 @@
 import AppKit
 import GhosttyKit
 import os
-import UniformTypeIdentifiers
 import UserNotifications
 
 @main
@@ -16,19 +15,27 @@ struct BellithApp {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    private let dependencies: BellithDependencies
+    let dependencies: BellithDependencies
     private let updater = UpdaterController()
-    private var terminalApp: TerminalApp?
-    private var windows: [WindowEntry] = []
+    var terminalApp: TerminalApp?
+    var windows: [WindowEntry] = []
     private var newWindowObserver: NSObjectProtocol?
     private var appearanceObserver: NSObjectProtocol?
     private var terminalConfigFailureObserver: NSObjectProtocol?
     private var settingsObserver: NSObjectProtocol?
-    private var themeMenu = NSMenu(title: "Theme")
+    private var appearanceAccentMenu = NSMenu(title: "Accent Color")
     private var workspacesMenu = NSMenu(title: "Workspaces")
+    private var recentCreativeProjectsMenu = NSMenu(title: "Open Recent Media Project")
     private var workspaceStoreObserver: NSObjectProtocol?
+    private var studio: StudioWindowController?
+    private var terminalRestorationAttempted = false
+    private var reviewRoutingReady = false
+    private var pendingReviewLinks: [CreativeReviewLink] = []
+#if DEBUG
+    private var workflowPreviewWindows: [NSWindowController] = []
+#endif
 
-    private struct WindowEntry {
+    struct WindowEntry {
         let window: TerminalWindow
         let container: TerminalContainerView
     }
@@ -39,10 +46,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// The key (focused) window's container, or the most recent one.
     private var activeEntry: WindowEntry? {
+        if isCreativeWorkspaceActive { return nil }
         if let keyWindow = NSApp.keyWindow as? TerminalWindow {
             return windows.first { $0.window === keyWindow }
         }
         return windows.last
+    }
+
+    private var isCreativeWorkspaceActive: Bool {
+        guard let window = studio?.window else { return false }
+        return NSApp.keyWindow === window || NSApp.keyWindow?.sheetParent === window
     }
 
     override init() {
@@ -51,6 +64,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+#if DEBUG
+        if WorkflowPreview.isEnabled {
+            workflowPreviewWindows = WorkflowPreview.makeWindows()
+            return
+        }
+#endif
         let argc: UInt = 0
         let initResult = ghostty_init(argc, nil)
         guard initResult == GHOSTTY_SUCCESS else {
@@ -92,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         applyResolvedAppearanceAndTheme()
 
-        // Observe system appearance changes to switch themes
+        // Observe system appearance changes to update the derived appearance palette.
         appearanceObserver = DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
             object: nil, queue: .main
@@ -101,7 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         // Observe "Increase Contrast" accessibility toggle so we can promote
-        // to/from the high-contrast theme variant at runtime.
+        // to/from the high-contrast appearance variant at runtime.
         NSWorkspace.shared.notificationCenter.addObserver(
             self,
             selector: #selector(handleAccessibilityDisplayOptionsChanged),
@@ -133,11 +152,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Setup quick terminal (visor)
         QuickTerminalController.shared.setup(terminalApp: app, dependencies: dependencies)
 
-        // Try to restore previous session(s)
-        if !restoreSavedWindows() {
-            createWindow()
-        }
+        // Studio opens on its own. Terminal sessions are restored on explicit request.
         setupMenus()
+        handleStudio()
+
+        if ProcessInfo.processInfo.arguments.contains("--creative-workspace") {
+            handleCreativeWorkspace()
+        }
+        if ProcessInfo.processInfo.arguments.contains("--resolve-harness") {
+            handleResolveHarness()
+        }
 
         workspaceStoreObserver = NotificationCenter.default.addObserver(
             forName: WorkspaceStore.didChangeNotification,
@@ -146,30 +170,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ) { [weak self] _ in
             self?.rebuildWorkspacesMenu()
         }
+        reviewRoutingReady = true
+        let pending = pendingReviewLinks
+        pendingReviewLinks = []
+        for link in pending { handleBellithURL(link.url) }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        // Save all window sessions if enabled
+#if DEBUG
+        if WorkflowPreview.isEnabled { return }
+#endif
         if dependencies.settings.restoreSession {
-            let savedWindows = windows.map {
-                WindowSessionState(
-                    session: $0.container.saveSession(),
-                    frameDescriptor: NSStringFromRect($0.window.frame)
-                )
+            let live = windows.map {
+                WindowSessionState(session: $0.container.saveSession(), frameDescriptor: NSStringFromRect($0.window.frame))
             }
-
-            if let data = try? JSONEncoder().encode(savedWindows) {
-                UserDefaults.standard.set(data, forKey: "savedWindowSessions")
-            }
-
-            let allSessions = savedWindows.compactMap { try? JSONEncoder().encode($0.session) }
-            if let firstData = allSessions.first {
-                // Primary session for backward compat
-                UserDefaults.standard.set(firstData, forKey: "savedSession")
-            }
-            if let allData = try? JSONEncoder().encode(allSessions.map { $0.base64EncodedString() }) {
-                UserDefaults.standard.set(allData, forKey: "savedAllSessions")
-            }
+            try? TerminalSessionArchive.save(live, restorationAttempted: terminalRestorationAttempted, defaults: .standard)
         }
 
         // Clean up observers
@@ -237,8 +252,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             createInitialTab: createInitialTab,
             dependencies: dependencies
         )
-        let backdrop = BackdropView(container: container)
-        window.contentView = backdrop
+        window.onKeyDownIntercept = { [weak container] event in
+            container?.interceptWindowKeyDown(event) ?? false
+        }
+        if dependencies.settings.useRebrandShell {
+            // Rebrand path: hand off chrome to `RebrandShellView`, which hosts
+            // the legacy container with its own title bar / rail / status bar
+            // suppressed. Set as the window's content view directly — no
+            // BackdropView in the rebrand path because the shell paints its
+            // own background.
+            let shell = RebrandShellView(container: container)
+            shell.onOpenStudio = { [weak self] in Task { @MainActor in self?.handleStudio() } }
+            window.contentView = shell
+        } else {
+            let backdrop = BackdropView(container: container)
+            window.contentView = backdrop
+        }
 
         let entry = WindowEntry(window: window, container: container)
         windows.append(entry)
@@ -247,6 +276,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             container.restoreSession(session)
         } else if let initialWorkingDirectory, !initialWorkingDirectory.isEmpty {
             container.openWorkingDirectory(initialWorkingDirectory)
+            container.openReferencePaneLayoutIfNeeded()
+        } else if createInitialTab {
+            container.openReferencePaneLayoutIfNeeded()
         }
 
         window.makeFirstResponder(container.activeSurface ?? container)
@@ -325,37 +357,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func restoreSavedWindows() -> Bool {
         guard dependencies.settings.restoreSession else { return false }
-
-        if let data = UserDefaults.standard.data(forKey: "savedWindowSessions"),
-           let savedWindows = try? JSONDecoder().decode([WindowSessionState].self, from: data),
-           !savedWindows.isEmpty {
-            for savedWindow in savedWindows where !savedWindow.session.tabs.isEmpty {
-                createWindow(session: savedWindow.session, frameDescriptor: savedWindow.frameDescriptor)
-            }
-            return !windows.isEmpty
+        var restored = false
+        for saved in TerminalSessionArchive.read(.standard) {
+            if createWindow(session: saved.session, frameDescriptor: saved.frameDescriptor) != nil { restored = true }
         }
+        return restored
+    }
 
-        if let data = UserDefaults.standard.data(forKey: "savedAllSessions"),
-           let encodedSessions = try? JSONDecoder().decode([String].self, from: data) {
-            var restoredAny = false
-            for encoded in encodedSessions {
-                guard let sessionData = Data(base64Encoded: encoded),
-                      let session = try? JSONDecoder().decode(SessionState.self, from: sessionData),
-                      !session.tabs.isEmpty else { continue }
-                createWindow(session: session)
-                restoredAny = true
-            }
-            if restoredAny { return true }
+    private func openTerminal() {
+        if !terminalRestorationAttempted {
+            terminalRestorationAttempted = true
+            _ = restoreSavedWindows()
         }
-
-        if let data = UserDefaults.standard.data(forKey: "savedSession"),
-           let state = try? JSONDecoder().decode(SessionState.self, from: data),
-           !state.tabs.isEmpty {
-            createWindow(session: state)
-            return true
-        }
-
-        return false
+        if let entry = windows.last {
+            entry.window.makeKeyAndOrderFront(nil)
+            entry.window.makeFirstResponder(entry.container.activeSurface)
+        } else { createWindow() }
     }
 
     /// Find the container that owns a given surface view.
@@ -440,18 +457,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // supermenu reference from the previous main-menu tree after the
         // first pass. `setSubmenu:` throws `NSInternalInconsistencyException`
         // if we attach it to a new item while it already has a parent — give
-        // it a fresh instance each rebuild. `themeMenu` is reassigned below
+        // it a fresh instance each rebuild. `appearanceAccentMenu` is reassigned below
         // for the same reason.
         workspacesMenu = NSMenu(title: "Workspaces")
+        recentCreativeProjectsMenu = NSMenu(title: "Open Recent Media Project")
 
         let mainMenu = NSMenu()
 
         // App menu
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "About Bellith", action: #selector(handleAbout), keyEquivalent: "")
-        let checkForUpdatesItem = NSMenuItem(title: "Check for Updates…", action: updater.menuAction, keyEquivalent: "")
-        checkForUpdatesItem.target = updater.menuTarget
-        appMenu.addItem(checkForUpdatesItem)
+        if updater.isAvailable {
+            let checkForUpdatesItem = NSMenuItem(title: "Check for Updates…", action: updater.menuAction, keyEquivalent: "")
+            checkForUpdatesItem.target = updater.menuTarget
+            appMenu.addItem(checkForUpdatesItem)
+        }
         appMenu.addItem(.separator())
         appMenu.addItem(configuredMenuItem(title: "Settings…", action: #selector(handlePreferences), shortcutID: "preferences"))
         appMenu.addItem(configuredMenuItem(title: "Open settings.json", action: #selector(handleOpenSettingsFile)))
@@ -475,10 +495,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // File menu
         let shellMenu = NSMenu(title: "File")
+        let studioItem = NSMenuItem(title: "Bellith Studio", action: #selector(handleStudio), keyEquivalent: "s")
+        studioItem.keyEquivalentModifierMask = [.command, .shift]
+        studioItem.target = self
+        shellMenu.addItem(studioItem)
+        let demoItem = NSMenuItem(title: "Try the Guided Demo", action: #selector(handleStudioDemo), keyEquivalent: "")
+        demoItem.target = self
+        shellMenu.addItem(demoItem)
+        shellMenu.addItem(.separator())
+        let harnessItem = NSMenuItem(title: "Resolve Goal Session", action: #selector(handleResolveHarness), keyEquivalent: "g")
+        harnessItem.keyEquivalentModifierMask = [.command, .shift]
+        harnessItem.target = self
+        shellMenu.addItem(harnessItem)
+        let logicItem = NSMenuItem(title: "Logic Playback…", action: #selector(handleLogicTransport), keyEquivalent: "l")
+        logicItem.keyEquivalentModifierMask = [.command, .shift]
+        logicItem.target = self
+        shellMenu.addItem(logicItem)
+        let creativeItem = NSMenuItem(title: "Creative Workspace", action: #selector(handleCreativeWorkspace), keyEquivalent: "k")
+        creativeItem.keyEquivalentModifierMask = [.command, .shift]
+        creativeItem.target = self
+        shellMenu.addItem(creativeItem)
+        let companionItem = NSMenuItem(title: "Project AI Companion…", action: #selector(handleProjectCompanion), keyEquivalent: "j")
+        companionItem.keyEquivalentModifierMask = [.command, .shift]
+        companionItem.target = self
+        shellMenu.addItem(companionItem)
+        let openMedia = NSMenuItem(title: "Open Media Folder…", action: #selector(handleOpenMediaFolder), keyEquivalent: "o")
+        openMedia.target = self
+        shellMenu.addItem(openMedia)
+        recentCreativeProjectsMenu.delegate = self
+        recentCreativeProjectsMenu.autoenablesItems = false
+        let recentMedia = NSMenuItem(title: "Open Recent Media Project", action: nil, keyEquivalent: "")
+        recentMedia.submenu = recentCreativeProjectsMenu
+        shellMenu.addItem(recentMedia)
+        let deliveryItem = NSMenuItem(title: "Prepare Media Delivery…", action: #selector(handleMediaDelivery), keyEquivalent: "e")
+        deliveryItem.keyEquivalentModifierMask = [.command, .shift]
+        deliveryItem.target = self
+        shellMenu.addItem(deliveryItem)
+        shellMenu.addItem(.separator())
         shellMenu.addItem(configuredMenuItem(title: "New Tab", action: #selector(handleNewTab), shortcutID: "newTab"))
         shellMenu.addItem(configuredMenuItem(title: "New Window", action: #selector(handleNewWindow), shortcutID: "newWindow"))
         shellMenu.addItem(configuredMenuItem(title: "Connect Host…", action: #selector(handleConnectHost)))
-        if dependencies.settings.legacyPaneSupport {
+        if dependencies.settings.legacyPaneSupport || dependencies.settings.useRebrandShell {
             shellMenu.addItem(.separator())
             shellMenu.addItem(configuredMenuItem(title: "Split Right", action: #selector(handleSplitRight), shortcutID: "splitRight"))
             shellMenu.addItem(configuredMenuItem(title: "Split Down", action: #selector(handleSplitDown), shortcutID: "splitDown"))
@@ -537,18 +594,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         viewMenu.addItem(configuredMenuItem(title: "Reload Config", action: #selector(handleReloadConfig), shortcutID: "reloadConfig"))
         viewMenu.addItem(.separator())
 
-        // Theme submenu
-        themeMenu = NSMenu(title: "Theme")
-        themeMenu.delegate = self
-        rebuildThemeMenu()
-        let themeItem = NSMenuItem(title: "Theme", action: nil, keyEquivalent: "")
-        themeItem.submenu = themeMenu
-        viewMenu.addItem(themeItem)
-        viewMenu.addItem(configuredMenuItem(title: "Import iTerm2 Theme…", action: #selector(handleImportITermColors)))
+        appearanceAccentMenu = NSMenu(title: "Accent Color")
+        appearanceAccentMenu.delegate = self
+        rebuildAppearanceAccentMenu()
+        let accentItem = NSMenuItem(title: "Accent Color", action: nil, keyEquivalent: "")
+        accentItem.submenu = appearanceAccentMenu
+        viewMenu.addItem(accentItem)
 
         let viewMenuItem = NSMenuItem()
         viewMenuItem.submenu = viewMenu
         mainMenu.addItem(viewMenuItem)
+
+        // Studio menu — enabled only while the Studio window is in the responder chain.
+        let studioMenu = NSMenu(title: "Studio")
+        func studioCommand(_ title: String, _ action: Selector, _ key: String, _ modifiers: NSEvent.ModifierFlags) {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            item.keyEquivalentModifierMask = modifiers
+            studioMenu.addItem(item)
+        }
+        studioCommand("New Resolve Session", #selector(StudioWindowController.newResolveSession(_:)), "n", [.command, .option])
+        studioCommand("Inspect Resolve", #selector(StudioWindowController.inspectResolveTimeline(_:)), "i", [.command, .shift])
+        studioCommand("Plan Edit", #selector(StudioWindowController.planResolveEdit(_:)), "\r", [.command])
+        studioMenu.addItem(.separator())
+        studioCommand("Show Inspector", #selector(StudioWindowController.toggleStudioInspector(_:)), "i", [.command, .control])
+        let studioMenuItem = NSMenuItem()
+        studioMenuItem.submenu = studioMenu
+        mainMenu.addItem(studioMenuItem)
 
         // Tools menu — built-in smart panel plugins
         let toolsMenu = NSMenu(title: "Tools")
@@ -640,6 +711,77 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Menu Actions
 
+    @MainActor private func showStudio(_ destination: StudioModel.Destination) {
+        if studio == nil {
+            studio = StudioWindowController(openTerminal: { [weak self] in self?.openTerminal() },
+                startCompanion: { [weak self] launch in self?.startCreativeCompanion(launch) ?? false },
+                startCLISetup: { [weak self] provider in self?.startCLISetup(provider) ?? false })
+        }
+        studio?.show(destination)
+    }
+
+    @MainActor @objc private func handleStudio() { showStudio(studio?.model.destination ?? .home) }
+    @MainActor @objc private func handleStudioDemo() { showStudio(.demo) }
+    @MainActor @objc private func handleLogicTransport() { showStudio(.logic) }
+    @MainActor @objc private func handleResolveHarness() { showStudio(.resolve) }
+
+    @MainActor private func startCLISetup(_ provider: CreativePlannerProvider) -> Bool {
+        guard let executable = provider.executable,
+              let launch = try? CreativeCLISetupLaunch.prepare(provider: provider, executable: executable),
+              let entry = createWindow(createInitialTab: false, orderFront: false) else { return false }
+        guard let surface = entry.container.createTab(initialWorkingDirectory: launch.root.path,
+            titleOverride: provider.rawValue + " · sign in", localSessionBootstrap: SSHSessionBootstrap.none,
+            startupCommand: launch.surfaceCommand) else {
+            entry.window.close()
+            return false
+        }
+        entry.window.makeFirstResponder(surface)
+        entry.window.makeKeyAndOrderFront(nil)
+        return true
+    }
+
+    @MainActor private func startCreativeCompanion(_ launch: CreativeCompanionLaunch) -> Bool {
+        guard let entry = createWindow(createInitialTab: false, orderFront: false) else { return false }
+        guard let surface = entry.container.createTab(initialWorkingDirectory: launch.root.path,
+            titleOverride: "\(launch.provider.rawValue) · \(launch.root.lastPathComponent)",
+            localSessionBootstrap: SSHSessionBootstrap.none, startupCommand: launch.surfaceCommand) else {
+            entry.window.close()
+            return false
+        }
+        entry.window.makeFirstResponder(surface)
+        entry.window.makeKeyAndOrderFront(nil)
+        return true
+    }
+
+    @MainActor @objc private func handleCreativeWorkspace() { showStudio(.media) }
+
+    @MainActor @objc private func handleOpenMediaFolder() {
+        handleCreativeWorkspace()
+        studio?.model.media.openFolder()
+    }
+
+    @MainActor @objc private func handleRecentMediaProject(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL, url.isFileURL else { return }
+        handleCreativeWorkspace()
+        studio?.model.media.openProject(url)
+    }
+
+    @objc private func handleClearRecentMediaProjects() {
+        if let model = studio?.model.media { model.clearRecentProjects() }
+        else { CreativeProjectHistory(defaults: .standard).clear() }
+    }
+
+    @MainActor @objc private func handleProjectCompanion() {
+        guard isCreativeWorkspaceActive, let studio else { handleStudio(); return }
+        studio.model.requestCompanion()
+    }
+
+    @MainActor @objc private func handleMediaDelivery() {
+        handleCreativeWorkspace()
+        guard let model = studio?.model.media, !model.isSample, !model.busy, !model.assets.isEmpty else { return }
+        model.reviewingDelivery = true
+    }
+
     @objc private func handleOpenWorkspace(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? UUID,
               let workspace = WorkspaceStore.shared.workspace(id: id) else { return }
@@ -654,19 +796,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         activeEntry?.container.promptSaveWorkspace()
     }
 
-    @objc private func handleCopy() { activeEntry?.container.copySelection() }
-    @objc private func handlePaste() { activeEntry?.container.pasteClipboard() }
+    @objc private func handleCopy() {
+        if isCreativeWorkspaceActive { NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: self) }
+        else { activeEntry?.container.copySelection() }
+    }
+    @objc private func handlePaste() {
+        if isCreativeWorkspaceActive { NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: self) }
+        else { activeEntry?.container.pasteClipboard() }
+    }
     @objc private func handleSelectAll() {
+        if isCreativeWorkspaceActive {
+            NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: self)
+            return
+        }
         guard let surface = activeEntry?.container.activeSurface?.surface else { return }
         let action = "select_all"
         action.withCString { ptr in
             _ = ghostty_surface_binding_action(surface, ptr, UInt(action.utf8.count))
         }
     }
-    @objc private func handleFind() { activeEntry?.container.showSearch() }
+    @objc private func handleFind() {
+        if isCreativeWorkspaceActive { studio?.model.media.searchRequest += 1 }
+        else { activeEntry?.container.showSearch() }
+    }
     @objc private func handleClearBuffer() { activeEntry?.container.clearBuffer() }
-    @objc private func handleNewTab() { activeEntry?.container.createTab() }
-    @objc private func handleCloseTab() { activeEntry?.container.closeCurrentTab() }
+    @objc private func handleNewTab() {
+        if let entry = activeEntry { entry.container.createTab() }
+        else { createWindow() }
+    }
+    @objc private func handleCloseTab() {
+        if isCreativeWorkspaceActive { NSApp.keyWindow?.performClose(nil) }
+        else { activeEntry?.container.closeFocusedPaneOrTab() }
+    }
     @objc private func handleCloseWindow() { NSApp.keyWindow?.close() }
     @objc private func handleClosePane() { activeEntry?.container.closePane() }
     @objc private func handleNewWindow() { createWindow() }
@@ -690,10 +851,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func handleRenameTab() { activeEntry?.container.promptRenameTab() }
     @objc private func handleNextTab() { activeEntry?.container.advanceToNextTerminalTab() }
     @objc private func handlePrevTab() { activeEntry?.container.advanceToPreviousTerminalTab() }
-    @objc private func handleToggleSidebar() { activeEntry?.container.sidebar.toggle() }
+    @MainActor @objc private func handleToggleSidebar() {
+        if let studio, studio.window?.isKeyWindow == true { studio.toggleSidebar(); return }
+        activeEntry?.container.sidebar.toggle()
+    }
     @objc private func handleTogglePalette() { activeEntry?.container.toggleCommandPalette() }
     @objc private func handleShowKeyboardShortcuts() { activeEntry?.container.toggleShortcutCheatSheet() }
-    @objc private func handleToggleStatusBar() { dependencies.settings.showStatusBar.toggle() }
+    @objc func handleToggleStatusBar() { dependencies.settings.showStatusBar.toggle() }
 
     @objc private func handleFontBigger() { activeEntry?.container.adjustFontSizePublic(delta: 1) }
     @objc private func handleFontSmaller() { activeEntry?.container.adjustFontSizePublic(delta: -1) }
@@ -720,52 +884,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.orderFrontStandardAboutPanel(options: BellithBranding.aboutPanelOptions())
         NSApp.activate(ignoringOtherApps: true)
     }
-    @objc private func handleImportITermColors() {
-        let panel = NSOpenPanel()
-        panel.title = "Import iTerm2 Theme"
-        panel.prompt = "Import"
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        if let type = UTType(filenameExtension: "itermcolors") {
-            panel.allowedContentTypes = [type]
-        }
-        guard panel.runModal() == .OK else { return }
-
-        var imported: [String] = []
-        var failures: [(URL, Error)] = []
-        for url in panel.urls {
-            do {
-                let def = try ITermColorsImporter.importFile(url: url)
-                imported.append(def.name)
-            } catch {
-                failures.append((url, error))
-            }
-        }
-
-        let alert = NSAlert()
-        if !imported.isEmpty && failures.isEmpty {
-            alert.messageText = "Imported \(imported.count) theme\(imported.count == 1 ? "" : "s")"
-            alert.informativeText = imported.joined(separator: ", ") + "\n\nOpen the Theme menu to apply."
-            alert.alertStyle = .informational
-        } else if imported.isEmpty {
-            alert.messageText = "Import failed"
-            alert.informativeText = failures.map { "\($0.0.lastPathComponent): \($0.1.localizedDescription)" }.joined(separator: "\n")
-            alert.alertStyle = .warning
-        } else {
-            alert.messageText = "Imported \(imported.count), \(failures.count) failed"
-            alert.informativeText = "Imported: \(imported.joined(separator: ", "))\n\nFailed:\n" +
-                failures.map { "\($0.0.lastPathComponent): \($0.1.localizedDescription)" }.joined(separator: "\n")
-            alert.alertStyle = .warning
-        }
-        alert.runModal()
-
-        // Rebuild theme menu so newly-imported themes appear immediately.
-        rebuildThemeMenu()
-    }
 
     @objc private func handleHelp() {
-        // Open help/documentation — for now open the custom themes folder as a basic help action
         guard let url = BellithBranding.repoURL else { return }
         NSWorkspace.shared.open(url)
     }
@@ -843,8 +963,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    private func handleBellithURL(_ url: URL) {
+    @MainActor private func handleBellithURL(_ url: URL) {
         guard url.scheme == "bellith" else { return }
+#if DEBUG
+        if WorkflowPreview.isEnabled { return }
+#endif
+        if url.host == "review" {
+            guard let link = CreativeReviewLink(url: url) else { return }
+            guard reviewRoutingReady else {
+                if pendingReviewLinks.count < 20 { pendingReviewLinks.append(link) }
+                return
+            }
+            switch link.tool {
+            case .resolve:
+                handleResolveHarness()
+                studio?.model.resolve.requestProposalReview(link.proposalID)
+            case .logic:
+                handleLogicTransport()
+                studio?.model.logic.requestProposalReview(link.proposalID)
+            case .logicTrack:
+                handleLogicTransport()
+                studio?.model.logic.requestTrackProposalReview(link.proposalID)
+            }
+            return
+        }
         let host = url.host ?? ""
         let params: [String: String] = {
             let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
@@ -855,10 +997,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return dict
         }()
 
-        // Ensure a window exists before we try to route commands to one.
-        if windows.isEmpty { createWindow() }
-        guard let container = activeEntry?.container else { return }
-        activeEntry?.window.makeKeyAndOrderFront(nil)
+        // Explicit CLI requests target a terminal even when Studio has focus.
+        guard let entry = activeEntry ?? windows.last ?? createWindow() else { return }
+        let container = entry.container
+        entry.window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
         switch host {
@@ -896,41 +1038,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let pluginID = sender.representedObject as? String else { return }
         activeEntry?.container.createSmartTab(pluginID: pluginID)
     }
-    @objc private func handleThemeSelection(_ sender: NSMenuItem) {
-        guard let theme = sender.representedObject as? ThemeColors else { return }
-        if theme.isLight {
-            dependencies.settings.lightThemeName = theme.name
-        } else {
-            dependencies.settings.darkThemeName = theme.name
-        }
+    @objc private func handleAppearanceAccentSelection(_ sender: NSMenuItem) {
+        guard let palette = sender.representedObject as? AppearancePalette else { return }
+        dependencies.settings.appearancePaletteID = palette.id
         applyResolvedAppearanceAndTheme()
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
-        if menu === themeMenu { rebuildThemeMenu() }
+        if menu === appearanceAccentMenu { rebuildAppearanceAccentMenu() }
+        if menu === recentCreativeProjectsMenu {
+            menu.removeAllItems()
+            let projects = studio?.model.media.recentProjects ?? CreativeProjectHistory(defaults: .standard).read()
+            if projects.isEmpty {
+                let empty = menu.addItem(withTitle: "No recent media projects", action: nil, keyEquivalent: "")
+                empty.isEnabled = false
+            }
+            for project in projects {
+                let item = menu.addItem(withTitle: project.name, action: #selector(handleRecentMediaProject(_:)), keyEquivalent: "")
+                item.representedObject = project.url
+                item.toolTip = project.url.path
+                item.target = self
+                item.isEnabled = studio?.model.media.busy != true
+            }
+            menu.addItem(.separator())
+            let clear = menu.addItem(withTitle: "Clear Recent List", action: #selector(handleClearRecentMediaProjects), keyEquivalent: "")
+            clear.target = self
+            clear.isEnabled = !projects.isEmpty
+        }
     }
 
-    private func rebuildThemeMenu() {
-        themeMenu.removeAllItems()
+    private func rebuildAppearanceAccentMenu() {
+        appearanceAccentMenu.removeAllItems()
         let settings = dependencies.settings
-        let darkHeader = NSMenuItem(title: "Dark", action: nil, keyEquivalent: "")
-        darkHeader.isEnabled = false
-        themeMenu.addItem(darkHeader)
-        for theme in ThemeColors.allThemes where !theme.isLight {
-            let item = NSMenuItem(title: "  " + theme.name, action: #selector(handleThemeSelection(_:)), keyEquivalent: "")
-            item.representedObject = theme
-            item.state = theme.name == settings.darkThemeName ? .on : .off
-            themeMenu.addItem(item)
-        }
-        themeMenu.addItem(.separator())
-        let lightHeader = NSMenuItem(title: "Light", action: nil, keyEquivalent: "")
-        lightHeader.isEnabled = false
-        themeMenu.addItem(lightHeader)
-        for theme in ThemeColors.allThemes where theme.isLight {
-            let item = NSMenuItem(title: "  " + theme.name, action: #selector(handleThemeSelection(_:)), keyEquivalent: "")
-            item.representedObject = theme
-            item.state = theme.name == settings.lightThemeName ? .on : .off
-            themeMenu.addItem(item)
+        for palette in AppearancePalette.all {
+            let item = NSMenuItem(title: palette.name, action: #selector(handleAppearanceAccentSelection(_:)), keyEquivalent: "")
+            item.representedObject = palette
+            item.state = palette.id == settings.appearancePaletteID ? .on : .off
+            appearanceAccentMenu.addItem(item)
         }
     }
 
@@ -1048,6 +1192,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return true
 
         case GHOSTTY_ACTION_MOUSE_SHAPE:
+            guard mouseActionCanAffectCursor(target: target) else { return true }
             let shape = action.action.mouse_shape
             switch shape {
             case GHOSTTY_MOUSE_SHAPE_DEFAULT: NSCursor.arrow.set()
@@ -1059,6 +1204,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return true
 
         case GHOSTTY_ACTION_MOUSE_VISIBILITY:
+            guard mouseActionCanAffectCursor(target: target) else { return true }
             if action.action.mouse_visibility == GHOSTTY_MOUSE_HIDDEN {
                 NSCursor.hide()
             } else {
@@ -1114,6 +1260,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         case GHOSTTY_ACTION_RELOAD_CONFIG:
             activeEntry?.container.reloadConfig()
+            return true
+
+        case GHOSTTY_ACTION_GOTO_SPLIT:
+            guard let direction = splitDirection(from: action.action.goto_split) else { return true }
+            let surfaceView = surfaceView(for: target)
+            (surfaceView.flatMap { container(for: $0) } ?? activeEntry?.container)?.focusPane(direction)
             return true
 
         case GHOSTTY_ACTION_COMMAND_FINISHED:
@@ -1187,45 +1339,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    private func splitDirection(from action: ghostty_action_goto_split_e) -> SplitPaneView.Direction? {
+        switch action {
+        case GHOSTTY_GOTO_SPLIT_LEFT:
+            return .left
+        case GHOSTTY_GOTO_SPLIT_RIGHT:
+            return .right
+        case GHOSTTY_GOTO_SPLIT_UP:
+            return .up
+        case GHOSTTY_GOTO_SPLIT_DOWN:
+            return .down
+        default:
+            return nil
+        }
+    }
+
+    private func mouseActionCanAffectCursor(target: ghostty_target_s) -> Bool {
+        guard let surfaceView = surfaceView(for: target),
+              let container = container(for: surfaceView) else {
+            return false
+        }
+        return container.isSurfaceVisible(surfaceView)
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+#if DEBUG
+        if WorkflowPreview.isEnabled, !flag {
+            workflowPreviewWindows.first?.showWindow(nil)
+            workflowPreviewWindows.first?.window?.makeKeyAndOrderFront(nil)
+        }
+#endif
+        return true
+    }
+
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
+        menu.addItem(withTitle: "Bellith Studio", action: #selector(handleStudio), keyEquivalent: "")
         menu.addItem(withTitle: "New Window", action: #selector(handleNewWindow), keyEquivalent: "")
         menu.addItem(withTitle: "New Tab", action: #selector(handleNewTab), keyEquivalent: "")
         return menu
-    }
-}
-
-// MARK: - Menu Validation
-
-extension AppDelegate: NSMenuItemValidation {
-    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if menuItem.action == #selector(handleToggleStatusBar) {
-            menuItem.state = dependencies.settings.showStatusBar ? .on : .off
-        }
-        return true
-    }
-}
-
-// MARK: - NSWindowDelegate
-
-extension AppDelegate: NSWindowDelegate {
-    func windowDidBecomeKey(_ notification: Notification) {
-        guard let window = notification.object as? TerminalWindow,
-              let entry = windows.first(where: { $0.window === window }) else { return }
-        terminalApp?.setFocus(true)
-        window.makeFirstResponder(entry.container.activeSurface)
-    }
-
-    func windowDidResignKey(_ notification: Notification) {
-        terminalApp?.setFocus(false)
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        guard let window = notification.object as? TerminalWindow else { return }
-        windows.removeAll { $0.window === window }
     }
 }

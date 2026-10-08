@@ -3,31 +3,34 @@ import AppKit
 // MARK: - Layout Constants
 
 enum PreferencesLayout {
-    static let hPad: CGFloat = 32
-    static let rowH: CGFloat = 40
-    static let sectionGap: CGFloat = 32
-    static let rowGap: CGFloat = 4
-    static let cardPad: CGFloat = 18
-    static let cardRadius: CGFloat = 14
-    static let controlGap: CGFloat = 14
-    static let toggleW: CGFloat = 44
-    static let toggleH: CGFloat = 24
+    typealias DS = BellithDesignSystem
+
+    static let hPad: CGFloat = DS.Settings.horizontalPadding
+    static let maximumContentWidth: CGFloat = DS.Settings.maximumContentWidth
+    static let rowH: CGFloat = DS.Size.rowHeight
+    static let sectionGap: CGFloat = DS.Settings.sectionGap
+    static let rowGap: CGFloat = DS.Settings.rowGap
+    static let cardPad: CGFloat = DS.Settings.cardPadding
+    static let cardRadius: CGFloat = DS.Radius.card
+    static let controlGap: CGFloat = DS.Settings.controlGap
+    static let toggleW: CGFloat = DS.Size.toggleWidth
+    static let toggleH: CGFloat = DS.Size.toggleHeight
 
     static func trailingToggleX(cardWidth: CGFloat) -> CGFloat {
-        cardWidth - cardPad - toggleW
+        DS.Settings.trailingControlX(cardWidth: cardWidth, controlWidth: toggleW)
     }
 
     static func trailingToggleFrame(cardWidth: CGFloat, rowY: CGFloat) -> NSRect {
-        NSRect(
-            x: trailingToggleX(cardWidth: cardWidth),
-            y: rowY + (rowH - toggleH) / 2,
-            width: toggleW,
-            height: toggleH
+        DS.Settings.trailingControlFrame(
+            cardWidth: cardWidth,
+            rowY: rowY,
+            controlWidth: toggleW,
+            controlHeight: toggleH
         )
     }
 
     static func labelWidth(toTrailingToggleIn cardWidth: CGFloat, from x: CGFloat = cardPad, gap: CGFloat = controlGap) -> CGFloat {
-        trailingToggleX(cardWidth: cardWidth) - x - gap
+        DS.Settings.labelWidth(cardWidth: cardWidth, from: x, trailingControlWidth: toggleW, gap: gap)
     }
 }
 
@@ -40,20 +43,20 @@ final class SettingsCard: NSView {
     init(title: String? = nil, subtitle: String? = nil) {
         if let title {
             titleLabel = NSTextField(labelWithString: title.uppercased())
-            titleLabel!.font = BellithFont.mono(11, weight: .regular)
-            titleLabel!.textColor = Theme.textSecondary
+            titleLabel!.font = BellithDesignSystem.Typography.sectionTitle()
+            titleLabel!.textColor = BellithDesignSystem.Color.textSecondary
         } else { titleLabel = nil }
         if let subtitle {
             subtitleLabel = NSTextField(labelWithString: subtitle)
-            subtitleLabel!.font = BellithFont.ui(11, weight: .regular)
+            subtitleLabel!.font = BellithDesignSystem.Typography.caption()
             subtitleLabel!.textColor = Theme.textTertiary
         } else { subtitleLabel = nil }
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = PreferencesLayout.cardRadius
+        layer?.cornerRadius = BellithDesignSystem.Radius.card
         layer?.borderWidth = 0.5
-        layer?.borderColor = Theme.chromeHairline.cgColor
-        layer?.backgroundColor = Theme.chrome.cgColor
+        layer?.borderColor = BellithDesignSystem.Color.strokeStrong.cgColor
+        layer?.backgroundColor = BellithDesignSystem.Color.cardBackground.cgColor
         if let t = titleLabel { addSubview(t) }
         if let s = subtitleLabel { addSubview(s) }
     }
@@ -67,9 +70,9 @@ final class SettingsCard: NSView {
     }
 
     func refresh() {
-        layer?.borderColor = Theme.chromeHairline.cgColor
-        layer?.backgroundColor = Theme.chrome.cgColor
-        titleLabel?.textColor = Theme.textSecondary
+        layer?.borderColor = BellithDesignSystem.Color.strokeStrong.cgColor
+        layer?.backgroundColor = BellithDesignSystem.Color.cardBackground.cgColor
+        titleLabel?.textColor = BellithDesignSystem.Color.textSecondary
         subtitleLabel?.textColor = Theme.textTertiary
     }
 
@@ -77,10 +80,10 @@ final class SettingsCard: NSView {
         super.layout()
         if let t = titleLabel {
             let y: CGFloat = subtitleLabel != nil ? bounds.height - 28 : bounds.height - 30
-            t.frame = NSRect(x: PreferencesLayout.cardPad, y: y, width: bounds.width - PreferencesLayout.cardPad * 2, height: 16)
+            t.frame = NSRect(x: BellithDesignSystem.Settings.cardPadding, y: y, width: bounds.width - BellithDesignSystem.Settings.cardPadding * 2, height: 16)
         }
         if let s = subtitleLabel {
-            s.frame = NSRect(x: PreferencesLayout.cardPad, y: bounds.height - 44, width: bounds.width - PreferencesLayout.cardPad * 2, height: 14)
+            s.frame = NSRect(x: BellithDesignSystem.Settings.cardPadding, y: bounds.height - 44, width: bounds.width - BellithDesignSystem.Settings.cardPadding * 2, height: 14)
         }
     }
 
@@ -103,6 +106,9 @@ final class ShortcutBadge: NSView {
     init(shortcut: KeyShortcut?) {
         self.shortcut = shortcut
         super.init(frame: .zero)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel("Keyboard shortcut")
         wantsLayer = true
 
         recordingLabel.font = BellithFont.mono(11, weight: .regular)
@@ -205,7 +211,7 @@ final class ShortcutBadge: NSView {
         }
     }
 
-    override func mouseDown(with event: NSEvent) {
+    private func beginRecording() {
         isRecording = true
         recordingLabel.stringValue = "Press shortcut\u{2026}"
         recordingLabel.isHidden = false
@@ -213,8 +219,23 @@ final class ShortcutBadge: NSView {
         needsDisplay = true
     }
 
+    override func mouseDown(with event: NSEvent) { beginRecording() }
+
+    override func accessibilityValue() -> Any? {
+        isRecording ? "Recording" : shortcut?.keycapStrings.joined(separator: " ") ?? emptyLabel
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        beginRecording()
+        return true
+    }
+
     override func keyDown(with event: NSEvent) {
-        guard isRecording else { super.keyDown(with: event); return }
+        guard isRecording else {
+            if event.keyCode == 49 || event.keyCode == 36 { beginRecording() }
+            else { super.keyDown(with: event) }
+            return
+        }
         if event.keyCode == 53 { cancelRecording(); return }
         if event.keyCode == 51 || event.keyCode == 117 {
             shortcut = nil
@@ -265,8 +286,8 @@ final class CardRowLabel: NSTextField {
     init(_ text: String) {
         super.init(frame: .zero)
         stringValue = text.uppercased()
-        font = BellithFont.mono(11, weight: .regular)
-        textColor = Theme.textSecondary
+        font = BellithDesignSystem.Typography.rowLabel()
+        textColor = BellithDesignSystem.Color.textSecondary
         isEditable = false; isBezeled = false; drawsBackground = false
     }
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -300,8 +321,8 @@ final class FooterNote: NSTextField {
 final class ValueBadge: NSTextField {
     init() {
         super.init(frame: .zero)
-        font = BellithFont.mono(14, weight: .medium)
-        textColor = Theme.textPrimary
+        font = BellithDesignSystem.Typography.value()
+        textColor = BellithDesignSystem.Color.text
         alignment = .center
         isEditable = false; isBezeled = false; drawsBackground = false
     }
@@ -340,6 +361,7 @@ final class PrefSegment: NSView {
 
         for (i, title) in labels.enumerated() {
             let btn = NSButton(title: title.uppercased(), target: self, action: #selector(tapped(_:)))
+            btn.setAccessibilityLabel(title)
             btn.tag = i
             btn.isBordered = false
             btn.font = BellithFont.mono(11, weight: .regular)
@@ -355,6 +377,7 @@ final class PrefSegment: NSView {
 
     override func layout() {
         super.layout()
+        guard !buttons.isEmpty else { return }
         let count = CGFloat(buttons.count)
         let inset: CGFloat = 3
         let btnW = (bounds.width - inset * 2) / count
@@ -398,6 +421,7 @@ final class PrefSegment: NSView {
         layer?.borderColor = Theme.chromeHairline.cgColor
 
         for (i, btn) in buttons.enumerated() {
+            btn.setAccessibilityValue(i == selected ? 1 : 0)
             if i == selected {
                 btn.contentTintColor = selectedTextColor
                 btn.layer?.backgroundColor = selectedFillColor.cgColor
@@ -425,22 +449,26 @@ final class PrefToggle: NSView {
     private let knobLayer = CALayer()
     private let knobShadowLayer = CALayer()
 
-    private let trackW: CGFloat = 44
-    private let trackH: CGFloat = 24
+    private let trackW: CGFloat = BellithDesignSystem.Size.toggleWidth
+    private let trackH: CGFloat = BellithDesignSystem.Size.toggleHeight
     private let knobD: CGFloat = 18
     private let knobInset: CGFloat = 3
 
-    init(isOn: Bool, onChange: @escaping (Bool) -> Void) {
+    init(label: String, isOn: Bool, onChange: @escaping (Bool) -> Void) {
         self.isOn = isOn
         self.onChange = onChange
         super.init(frame: .zero)
         wantsLayer = true
         layer?.masksToBounds = false
 
+        setAccessibilityElement(true)
+        setAccessibilityRole(.checkBox)
+        setAccessibilityLabel(label)
+
         // Track
         trackLayer.cornerRadius = trackH / 2
         trackLayer.borderWidth = isOn ? 0 : 0.5
-        trackLayer.borderColor = Theme.border.cgColor
+        trackLayer.borderColor = BellithDesignSystem.Color.stroke.cgColor
         layer?.addSublayer(trackLayer)
 
         // Knob shadow
@@ -448,7 +476,7 @@ final class PrefToggle: NSView {
         layer?.addSublayer(knobShadowLayer)
 
         // Knob
-        knobLayer.backgroundColor = Theme.frame.cgColor
+        knobLayer.backgroundColor = BellithDesignSystem.Color.windowBackground.cgColor
         layer?.addSublayer(knobLayer)
 
         updateLayers(animated: false)
@@ -464,14 +492,15 @@ final class PrefToggle: NSView {
     }
 
     private func updateLayers(animated: Bool) {
-        trackLayer.borderColor = Theme.border.cgColor
-        knobLayer.backgroundColor = Theme.frame.cgColor
+        let animated = animated && !Theme.prefersReducedMotion
+        trackLayer.borderColor = BellithDesignSystem.Color.stroke.cgColor
+        knobLayer.backgroundColor = BellithDesignSystem.Color.windowBackground.cgColor
 
         let color: NSColor
         if isOn {
-            color = Theme.colors.isLight ? Theme.textPrimary : Theme.textDisplay
+            color = BellithDesignSystem.Color.toggleOn
         } else {
-            color = Theme.colors.isLight ? Theme.surface : Theme.chromeElevated
+            color = BellithDesignSystem.Color.toggleOff
         }
 
         if animated {
@@ -543,6 +572,13 @@ final class PrefToggle: NSView {
         updateLayers(animated: false)
     }
 
+    override func accessibilityValue() -> Any? { isOn ? 1 : 0 }
+
+    override func accessibilityPerformPress() -> Bool {
+        toggle()
+        return true
+    }
+
     private func toggle() {
         isOn.toggle()
         onChange(isOn)
@@ -568,6 +604,9 @@ final class OpacityTrackView: NSView {
         self.percentLabel = NSTextField(labelWithString: "\(Int(value * 100))%")
         super.init(frame: .zero)
         wantsLayer = true
+        setAccessibilityElement(true)
+        setAccessibilityRole(.slider)
+        setAccessibilityLabel("Opacity")
         percentLabel.font = BellithFont.mono(10, weight: .regular)
         percentLabel.textColor = Theme.textSecondary
         percentLabel.alignment = .right
@@ -582,10 +621,11 @@ final class OpacityTrackView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let trackW = bounds.width - 52
-        let segments = max(10, Int(trackW / 14))
+        let trackW = max(0, bounds.width - 52)
+        guard trackW > 0 else { return }
+        let segments = max(1, Int(trackW / 14))
         let gap: CGFloat = 2
-        let segmentW = max(6, (trackW - CGFloat(segments - 1) * gap) / CGFloat(segments))
+        let segmentW = max(0, (trackW - CGFloat(segments - 1) * gap) / CGFloat(segments))
         let trackH: CGFloat = 10
         let trackY = (bounds.height - trackH) / 2
         let filledCount = Int(round(CGFloat(value) * CGFloat(segments)))
@@ -624,9 +664,24 @@ final class OpacityTrackView: NSView {
         needsDisplay = true
     }
 
+    override func accessibilityValue() -> Any? { value }
+    override func accessibilityMinValue() -> Any? { minValue }
+    override func accessibilityMaxValue() -> Any? { 1.0 }
+    override func accessibilityPerformIncrement() -> Bool {
+        setValue(value + 0.05)
+        onChange(value)
+        return true
+    }
+    override func accessibilityPerformDecrement() -> Bool {
+        setValue(value - 0.05)
+        onChange(value)
+        return true
+    }
+
     private func updateValue(from event: NSEvent) {
         let loc = convert(event.locationInWindow, from: nil)
-        let trackW = bounds.width - 52
+        let trackW = max(0, bounds.width - 52)
+        guard trackW > 0 else { return }
         setValue(Double(loc.x / trackW))
         onChange(value)
     }
@@ -643,13 +698,13 @@ final class PrefTextField: NSView {
         self.field = NSTextField(string: text)
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = 8
-        layer?.backgroundColor = Theme.frame.cgColor
-        layer?.borderColor = Theme.border.cgColor
+        layer?.cornerRadius = BellithDesignSystem.Radius.controlLarge
+        layer?.backgroundColor = BellithDesignSystem.Color.controlBackground.cgColor
+        layer?.borderColor = BellithDesignSystem.Color.stroke.cgColor
         layer?.borderWidth = 0.5
 
-        field.font = BellithFont.mono(12.5, weight: .regular)
-        field.textColor = Theme.textPrimary
+        field.font = BellithDesignSystem.Typography.field()
+        field.textColor = BellithDesignSystem.Color.text
         field.backgroundColor = .clear
         field.drawsBackground = false
         field.isBordered = false
@@ -670,9 +725,9 @@ final class PrefTextField: NSView {
     @objc private func edited() { onChange(field.stringValue) }
 
     func updateText(_ text: String) {
-        layer?.backgroundColor = Theme.frame.cgColor
-        layer?.borderColor = Theme.border.cgColor
-        field.textColor = Theme.textPrimary
+        layer?.backgroundColor = BellithDesignSystem.Color.controlBackground.cgColor
+        layer?.borderColor = BellithDesignSystem.Color.stroke.cgColor
+        field.textColor = BellithDesignSystem.Color.text
         field.stringValue = text
     }
 }
@@ -690,13 +745,13 @@ final class MiniNumberField: NSView {
         self.field = NSTextField(string: "\(value)")
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = 6
-        layer?.backgroundColor = Theme.frame.cgColor
-        layer?.borderColor = Theme.border.cgColor
+        layer?.cornerRadius = BellithDesignSystem.Radius.control
+        layer?.backgroundColor = BellithDesignSystem.Color.controlBackground.cgColor
+        layer?.borderColor = BellithDesignSystem.Color.stroke.cgColor
         layer?.borderWidth = 0.5
 
-        field.font = BellithFont.mono(12, weight: .regular)
-        field.textColor = Theme.textPrimary
+        field.font = BellithDesignSystem.Typography.numericField()
+        field.textColor = BellithDesignSystem.Color.text
         field.backgroundColor = .clear
         field.drawsBackground = false
         field.isBordered = false
@@ -722,9 +777,9 @@ final class MiniNumberField: NSView {
     }
 
     func setValue(_ value: Int) {
-        layer?.backgroundColor = Theme.frame.cgColor
-        layer?.borderColor = Theme.border.cgColor
-        field.textColor = Theme.textPrimary
+        layer?.backgroundColor = BellithDesignSystem.Color.controlBackground.cgColor
+        layer?.borderColor = BellithDesignSystem.Color.stroke.cgColor
+        field.textColor = BellithDesignSystem.Color.text
         field.stringValue = "\(max(range.lowerBound, min(range.upperBound, value)))"
     }
 }
@@ -744,17 +799,24 @@ final class StepButton: NSView {
         self.action = action
         self.symbol = NSImage(systemSymbolName: name, accessibilityDescription: name)
         super.init(frame: .zero)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(name == "plus" ? "Increase value" : "Decrease value")
         wantsLayer = true
-        layer?.cornerRadius = 7
+        layer?.cornerRadius = BellithDesignSystem.Radius.control
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
     override func draw(_ dirtyRect: NSRect) {
-        (isHovered ? Theme.chromeElevated : Theme.frame).setFill()
-        NSBezierPath(roundedRect: bounds, xRadius: 7, yRadius: 7).fill()
-        Theme.border.setStroke()
-        NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7).stroke()
+        (isHovered ? BellithDesignSystem.Color.controlBackgroundHover : BellithDesignSystem.Color.controlBackground).setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: BellithDesignSystem.Radius.control, yRadius: BellithDesignSystem.Radius.control).fill()
+        BellithDesignSystem.Color.stroke.setStroke()
+        NSBezierPath(
+            roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5),
+            xRadius: BellithDesignSystem.Radius.control,
+            yRadius: BellithDesignSystem.Radius.control
+        ).stroke()
 
         if let img = symbol {
             let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
@@ -763,6 +825,11 @@ final class StepButton: NSView {
             tinted?.draw(in: NSRect(x: (bounds.width - s) / 2, y: (bounds.height - s) / 2, width: s, height: s),
                          from: .zero, operation: .sourceOver, fraction: isHovered ? 0.9 : 0.5)
         }
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        action()
+        return true
     }
 
     override func mouseDown(with event: NSEvent) { action() }
@@ -802,6 +869,9 @@ final class LinkButton: NSView {
 
         label.font = BellithFont.mono(11, weight: .regular)
         label.textColor = Theme.textSecondary
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(title)
         addSubview(label)
 
         arrow.image = NSImage(systemSymbolName: "arrow.right", accessibilityDescription: nil)
@@ -824,6 +894,11 @@ final class LinkButton: NSView {
             let underline = NSRect(x: 0, y: 0, width: label.attributedStringValue.size().width, height: 1)
             underline.fill()
         }
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        onClick?()
+        return true
     }
 
     override func mouseDown(with event: NSEvent) { onClick?() }
@@ -872,6 +947,9 @@ final class FontPickerButton: NSView {
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.cornerRadius = 7
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel("Choose terminal font")
         toolTip = "Choose font\u{2026}"
     }
 
@@ -899,6 +977,11 @@ final class FontPickerButton: NSView {
             tinted?.draw(in: NSRect(x: (bounds.width - s) / 2, y: (bounds.height - s) / 2, width: s, height: s),
                          from: .zero, operation: .sourceOver, fraction: isHovered ? 0.9 : 0.5)
         }
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        presentFontPanel()
+        return true
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -955,11 +1038,15 @@ final class ResetDefaultsButton: NSView {
     private var trackingArea: NSTrackingArea?
     private let label: NSTextField
 
+    override var acceptsFirstResponder: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
     init(title: String = "Reset to Defaults") {
         label = NSTextField(labelWithString: title)
         super.init(frame: .zero)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(title)
         wantsLayer = true
         layer?.cornerRadius = 8
         label.font = .systemFont(ofSize: 12, weight: .medium)
@@ -985,6 +1072,16 @@ final class ResetDefaultsButton: NSView {
         bp.stroke()
     }
 
+    override func accessibilityPerformPress() -> Bool {
+        onClick?()
+        return true
+    }
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 49, 36: onClick?()
+        default: super.keyDown(with: event)
+        }
+    }
     override func mouseDown(with event: NSEvent) { onClick?() }
     override func updateTrackingAreas() {
         if let a = trackingArea { removeTrackingArea(a) }

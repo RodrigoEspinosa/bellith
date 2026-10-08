@@ -53,10 +53,10 @@ final class SidebarPane: NSView {
         paneSubtitleLabel.textColor = Theme.textSecondary
         content.addSubview(paneSubtitleLabel)
 
-        pinnedToggle = PrefToggle(isOn: settings.sidebarPinned) { [weak self] value in
+        pinnedToggle = PrefToggle(label: "Pin sidebar by default", isOn: settings.sidebarPinned) { [weak self] value in
             self?.settings.sidebarPinned = value
         }
-        autoHideToggle = PrefToggle(isOn: settings.sidebarAutoHide) { [weak self] value in
+        autoHideToggle = PrefToggle(label: "Auto-hide floating sidebar", isOn: settings.sidebarAutoHide) { [weak self] value in
             self?.settings.sidebarAutoHide = value
         }
         content.addSubview(behaviorCard)
@@ -65,7 +65,7 @@ final class SidebarPane: NSView {
         behaviorCard.addSubview(autoHideLabel)
         behaviorCard.addSubview(autoHideToggle)
 
-        showToolsToggle = PrefToggle(isOn: settings.sidebarShowTools) { [weak self] value in
+        showToolsToggle = PrefToggle(label: "Show tools section", isOn: settings.sidebarShowTools) { [weak self] value in
             self?.settings.sidebarShowTools = value
             self?.updateToolToggleStates()
         }
@@ -81,7 +81,7 @@ final class SidebarPane: NSView {
         let enabledTools = settings.sidebarTools
         for plugin in smartPanelRegistry.allPlugins {
             let label = CardRowLabel(plugin.title)
-            let toggle = PrefToggle(isOn: enabledTools.contains(plugin.id)) { [weak self] enabled in
+            let toggle = PrefToggle(label: plugin.title, isOn: enabledTools.contains(plugin.id)) { [weak self] enabled in
                 self?.handleToolToggle(plugin: plugin, enabled: enabled)
             }
             toolsCard.addSubview(label)
@@ -142,14 +142,14 @@ final class SidebarPane: NSView {
         scroll.frame = bounds
 
         let width = bounds.width
-        let cardW = width - PreferencesLayout.hPad * 2
-        let controlX = PreferencesLayout.trailingToggleX(cardWidth: cardW)
+        let cardW = min(PreferencesLayout.maximumContentWidth, width - PreferencesLayout.hPad * 2)
+        let contentX = (width - cardW) / 2
         let toggleLabelWidth = PreferencesLayout.labelWidth(toTrailingToggleIn: cardW)
 
         var y: CGFloat = PreferencesLayout.hPad
 
-        paneTitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: 280, height: 24)
-        paneSubtitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y + 28, width: cardW, height: 16)
+        paneTitleLabel.frame = NSRect(x: contentX, y: y, width: 280, height: 24)
+        paneSubtitleLabel.frame = NSRect(x: contentX, y: y + 28, width: cardW, height: 16)
         y += 60
 
         let behaviorRows: CGFloat = 2
@@ -157,30 +157,31 @@ final class SidebarPane: NSView {
             + behaviorRows * PreferencesLayout.rowH
             + PreferencesLayout.rowGap
             + PreferencesLayout.cardPad
-        behaviorCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: behaviorCardHeight)
+        behaviorCard.frame = NSRect(x: contentX, y: y, width: cardW, height: behaviorCardHeight)
         let br0 = behaviorCardHeight - behaviorCard.headerHeight - PreferencesLayout.rowH
-        pinnedLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br0, width: toggleLabelWidth, height: PreferencesLayout.rowH)
-        pinnedToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: br0)
+        pinnedLabel.frame = BellithDesignSystem.Settings.leadingLabelFrame(rowY: br0, width: toggleLabelWidth)
+        pinnedToggle.frame = BellithDesignSystem.Settings.trailingToggleFrame(cardWidth: cardW, rowY: br0)
         let br1 = br0 - PreferencesLayout.rowH - PreferencesLayout.rowGap
-        autoHideLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: br1, width: toggleLabelWidth, height: PreferencesLayout.rowH)
-        autoHideToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: br1)
+        autoHideLabel.frame = BellithDesignSystem.Settings.leadingLabelFrame(rowY: br1, width: toggleLabelWidth)
+        autoHideToggle.frame = BellithDesignSystem.Settings.trailingToggleFrame(cardWidth: cardW, rowY: br1)
         y += behaviorCardHeight + PreferencesLayout.sectionGap
 
         let showTools = settings.sidebarShowTools
         let visibleToolRows = showTools ? toolToggles.count : 0
+        let toolRowStep: CGFloat = 48
         let toolsCardHeight = toolsCard.headerHeight
             + PreferencesLayout.rowH
             + 18
-            + (showTools ? 12 + 18 + 16 + 10 + CGFloat(visibleToolRows) * PreferencesLayout.rowH + CGFloat(max(0, visibleToolRows - 1)) * PreferencesLayout.rowGap : 0)
+            + (showTools ? 112 + CGFloat(visibleToolRows) * toolRowStep : 0)
             + PreferencesLayout.cardPad
-        toolsCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: toolsCardHeight)
+        toolsCard.frame = NSRect(x: contentX, y: y, width: cardW, height: toolsCardHeight)
         let tr0 = toolsCardHeight - toolsCard.headerHeight - PreferencesLayout.rowH
-        showToolsLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: tr0, width: toggleLabelWidth, height: PreferencesLayout.rowH)
-        showToolsToggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: tr0)
+        showToolsLabel.frame = BellithDesignSystem.Settings.leadingLabelFrame(rowY: tr0, width: toggleLabelWidth)
+        showToolsToggle.frame = BellithDesignSystem.Settings.trailingToggleFrame(cardWidth: cardW, rowY: tr0)
         showToolsNote.frame = NSRect(x: PreferencesLayout.cardPad, y: tr0 - 14, width: toggleLabelWidth, height: 14)
 
         if showTools {
-            let dividerY = tr0 - 26
+            let dividerY = tr0 - 44
             toolsDivider.frame = NSRect(
                 x: PreferencesLayout.cardPad,
                 y: dividerY,
@@ -190,7 +191,7 @@ final class SidebarPane: NSView {
             toolListLabel.frame = NSRect(x: PreferencesLayout.cardPad + 16, y: dividerY - 26, width: 180, height: 12)
             toolListNote.frame = NSRect(x: PreferencesLayout.cardPad + 16, y: dividerY - 42, width: toggleLabelWidth, height: 14)
 
-            var rowY = dividerY - 74
+            var rowY = dividerY - 92
             for entry in toolToggles {
                 let labelX = PreferencesLayout.cardPad + 20
                 entry.label.frame = NSRect(
@@ -199,8 +200,8 @@ final class SidebarPane: NSView {
                     width: PreferencesLayout.labelWidth(toTrailingToggleIn: cardW, from: labelX),
                     height: PreferencesLayout.rowH
                 )
-                entry.toggle.frame = PreferencesLayout.trailingToggleFrame(cardWidth: cardW, rowY: rowY)
-                rowY -= PreferencesLayout.rowH + PreferencesLayout.rowGap
+                entry.toggle.frame = BellithDesignSystem.Settings.trailingToggleFrame(cardWidth: cardW, rowY: rowY)
+                rowY -= toolRowStep
             }
         }
 

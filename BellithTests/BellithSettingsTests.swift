@@ -44,9 +44,9 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(settings.cursorStyle, "block")
     }
 
-    func testDefaultThemeNames() {
-        XCTAssertEqual(settings.darkThemeName, "Tokyo Night")
-        XCTAssertEqual(settings.lightThemeName, "Tokyo Night Light")
+    func testDefaultAppearancePalette() {
+        XCTAssertEqual(settings.appearancePaletteID, AppearancePalette.aurora.id)
+        XCTAssertTrue(settings.resolvedTheme.accent.isEqual(AppearancePalette.aurora.accent))
     }
 
     func testDefaultTabMode() {
@@ -215,14 +215,14 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual(settings.fontSize, 22)
     }
 
-    func testDarkThemeNameRoundtrip() {
-        settings.darkThemeName = "Catppuccin Mocha"
-        XCTAssertEqual(settings.darkThemeName, "Catppuccin Mocha")
+    func testAppearancePaletteRoundtrip() {
+        settings.appearancePaletteID = AppearancePalette.iris.id
+        XCTAssertEqual(settings.appearancePaletteID, AppearancePalette.iris.id)
     }
 
-    func testLightThemeNameRoundtrip() {
-        settings.lightThemeName = "Solarized Light"
-        XCTAssertEqual(settings.lightThemeName, "Solarized Light")
+    func testLegacyThemeNameMigratesToPaletteSelection() {
+        settings.darkThemeName = "Catppuccin Mocha"
+        XCTAssertEqual(settings.appearancePaletteID, AppearancePalette.iris.id)
     }
 
     func testBackgroundOpacityRoundtrip() {
@@ -394,6 +394,25 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertTrue(summary?.contains("H") ?? false)
     }
 
+    func testPaneNavigationIncludesCommandShiftArrows() {
+        settings.legacyPaneSupport = true
+        settings.applyPreset(.bellithHybrid)
+
+        let expected: [(String, String)] = [
+            ("navLeft", "leftArrow"),
+            ("navDown", "downArrow"),
+            ("navUp", "upArrow"),
+            ("navRight", "rightArrow"),
+        ]
+
+        for (actionID, key) in expected {
+            XCTAssertTrue(
+                settings.shortcuts(for: actionID).contains(KeyShortcut(key: key, command: true, shift: true, option: false, control: false)),
+                "\(actionID) should include Command-Shift-\(key)"
+            )
+        }
+    }
+
     func testApplyPresetUpdatesShortcutPresetAndBindings() {
         settings.legacyPaneSupport = true
         settings.applyPreset(.vimNavigation)
@@ -417,25 +436,22 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertTrue(conflicts.contains { $0.actionIDs.contains("newTab") && $0.actionIDs.contains("closeTab") })
     }
 
-    // MARK: - Resolved Theme
+    // MARK: - Resolved Appearance
 
-    func testResolvedThemeMatchesDarkName() {
-        settings.darkThemeName = "Nord"
-        // resolvedTheme depends on system appearance; just verify setting is stored
-        XCTAssertEqual(settings.darkThemeName, "Nord")
+    func testResolvedAppearanceUsesPaletteAccent() {
+        settings.appearancePaletteID = AppearancePalette.steel.id
+        XCTAssertTrue(settings.resolvedTheme.accent.isEqual(AppearancePalette.steel.accent))
     }
 
-    func testResolvedThemeMatchesLightName() {
-        settings.lightThemeName = "One Light"
-        XCTAssertEqual(settings.lightThemeName, "One Light")
+    func testInvalidAppearancePaletteFallsBackToDefault() {
+        settings.appearancePaletteID = "does-not-exist"
+        XCTAssertEqual(settings.appearancePaletteID, AppearancePalette.aurora.id)
     }
 
-    func testResolvedThemeFallsBackToDefault() {
-        settings.darkThemeName = "NonExistentTheme"
-        settings.lightThemeName = "NonExistentTheme"
+    func testResolvedAppearanceHasGeneratedGhosttyTheme() {
         let theme = settings.resolvedTheme
-        // Should fallback to Tokyo Night
-        XCTAssertFalse(theme.name.isEmpty)
+        XCTAssertNotNil(theme.ghosttyThemeDefinition)
+        XCTAssertTrue(theme.name.contains("Aurora"))
     }
 
     func testInitializationLoadsSettingsFromJSONFile() throws {
@@ -484,6 +500,7 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual((object["fontSize"] as? NSNumber)?.intValue, 18)
         XCTAssertEqual(object["localSessionBootstrap"] as? String, "tmux")
         XCTAssertEqual(object["terminalOptionKeyBehavior"] as? String, "right")
+        XCTAssertEqual(object["appearancePaletteID"] as? String, AppearancePalette.aurora.id)
         XCTAssertEqual((object["showStatusBar"] as? NSNumber)?.boolValue, false)
         let featureFlags = try XCTUnwrap(object["featureFlags"] as? [String: Any])
         XCTAssertEqual((featureFlags["builtInSettingsWindow"] as? NSNumber)?.boolValue, true)
@@ -512,6 +529,9 @@ final class BellithSettingsTests: XCTestCase {
         XCTAssertEqual((object["fontSize"] as? NSNumber)?.intValue, 15)
         XCTAssertEqual(object["localSessionBootstrap"] as? String, "none")
         XCTAssertEqual(object["terminalOptionKeyBehavior"] as? String, "left")
+        XCTAssertEqual(object["appearancePaletteID"] as? String, AppearancePalette.aurora.id)
+        XCTAssertNil(object["darkThemeName"])
+        XCTAssertNil(object["lightThemeName"])
         XCTAssertEqual((object["showStatusBar"] as? NSNumber)?.boolValue, true)
         let featureFlags = try XCTUnwrap(object["featureFlags"] as? [String: Any])
         XCTAssertEqual((featureFlags["builtInSettingsWindow"] as? NSNumber)?.boolValue, true)

@@ -613,11 +613,14 @@ fileprivate final class TabPillView: NSView {
     }
 
     private func updateAppearance() {
+        // Active pill picks up the workspace identity hue, mirroring the
+        // sidebar rail's active card and the focused-pane chrome.
+        let tint = WorkspaceTint.accent(for: titleLabel.stringValue)
         let bgColor: CGColor
         let borderColor: CGColor
         if isSelected {
-            bgColor = Theme.chromeElevated.withAlphaComponent(0.58).cgColor
-            borderColor = Theme.chromeHairline.cgColor
+            bgColor = tint.withAlphaComponent(Theme.colors.isLight ? 0.16 : 0.22).cgColor
+            borderColor = tint.withAlphaComponent(0.55).cgColor
         } else if isHovered {
             bgColor = Theme.hoverOverlay.cgColor
             borderColor = Theme.chromeHairline.cgColor

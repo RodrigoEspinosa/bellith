@@ -25,3 +25,8 @@ Carthage/Build/
 
 # Frameworks (distributed via SPM binary target)
 Frameworks/
+
+# Generated test artifacts
+*.profraw
+__pycache__/
+*.pyc

@@ -1,6 +1,6 @@
 import Foundation
 
-struct TerminalRuntimeStatus {
+struct TerminalRuntimeStatus: Equatable {
     let foregroundProcess: ForegroundProcessPresentation?
     let detectedContext: TerminalContext?
 }

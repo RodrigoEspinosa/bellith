@@ -13,6 +13,7 @@ final class SplitPaneView: NSView {
 
     // Leaf state
     private(set) var contentView: NSView?
+    private var isInsideSplit = false
 
     // Branch state
     private(set) var orientation: Orientation?
@@ -59,8 +60,10 @@ final class SplitPaneView: NSView {
         self.ratio = Metrics.defaultSplitRatio
 
         let firstChild = SplitPaneView(content: existing)
+        firstChild.isInsideSplit = true
         firstChild.onFocusChanged = onFocusChanged
         let secondChild = SplitPaneView(content: newContent)
+        secondChild.isInsideSplit = true
         secondChild.onFocusChanged = onFocusChanged
 
         self.first = firstChild
@@ -346,6 +349,8 @@ final class SplitPaneView: NSView {
         node.ratio = ratio
         node.first = first
         node.second = second
+        first.isInsideSplit = true
+        second.isInsideSplit = true
         first.onFocusChanged = onFocusChanged
         second.onFocusChanged = onFocusChanged
         node.addSubview(first)
@@ -367,14 +372,36 @@ final class SplitPaneView: NSView {
 
     // MARK: - Layout
 
-    private let dividerThickness: CGFloat = 8
-    private let dividerHitArea: CGFloat = 14
+    private let dividerThickness: CGFloat = 1
+    private let leafGutter: CGFloat = 0
+
+    /// Give the divider an expanded hit zone at the parent level. AppKit's
+    /// default `hitTest` only descends into a subview if the click lands
+    /// inside its actual frame — so the divider's own `hitTest` expansion
+    /// (which only fires once we've already descended) was unreachable. Keep
+    /// the visible divider as a hairline while claiming a wider drag band.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if !isLeaf, let divider, let orientation {
+            let local = convert(point, from: superview)
+            let dFrame = divider.frame
+            let expanded: NSRect
+            switch orientation {
+            case .vertical:
+                expanded = dFrame.insetBy(dx: -5, dy: 0)
+            case .horizontal:
+                expanded = dFrame.insetBy(dx: 0, dy: -4)
+            }
+            if expanded.contains(local) { return divider }
+        }
+        return super.hitTest(point)
+    }
 
     override func layout() {
         super.layout()
 
         if isLeaf {
-            contentView?.frame = bounds
+            let gutter = isInsideSplit ? leafGutter : 0
+            contentView?.frame = bounds.insetBy(dx: gutter, dy: gutter)
             return
         }
 
@@ -435,8 +462,7 @@ fileprivate final class SplitDividerView: NSView {
         self.orientation = orientation
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = 4
-        layer?.cornerCurve = .continuous
+        layer?.cornerRadius = 0
 
         // Accessibility
         setAccessibilityRole(.splitter)
@@ -468,7 +494,30 @@ fileprivate final class SplitDividerView: NSView {
         let shadowOpacity: Float
         let shadowRadius: CGFloat
 
-        if isDragging {
+        if BellithSettings.shared.useRebrandShell {
+            if isDragging {
+                color = RebrandTokens.Color.lineStrong.withAlphaComponent(0.70)
+                borderColor = NSColor.clear.cgColor
+                borderWidth = 0
+                shadowColor = RebrandTokens.Color.lineStrong.withAlphaComponent(0.22).cgColor
+                shadowOpacity = 1
+                shadowRadius = 4
+            } else if isHovered {
+                color = RebrandTokens.Color.line.withAlphaComponent(0.55)
+                borderColor = NSColor.clear.cgColor
+                borderWidth = 0
+                shadowColor = NSColor.clear.cgColor
+                shadowOpacity = 0
+                shadowRadius = 0
+            } else {
+                color = RebrandTokens.Color.lineSoft.withAlphaComponent(0.34)
+                borderColor = NSColor.clear.cgColor
+                borderWidth = 0
+                shadowColor = NSColor.clear.cgColor
+                shadowOpacity = 0
+                shadowRadius = 0
+            }
+        } else if isDragging {
             color = Theme.accentSubtle.withAlphaComponent(Theme.colors.isLight ? 0.92 : 0.78)
             borderColor = Theme.dividerActive.cgColor
             borderWidth = 1
@@ -588,6 +637,13 @@ fileprivate final class SplitDividerView: NSView {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
+        // `point` is in the *superview's* coordinate space (per Apple's docs),
+        // but `bounds` is in our local space. The original implementation
+        // compared the two directly, which only "worked" when the divider
+        // happened to sit at origin (0,0) — which it never does. Convert
+        // first, then do the inset expansion check.
+        guard let superview else { return nil }
+        let local = convert(point, from: superview)
         let inset = dividerHitInset
         let expanded: NSRect
         switch orientation {
@@ -596,8 +652,7 @@ fileprivate final class SplitDividerView: NSView {
         case .horizontal:
             expanded = bounds.insetBy(dx: 0, dy: -inset)
         }
-        if expanded.contains(point) { return self }
-        return nil
+        return expanded.contains(local) ? self : nil
     }
 
     func refreshTheme() {

@@ -181,6 +181,12 @@ final class TerminalOverlayController {
         let normalizedFlags = normalizedModifierFlags(flags)
         pendingModifierFlags = normalizedFlags
 
+        guard settings.showModifierHints else {
+            cancelPendingModifierHints()
+            hideModifierHints()
+            return
+        }
+
         guard !isPaletteVisible, !isSearchVisible, !isShortcutCheatSheetVisible else {
             cancelPendingModifierHints()
             hideModifierHints()

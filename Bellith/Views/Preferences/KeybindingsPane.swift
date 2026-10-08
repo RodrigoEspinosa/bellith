@@ -130,6 +130,7 @@ final class KeybindingsPane: NSView {
         paneTitleLabel.textColor = Theme.textDisplay
         paneSubtitleLabel.textColor = Theme.textSecondary
         heroCard.refresh()
+        heroCountLabel.textColor = Theme.textDisplay
         presetPopup.selectItem(at: ShortcutPresetID.allCases.firstIndex(of: settings.shortcutPreset) ?? 0)
         scopePopup.selectItem(at: ScopeFilter.allCases.firstIndex(of: scopeFilter) ?? 0)
         searchField.stringValue = searchQuery
@@ -269,16 +270,17 @@ final class KeybindingsPane: NSView {
         scroll.frame = bounds
 
         let width = bounds.width
-        let cardW = width - PreferencesLayout.hPad * 2
+        let cardW = min(PreferencesLayout.maximumContentWidth, width - PreferencesLayout.hPad * 2)
+        let contentX = (width - cardW) / 2
         let innerW = cardW - PreferencesLayout.cardPad * 2
         var y: CGFloat = PreferencesLayout.hPad
 
-        paneTitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: 280, height: 24)
-        paneSubtitleLabel.frame = NSRect(x: PreferencesLayout.hPad, y: y + 28, width: cardW, height: 16)
+        paneTitleLabel.frame = NSRect(x: contentX, y: y, width: 280, height: 24)
+        paneSubtitleLabel.frame = NSRect(x: contentX, y: y + 28, width: cardW, height: 16)
         y += 60
 
         let heroHeight: CGFloat = 248
-        heroCard.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: heroHeight)
+        heroCard.frame = NSRect(x: contentX, y: y, width: cardW, height: heroHeight)
         heroCountLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 26, width: 180, height: 40)
         heroConflictLabel.frame = NSRect(x: PreferencesLayout.cardPad, y: 72, width: 320, height: 14)
 
@@ -304,7 +306,7 @@ final class KeybindingsPane: NSView {
                 + rows.reduce(CGFloat(0)) { $0 + $1.preferredHeight }
                 + CGFloat(max(0, rows.count - 1)) * 10
                 + PreferencesLayout.cardPad * 2
-            card.frame = NSRect(x: PreferencesLayout.hPad, y: y, width: cardW, height: cardHeight)
+            card.frame = NSRect(x: contentX, y: y, width: cardW, height: cardHeight)
 
             if cardIndex < categoryResetButtons.count {
                 let resetButton = categoryResetButtons[cardIndex]

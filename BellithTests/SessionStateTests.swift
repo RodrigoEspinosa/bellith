@@ -2,6 +2,37 @@ import XCTest
 @testable import Bellith
 
 final class SessionStateTests: XCTestCase {
+    func testDeferredTerminalArchiveSurvivesStudioOnlyQuitAndCompanionLaunch() throws {
+        let suite = "Bellith-DeferredSessions-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        func window(_ name: String) -> WindowSessionState {
+            WindowSessionState(session: SessionState(tabs: [.init(title: name,
+                terminalSnapshot: .init(cwd: "/tmp", hadScrollback: false))], selectedTabIndex: 0, sidebarExpanded: false), frameDescriptor: nil)
+        }
+        try TerminalSessionArchive.save([window("Saved work")], restorationAttempted: true, defaults: defaults)
+        let original = try XCTUnwrap(defaults.data(forKey: "savedWindowSessions"))
+        try TerminalSessionArchive.save([], restorationAttempted: false, defaults: defaults)
+        XCTAssertEqual(defaults.data(forKey: "savedWindowSessions"), original)
+        try TerminalSessionArchive.save([window("Companion")], restorationAttempted: false, defaults: defaults)
+        XCTAssertEqual(TerminalSessionArchive.read(defaults).map { $0.session.tabs[0].title }, ["Companion", "Saved work"])
+        try TerminalSessionArchive.save([], restorationAttempted: true, defaults: defaults)
+        XCTAssertTrue(TerminalSessionArchive.read(defaults).isEmpty)
+        XCTAssertNil(defaults.data(forKey: "savedSession"), "Explicitly closed restored windows must not return through legacy fallback")
+    }
+
+    func testDeferredTerminalArchiveReadsLegacySessions() throws {
+        let suite = "Bellith-LegacySessions-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let session = SessionState(tabs: [.init(title: "Legacy", terminalSnapshot: .init(cwd: "/tmp", hadScrollback: false))],
+            selectedTabIndex: 0, sidebarExpanded: false)
+        defaults.set(try JSONEncoder().encode(session), forKey: "savedSession")
+        XCTAssertEqual(TerminalSessionArchive.read(defaults).first?.session.tabs.first?.title, "Legacy")
+        defaults.set(try JSONEncoder().encode([try JSONEncoder().encode(session).base64EncodedString()]), forKey: "savedAllSessions")
+        XCTAssertEqual(TerminalSessionArchive.read(defaults).count, 1)
+    }
+
     func testTerminalSnapshotRoundtrip() throws {
         let snapshot = SessionState.TerminalSnapshot(
             cwd: "/Users/test/projects",

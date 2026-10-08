@@ -11,8 +11,7 @@ final class SearchBarView: NSView {
     private let caseSensitiveButton = NSButton()
     private let regexButton = NSButton()
     private var borderLayer: CALayer?
-    private let escBadge = NSView()
-    private let escLabel = NSTextField(labelWithString: "esc")
+    private let escKbd = KbdView(text: "esc")
     private var themeObserver: NSObjectProtocol?
 
     var onSearch: ((String) -> Void)?
@@ -98,6 +97,7 @@ final class SearchBarView: NSView {
         inputField.cell?.sendsActionOnEndEditing = false
         inputField.target = self
         inputField.action = #selector(handleSubmit)
+        inputField.setAccessibilityLabel("Search terminal output")
         inputField.delegate = self
         addSubview(inputField)
 
@@ -114,33 +114,26 @@ final class SearchBarView: NSView {
         // Toggle buttons
         configureToggleButton(caseSensitiveButton, title: "Aa", action: #selector(handleToggleCase))
         caseSensitiveButton.toolTip = "Case Sensitive"
+        caseSensitiveButton.setAccessibilityLabel("Case sensitive")
         addSubview(caseSensitiveButton)
 
         configureToggleButton(regexButton, title: ".*", action: #selector(handleToggleRegex))
         regexButton.toolTip = "Regular Expression"
+        regexButton.setAccessibilityLabel("Regular expression")
         addSubview(regexButton)
 
         // Nav buttons
         configureNavButton(prevButton, symbolName: "chevron.up", action: #selector(handlePrev))
         configureNavButton(nextButton, symbolName: "chevron.down", action: #selector(handleNext))
+        prevButton.setAccessibilityLabel("Previous match")
+        nextButton.setAccessibilityLabel("Next match")
         prevButton.toolTip = "Previous Match (Shift+Enter)"
         nextButton.toolTip = "Next Match (Enter)"
         addSubview(prevButton)
         addSubview(nextButton)
 
-        // Esc key hint badge
-        escBadge.wantsLayer = true
-        escBadge.layer?.cornerRadius = 3
-        escBadge.layer?.backgroundColor = Theme.overlay.cgColor
-        addSubview(escBadge)
-
-        escLabel.font = .systemFont(ofSize: 9, weight: .semibold)
-        escLabel.textColor = Theme.textMuted
-        escLabel.isEditable = false
-        escLabel.isBezeled = false
-        escLabel.drawsBackground = false
-        escLabel.alignment = .center
-        escBadge.addSubview(escLabel)
+        // Esc key hint badge (shared kbd component for chrome consistency).
+        addSubview(escKbd)
 
         refreshTheme()
     }
@@ -169,6 +162,7 @@ final class SearchBarView: NSView {
     }
 
     private func updateToggleAppearance(_ button: NSButton, isActive: Bool) {
+        button.setAccessibilityValue(isActive ? 1 : 0)
         Theme.animate { _ in
             if isActive {
                 button.layer?.backgroundColor = Theme.accent.withAlphaComponent(0.2).cgColor
@@ -193,8 +187,7 @@ final class SearchBarView: NSView {
         )
         prevButton.contentTintColor = Theme.textSecondary
         nextButton.contentTintColor = Theme.textSecondary
-        escBadge.layer?.backgroundColor = Theme.overlay.cgColor
-        escLabel.textColor = Theme.textMuted
+        escKbd.refreshTheme()
         updateToggleAppearance(caseSensitiveButton, isActive: isCaseSensitive)
         updateToggleAppearance(regexButton, isActive: isRegex)
         updateCount(selected: searchSelected, total: searchTotal)
@@ -208,9 +201,14 @@ final class SearchBarView: NSView {
         let h = bounds.height
         iconView.frame = NSRect(x: 10, y: (h - 16) / 2, width: 16, height: 16)
 
-        // Esc badge at far right
-        escBadge.frame = NSRect(x: bounds.width - 34, y: (h - 16) / 2, width: 28, height: 16)
-        escLabel.frame = escBadge.bounds
+        // Esc kbd chip at far right
+        let escSize = escKbd.intrinsicContentSize
+        escKbd.frame = NSRect(
+            x: bounds.width - escSize.width - 8,
+            y: (h - escSize.height) / 2,
+            width: escSize.width,
+            height: escSize.height
+        )
 
         let btnY = (h - 24) / 2
         nextButton.frame = NSRect(x: bounds.width - 66, y: btnY, width: 24, height: 24)
@@ -220,23 +218,27 @@ final class SearchBarView: NSView {
         regexButton.frame = NSRect(x: bounds.width - 116, y: toggleY, width: 24, height: 20)
         caseSensitiveButton.frame = NSRect(x: bounds.width - 140, y: toggleY, width: 24, height: 20)
 
-        let countW: CGFloat = 64
+        countLabel.isHidden = bounds.width < 320
+        let countW: CGFloat = countLabel.isHidden ? 0 : 64
         countLabel.frame = NSRect(x: bounds.width - 140 - countW - 4, y: (h - 16) / 2, width: countW, height: 16)
 
         let inputX: CGFloat = 32
         let inputW = bounds.width - inputX - 140 - countW - 12
-        inputField.frame = NSRect(x: inputX, y: (h - 20) / 2, width: max(inputW, 40), height: 20)
+        inputField.frame = NSRect(x: inputX, y: (h - 20) / 2, width: max(inputW, 0), height: 20)
     }
 
     // MARK: - Public
 
     func setQuery(_ text: String) {
         inputField.stringValue = text
+        updateCount(selected: 0, total: 0)
     }
 
     func updateCount(selected: Int, total: Int) {
         searchSelected = selected
         searchTotal = total
+        prevButton.isEnabled = total > 0
+        nextButton.isEnabled = total > 0
         if total > 0 {
             countLabel.stringValue = "\(selected)/\(total)"
             countLabel.textColor = Theme.textSecondary
@@ -259,7 +261,7 @@ final class SearchBarView: NSView {
     // MARK: - Show / Hide
 
     func show(in parent: NSView, rightMargin: CGFloat = 16, topMargin: CGFloat = 50) {
-        let width: CGFloat = 380
+        let width: CGFloat = min(380, max(0, parent.bounds.width - rightMargin * 2))
         let height: CGFloat = 36
         let x = parent.bounds.width - width - rightMargin
         let y = parent.bounds.height - height - topMargin
@@ -267,7 +269,7 @@ final class SearchBarView: NSView {
         frame = NSRect(x: x, y: y + 8, width: width, height: height)
         parent.addSubview(self)
         inputField.stringValue = ""
-        countLabel.stringValue = ""
+        updateCount(selected: 0, total: 0)
 
         let finalFrame = NSRect(x: x, y: y, width: width, height: height)
         NSAnimationContext.runAnimationGroup { ctx in
@@ -344,7 +346,8 @@ extension SearchBarView: NSTextFieldDelegate {
     func controlTextDidChange(_ obj: Notification) {
         let text = inputField.stringValue
         if text.isEmpty {
-            countLabel.stringValue = ""
+            updateCount(selected: 0, total: 0)
+            onSearch?(text)
         } else {
             onSearch?(text)
         }

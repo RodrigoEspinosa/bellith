@@ -27,6 +27,10 @@ final class TitleBarView: NSView {
     private let processIcon = NSImageView()
     private let processLabel = NSTextField(labelWithString: "")
     private let sizeLabel = NSTextField(labelWithString: "")
+    private let centerTitleLabel = NSTextField(labelWithString: "")
+    private let panePill = PaneCountPillView()
+    private let backgroundGradient = CAGradientLayer()
+    private let bottomLineLayer = CALayer()
 
     private var breadcrumbViews: [NSView] = []
     private var currentPath: String = "~"
@@ -34,8 +38,14 @@ final class TitleBarView: NSView {
     private var currentProcess: String?
     private var currentProcessPresentation: ForegroundProcessPresentation?
     private var currentContext: TerminalContext?
+    private var currentSessionShell: String = "zsh"
+    private var currentWorkspaceName: String = ""
+    private var currentPaneCount: Int = 1
     private var segmentTrackingAreas: [NSTrackingArea] = []
     private var hoveredView: NSView?
+
+    /// Whether the centered title takes over (always, in PR Popover v2 chrome).
+    private var hidesBreadcrumbsForTitle: Bool { true }
 
     var leadingInset: CGFloat = 0 {
         didSet {
@@ -106,7 +116,84 @@ final class TitleBarView: NSView {
         sizeLabel.maximumNumberOfLines = 1
         addSubview(sizeLabel)
 
+        // Centered title label (PR Popover v2 design): bold shell — accent workspace [pane pill]
+        centerTitleLabel.alignment = .left
+        centerTitleLabel.isEditable = false
+        centerTitleLabel.isBezeled = false
+        centerTitleLabel.drawsBackground = false
+        centerTitleLabel.maximumNumberOfLines = 1
+        centerTitleLabel.lineBreakMode = .byTruncatingTail
+        addSubview(centerTitleLabel)
+
+        panePill.isHidden = true
+        addSubview(panePill)
+
+        layer?.insertSublayer(backgroundGradient, at: 0)
+        layer?.addSublayer(bottomLineLayer)
+
         refreshTheme()
+    }
+
+    func updateWorkspaceContext(shell: String?, name: String?, paneCount: Int) {
+        let trimmedShell = (shell?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
+        let trimmedName = (name?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
+        let newShell = trimmedShell ?? currentSessionShell
+        let newName = trimmedName ?? ""
+        let newCount = max(0, paneCount)
+        guard newShell != currentSessionShell
+            || newName != currentWorkspaceName
+            || newCount != currentPaneCount else { return }
+        currentSessionShell = newShell
+        currentWorkspaceName = newName
+        currentPaneCount = newCount
+        rebuildCenterTitle()
+        rebuildBreadcrumbs()
+        needsLayout = true
+    }
+
+    private var workspaceTint: NSColor {
+        currentWorkspaceName.isEmpty
+            ? Theme.accent
+            : WorkspaceTint.accent(for: currentWorkspaceName)
+    }
+
+    private func rebuildCenterTitle() {
+        // Always render the centered title now that the breadcrumbs are gone; an
+        // empty workspace name simply falls back to "session" inside makeTitleString.
+        centerTitleLabel.isHidden = false
+        centerTitleLabel.attributedStringValue = Self.makeTitleString(
+            shell: currentSessionShell,
+            workspace: currentWorkspaceName,
+            workspaceColor: workspaceTint
+        )
+        centerTitleLabel.invalidateIntrinsicContentSize()
+        centerTitleLabel.sizeToFit()
+
+        if currentPaneCount > 1 {
+            panePill.text = "\(currentPaneCount) panes"
+            panePill.isHidden = false
+        } else {
+            panePill.isHidden = true
+        }
+    }
+
+    private static func makeTitleString(shell: String, workspace: String, workspaceColor: NSColor) -> NSAttributedString {
+        let fontPrimary = BellithFont.mono(12, weight: .medium)
+        let workspaceText = workspace.isEmpty ? "session" : workspace
+        let result = NSMutableAttributedString()
+        result.append(NSAttributedString(
+            string: shell,
+            attributes: [.font: fontPrimary, .foregroundColor: Theme.textPrimary]
+        ))
+        result.append(NSAttributedString(
+            string: " — ",
+            attributes: [.font: fontPrimary, .foregroundColor: Theme.textTertiary]
+        ))
+        result.append(NSAttributedString(
+            string: workspaceText,
+            attributes: [.font: fontPrimary, .foregroundColor: workspaceColor]
+        ))
+        return result
     }
 
     @available(*, unavailable)
@@ -179,9 +266,12 @@ final class TitleBarView: NSView {
             return
         }
 
+        // PR Popover v2: hide the LOCAL host pill — only surface the host chip for
+        // remote sessions, where the connection target is genuinely useful chrome.
         hostBadge.text = context.hostDisplayText.uppercased()
         hostBadge.iconName = context.isRemote ? "network" : "laptopcomputer"
         hostBadge.tone = tone(for: context)
+        hostBadge.isHidden = !context.isRemote
 
         if let environment = context.environmentDisplayText {
             environmentBadge.text = environment
@@ -227,6 +317,14 @@ final class TitleBarView: NSView {
     private func rebuildBreadcrumbs() {
         breadcrumbViews.forEach { $0.removeFromSuperview() }
         breadcrumbViews.removeAll()
+
+        if hidesBreadcrumbsForTitle {
+            folderIcon.isHidden = true
+            applyBreadcrumbColors()
+            needsLayout = true
+            return
+        }
+        folderIcon.isHidden = false
 
         let parts = visiblePathParts()
         for (index, part) in parts.enumerated() {
@@ -367,8 +465,12 @@ final class TitleBarView: NSView {
             worktreeBadge.frame = .zero
         }
 
-        folderIcon.frame = NSRect(x: x, y: floor((h - iconSize) / 2), width: iconSize, height: iconSize)
-        x += iconSize + gap + 1
+        if !folderIcon.isHidden {
+            folderIcon.frame = NSRect(x: x, y: floor((h - iconSize) / 2), width: iconSize, height: iconSize)
+            x += iconSize + gap + 1
+        } else {
+            folderIcon.frame = .zero
+        }
 
         for view in breadcrumbViews {
             if let imageView = view as? NSImageView {
@@ -382,15 +484,72 @@ final class TitleBarView: NSView {
             }
         }
 
+        // Background gradient + bottom hairline (PR Popover v2 chrome).
+        backgroundGradient.frame = bounds
+        bottomLineLayer.frame = NSRect(x: leadingInset, y: 0, width: max(0, bounds.width - leadingInset), height: 1)
+
+        // Centered title overlay (replaces the breadcrumb path when a workspace name is set).
+        if hidesBreadcrumbsForTitle {
+            let leftEdge = max(leadingInset + 6, x + 4)
+            let rightEdge = max(leftEdge, trailingX)
+            let availableWidth = max(0, rightEdge - leftEdge - 24)
+
+            let titleIntrinsic = ceil(centerTitleLabel.attributedStringValue.size().width) + 4
+            let pillSize = panePill.isHidden ? .zero : panePill.intrinsicContentSize
+            let pillGap: CGFloat = panePill.isHidden ? 0 : 8
+            let groupIdeal = max(0, titleIntrinsic) + pillGap + pillSize.width
+            let groupWidth = min(groupIdeal > 0 ? groupIdeal : 200, availableWidth)
+            // Allocate width: pill gets its intrinsic, title takes the rest.
+            let pillWidth = min(pillSize.width, max(0, groupWidth - pillGap - 40))
+            let titleWidth = max(0, groupWidth - pillGap - pillWidth)
+
+            var centerX = floor((bounds.width - groupWidth) / 2)
+            if centerX < leftEdge { centerX = leftEdge }
+            if centerX + groupWidth > rightEdge { centerX = max(leftEdge, rightEdge - groupWidth) }
+
+            let titleY = floor((h - labelHeight) / 2)
+            centerTitleLabel.frame = NSRect(
+                x: max(0, centerX),
+                y: titleY,
+                width: titleWidth,
+                height: labelHeight
+            )
+            if !panePill.isHidden {
+                let pillY = floor((h - pillSize.height) / 2)
+                panePill.frame = NSRect(
+                    x: centerTitleLabel.frame.maxX + pillGap,
+                    y: pillY,
+                    width: pillWidth,
+                    height: pillSize.height
+                )
+            } else {
+                panePill.frame = .zero
+            }
+        } else {
+            centerTitleLabel.frame = .zero
+            panePill.frame = .zero
+        }
+
         updateSegmentTracking()
     }
+
+    /// Show the columns × rows readout briefly during a resize, then auto-hide.
+    /// The status bar carries the persistent size; the title bar only flashes
+    /// it so the user gets feedback while dragging the window edge.
+    private var sizeAutoHideWorkItem: DispatchWorkItem?
 
     func updateSize(cols: Int, rows: Int) {
         sizeLabel.stringValue = "\(cols)×\(rows)"
         needsLayout = true
+        sizeAutoHideWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.clearSize() }
+        sizeAutoHideWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
     }
 
     func clearSize() {
+        sizeAutoHideWorkItem?.cancel()
+        sizeAutoHideWorkItem = nil
         sizeLabel.stringValue = ""
         needsLayout = true
     }
@@ -425,6 +584,20 @@ final class TitleBarView: NSView {
         leftGlowLayer.locations = [0, 1]
         bottomSeparatorLayer.backgroundColor = NSColor.clear.cgColor
 
+        // Subtle top→bottom gradient + bottom hairline (PR Popover v2 chrome).
+        let isLight = Theme.colors.isLight
+        let topColor = isLight
+            ? NSColor.white.withAlphaComponent(0.18).cgColor
+            : NSColor(white: 1.0, alpha: 0.04).cgColor
+        let bottomColor = isLight
+            ? NSColor.white.withAlphaComponent(0.04).cgColor
+            : NSColor(white: 0.0, alpha: 0.18).cgColor
+        backgroundGradient.colors = [topColor, bottomColor]
+        backgroundGradient.locations = [0, 1]
+        backgroundGradient.startPoint = CGPoint(x: 0.5, y: 1)
+        backgroundGradient.endPoint = CGPoint(x: 0.5, y: 0)
+        bottomLineLayer.backgroundColor = Theme.chromeHairline.withAlphaComponent(isLight ? 0.85 : 0.7).cgColor
+
         folderIcon.contentTintColor = Theme.textSecondary
         hostBadge.refreshTheme()
         environmentBadge.refreshTheme()
@@ -434,6 +607,8 @@ final class TitleBarView: NSView {
         sizeLabel.textColor = Theme.textSecondary
         updateGitBranch(currentGitBranch)
         updateProcess(currentProcessPresentation)
+        rebuildCenterTitle()
+        panePill.refreshTheme()
         rebuildBreadcrumbs()
     }
 
@@ -453,5 +628,64 @@ final class TitleBarView: NSView {
         default:
             return preferEnvironment && context.isRemote ? .warning : .neutral
         }
+    }
+
+}
+
+/// Bordered chip rendering the active tab's pane count in the centered title.
+/// Mirrors the `.title .mux` chip from the PR Popover v2 design: small mono font,
+/// 1px hairline border, 3px corner radius.
+private final class PaneCountPillView: NSView {
+    private let label = NSTextField(labelWithString: "")
+
+    var text: String = "" {
+        didSet {
+            label.stringValue = text
+            invalidateIntrinsicContentSize()
+            needsLayout = true
+        }
+    }
+
+    override init(frame: NSRect = .zero) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.cornerRadius = 3
+        layer?.cornerCurve = .continuous
+        layer?.borderWidth = 1
+
+        label.font = BellithFont.mono(10.5, weight: .regular)
+        label.alignment = .center
+        label.isEditable = false
+        label.isBezeled = false
+        label.drawsBackground = false
+        label.maximumNumberOfLines = 1
+        label.lineBreakMode = .byClipping
+        addSubview(label)
+
+        refreshTheme()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override var intrinsicContentSize: NSSize {
+        let textWidth = ceil(label.attributedStringValue.size().width)
+        return NSSize(width: textWidth + 12, height: 16)
+    }
+
+    override func layout() {
+        super.layout()
+        label.frame = NSRect(
+            x: 0,
+            y: floor((bounds.height - 14) / 2),
+            width: bounds.width,
+            height: 14
+        )
+    }
+
+    func refreshTheme() {
+        layer?.borderColor = Theme.chromeHairline.withAlphaComponent(0.7).cgColor
+        layer?.backgroundColor = NSColor.clear.cgColor
+        label.textColor = Theme.textTertiary
     }
 }
