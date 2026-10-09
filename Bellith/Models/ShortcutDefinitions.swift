@@ -200,6 +200,42 @@ enum ShortcutDefinitionLibrary {
                 presetSource: preset
             ),
             KeyBindingEntry(
+                id: "jumpToPreviousPrompt",
+                label: "Previous Prompt",
+                category: "Terminal",
+                scope: .terminalFocused,
+                discoverabilityText: "Scroll to the previous shell prompt (requires shell integration)",
+                primaryShortcut: shortcut("upArrow", command: true),
+                presetSource: preset
+            ),
+            KeyBindingEntry(
+                id: "jumpToNextPrompt",
+                label: "Next Prompt",
+                category: "Terminal",
+                scope: .terminalFocused,
+                discoverabilityText: "Scroll to the next shell prompt (requires shell integration)",
+                primaryShortcut: shortcut("downArrow", command: true),
+                presetSource: preset
+            ),
+            KeyBindingEntry(
+                id: "selectCommandOutput",
+                label: "Select Last Command Output",
+                category: "Edit",
+                scope: .terminalFocused,
+                discoverabilityText: "Select everything the last command printed",
+                primaryShortcut: shortcut("a", command: true, shift: true),
+                presetSource: preset
+            ),
+            KeyBindingEntry(
+                id: "copyCommandOutput",
+                label: "Copy Last Command Output",
+                category: "Edit",
+                scope: .terminalFocused,
+                discoverabilityText: "Copy everything the last command printed",
+                primaryShortcut: shortcut("c", command: true, option: true),
+                presetSource: preset
+            ),
+            KeyBindingEntry(
                 id: "reloadConfig",
                 label: "Reload Config",
                 category: "Terminal",

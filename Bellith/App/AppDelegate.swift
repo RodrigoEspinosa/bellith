@@ -53,7 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return windows.last
     }
 
-    private var isCreativeWorkspaceActive: Bool {
+    var isCreativeWorkspaceActive: Bool {
         guard let window = studio?.window else { return false }
         return NSApp.keyWindow === window || NSApp.keyWindow?.sheetParent === window
     }
@@ -559,10 +559,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         editMenu.addItem(configuredMenuItem(title: "Copy", action: #selector(handleCopy), shortcutID: "copy"))
         editMenu.addItem(configuredMenuItem(title: "Paste", action: #selector(handlePaste), shortcutID: "paste"))
         editMenu.addItem(configuredMenuItem(title: "Select All", action: #selector(handleSelectAll), shortcutID: "selectAll"))
+        editMenu.addItem(configuredMenuItem(title: "Select Last Command Output", action: #selector(handleSelectCommandOutput), shortcutID: "selectCommandOutput"))
+        editMenu.addItem(configuredMenuItem(title: "Copy Last Command Output", action: #selector(handleCopyCommandOutput), shortcutID: "copyCommandOutput"))
         editMenu.addItem(.separator())
         editMenu.addItem(configuredMenuItem(title: "Find…", action: #selector(handleFind), shortcutID: "search"))
         editMenu.addItem(.separator())
         editMenu.addItem(configuredMenuItem(title: "Clear Buffer", action: #selector(handleClearBuffer), shortcutID: "clearBuffer"))
+        editMenu.addItem(.separator())
+        editMenu.addItem(configuredMenuItem(title: "Jump to Previous Prompt", action: #selector(handleJumpToPreviousPrompt), shortcutID: "jumpToPreviousPrompt"))
+        editMenu.addItem(configuredMenuItem(title: "Jump to Next Prompt", action: #selector(handleJumpToNextPrompt), shortcutID: "jumpToNextPrompt"))
         let editMenuItem = NSMenuItem()
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
@@ -820,6 +825,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         else { activeEntry?.container.showSearch() }
     }
     @objc private func handleClearBuffer() { activeEntry?.container.clearBuffer() }
+    @objc func handleJumpToPreviousPrompt() { activeEntry?.container.jumpToPrompt(-1) }
+    @objc func handleJumpToNextPrompt() { activeEntry?.container.jumpToPrompt(1) }
+    @objc func handleSelectCommandOutput() { activeEntry?.container.selectLastCommandOutput() }
+    @objc func handleCopyCommandOutput() { activeEntry?.container.copyLastCommandOutput() }
     @objc private func handleNewTab() {
         if let entry = activeEntry { entry.container.createTab() }
         else { createWindow() }
