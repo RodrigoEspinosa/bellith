@@ -762,17 +762,20 @@ final class BellithSettings {
         )
     }
 
+    /// The palette whose accent matches the stored accent. Accents persist as
+    /// 8-bit hex, so compare in that space; the palette's float components do
+    /// not survive the round trip exactly.
+    private var appearanceAccentPalette: AppearancePalette? {
+        let hex = appearanceAccentColorHex
+        return AppearancePalette.all.first { $0.accent.bellithHexRGB == hex }
+    }
+
     private var appearanceAccentThemeName: String {
-        let color = appearanceAccentColor
-        if let palette = AppearancePalette.all.first(where: { $0.accent.isEqual(color) }) {
-            return palette.name
-        }
-        return "Custom"
+        appearanceAccentPalette?.name ?? "Custom"
     }
 
     private var appearanceAccentThemeID: String {
-        let color = appearanceAccentColor
-        if let palette = AppearancePalette.all.first(where: { $0.accent.isEqual(color) }) {
+        if let palette = appearanceAccentPalette {
             return palette.id
         }
         return "custom-\(appearanceAccentColorHex.trimmingCharacters(in: CharacterSet(charactersIn: "#")))"
@@ -831,7 +834,7 @@ final class BellithSettings {
 
 }
 
-private extension NSColor {
+extension NSColor {
     static func bellithColor(fromHex hex: String) -> NSColor? {
         var value = hex.trimmingCharacters(in: .whitespacesAndNewlines)
         if value.hasPrefix("#") { value.removeFirst() }

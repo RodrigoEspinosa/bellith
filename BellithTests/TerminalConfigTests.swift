@@ -103,7 +103,7 @@ final class TerminalConfigTests: XCTestCase {
         XCTAssertTrue(contents.contains("theme = \(themeFile.path)"))
         XCTAssertTrue(themeContents.contains("background = #08090B"))
         XCTAssertTrue(themeContents.contains("cursor-color = #7C9CD8"))
-        XCTAssertTrue(themeContents.contains("palette = 0=#2A2B2D"))
+        XCTAssertTrue(themeContents.contains("palette = 0=#393A3B"), themeContents)
     }
 
     func testRebrandConfigOverridesTerminalBackground() throws {

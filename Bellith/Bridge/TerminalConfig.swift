@@ -262,14 +262,16 @@ final class TerminalConfig {
     /// `background-blur-radius`. 0 disables the native blur; 1 pins it to a
     /// heavy frost.
     private static func backgroundBlurRadius(for settings: BellithSettings) -> Int {
-        let opacity = min(max(settings.backgroundOpacity, 0.0), 1.0)
+        let opacity = min(max(backgroundOpacity(for: settings), 0.0), 1.0)
         let intensity = 1.0 - opacity
         guard intensity > 0 else { return 0 }
         return max(1, Int((intensity * 40).rounded()))
     }
 
+    /// The rebrand shell draws its own translucent material around the
+    /// terminal, so the Ghostty canvas stays opaque to keep text legible.
     private static func backgroundOpacity(for settings: BellithSettings) -> Double {
-        settings.backgroundOpacity
+        settings.useRebrandShell ? 1.0 : settings.backgroundOpacity
     }
 
     private static func rebrandColorOverrides(for settings: BellithSettings) -> [String] {
