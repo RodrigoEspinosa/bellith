@@ -83,11 +83,14 @@ final class TerminalConfig {
 
     private(set) var config: ghostty_config_t?
     private(set) var configurationError: TerminalConfigError?
+    private let notificationCenter: NotificationCenter
 
     init(
         settings: BellithSettings = .shared,
-        configurationDirectory: URL? = nil
+        configurationDirectory: URL? = nil,
+        notificationCenter: NotificationCenter = .default
     ) {
+        self.notificationCenter = notificationCenter
         config = ghostty_config_new()
         guard config != nil else {
             report(.failedToCreateGhosttyConfig)
@@ -110,6 +113,7 @@ final class TerminalConfig {
     }
 
     init(cloning other: TerminalConfig) {
+        notificationCenter = other.notificationCenter
         guard let src = other.config else { config = nil; return }
         config = ghostty_config_clone(src)
     }
@@ -307,6 +311,6 @@ final class TerminalConfig {
 
     private func report(_ error: TerminalConfigError) {
         configurationError = error
-        NotificationCenter.default.post(name: .terminalConfigDidFail, object: error)
+        notificationCenter.post(name: .terminalConfigDidFail, object: error)
     }
 }
