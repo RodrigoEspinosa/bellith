@@ -106,6 +106,7 @@
 		9EECDE6BE4882D41C3F53B22 /* SidebarPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = A33E81DDDC25CA709CD563AE /* SidebarPane.swift */; };
 		A0CFB54241CAA6006E58472C /* CommandRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B8A3CDE542974BFD639F6F0 /* CommandRegistry.swift */; };
 		A0FBC60FC61A2C5D326E71DC /* GitHubPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00FEDDF168DA4CE8F871F262 /* GitHubPopover.swift */; };
+		A13E0BDB1D290760C20AD7FB /* CommandOutputLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EFB4106B0EA1C755C3F8192 /* CommandOutputLocator.swift */; };
 		A381D1C113C9D8039615BCA4 /* TerminalRuntimeInfoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6E1C3DB1ADB2A4903FA2FF2 /* TerminalRuntimeInfoService.swift */; };
 		A388698F8F188311AF16CC12 /* CreativeCompanionReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8839DC6999CC24FADF865ACD /* CreativeCompanionReview.swift */; };
 		A39350253246932A3A4CB068 /* KeybindingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26D1CA15561163656129EFFE /* KeybindingsPane.swift */; };
@@ -118,6 +119,7 @@
 		AA291915F73F4338FC1407C7 /* PreferencesPaneRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = D65ED0D10E5739FCA342E50A /* PreferencesPaneRegistry.swift */; };
 		AAEC14C4379EFD86E0A0BCCE /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69849D6EC718E0BFF019C9D8 /* TabBarView.swift */; };
 		ADA9E8340B2AFB2A0D3B7E1E /* PaneDecorator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7393A784545840E1C8BE4312 /* PaneDecorator.swift */; };
+		B07DBFA7FFB66818392ACCD2 /* CommandOutputLocatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D3DF9BB39A437A98116D3E /* CommandOutputLocatorTests.swift */; };
 		B67FEF3983C9ADE4ED63D7E2 /* RebrandStatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21A46E5F20188B07C6B30D5 /* RebrandStatusBar.swift */; };
 		B6D8A98FAAC4279C06F3B269 /* BellithSettings+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73194F397D25C2EE9F50FB0C /* BellithSettings+Persistence.swift */; };
 		B80E5D2747AB50B714189BC4 /* ProcessMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8932FC29FCA31DEBC5C25A11 /* ProcessMonitorTests.swift */; };
@@ -230,6 +232,7 @@
 		4AC87989A7A1FB003BC74894 /* CreativeProjectTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreativeProjectTests.swift; sourceTree = "<group>"; };
 		4FD22E965C6F1A921DC3AFFA /* BellithSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellithSettingsTests.swift; sourceTree = "<group>"; };
 		5114C1EDE3291AA9D3DB9054 /* CommandFailureSuggestionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandFailureSuggestionServiceTests.swift; sourceTree = "<group>"; };
+		52D3DF9BB39A437A98116D3E /* CommandOutputLocatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandOutputLocatorTests.swift; sourceTree = "<group>"; };
 		52E9612F02A1A65DFA8CA240 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
 		581F39AA01EDD5DEBCAA8A98 /* StatusBadges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadges.swift; sourceTree = "<group>"; };
 		595A49A926D6775A52202AAD /* ITermColorsImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ITermColorsImporter.swift; sourceTree = "<group>"; };
@@ -260,6 +263,7 @@
 		7B73776D795BE3450D431B7B /* NetworkPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPanel.swift; sourceTree = "<group>"; };
 		7CD8C34B8C738FB9DC2176B8 /* SidebarComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarComponents.swift; sourceTree = "<group>"; };
 		7CDC1927EB617093208667D9 /* HyperlinkRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyperlinkRouterTests.swift; sourceTree = "<group>"; };
+		7EFB4106B0EA1C755C3F8192 /* CommandOutputLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandOutputLocator.swift; sourceTree = "<group>"; };
 		845301283F895036774F8C3E /* LogicTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogicTransport.swift; sourceTree = "<group>"; };
 		84F589203C90A72C2C4DA09C /* SSHPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHPane.swift; sourceTree = "<group>"; };
 		850CD5C03E9934E94F040341 /* AIToolSessionDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIToolSessionDetectorTests.swift; sourceTree = "<group>"; };
@@ -401,6 +405,7 @@
 			children = (
 				6651B379E02056CE70DC9C84 /* BellithBranding.swift */,
 				A97FAFCF93CCB562713620EE /* BellithFont.swift */,
+				7EFB4106B0EA1C755C3F8192 /* CommandOutputLocator.swift */,
 				B201F22C86E40C8431E532BF /* HostAccessibility.swift */,
 				F2088BFA03DDDC079DE5DB8C /* HyperlinkRouter.swift */,
 				7AF3EFCA4440E50031AF178C /* Logger.swift */,
@@ -415,6 +420,7 @@
 				850CD5C03E9934E94F040341 /* AIToolSessionDetectorTests.swift */,
 				4FD22E965C6F1A921DC3AFFA /* BellithSettingsTests.swift */,
 				5114C1EDE3291AA9D3DB9054 /* CommandFailureSuggestionServiceTests.swift */,
+				52D3DF9BB39A437A98116D3E /* CommandOutputLocatorTests.swift */,
 				F9994A85D37354E2BFF60705 /* CommandPaletteViewTests.swift */,
 				01F9375596F9CC5988EDC6AB /* CreativeCompanionLaunchTests.swift */,
 				8B3A719504B21C26845059E2 /* CreativeProjectHistoryTests.swift */,
@@ -653,7 +659,7 @@
 			path = SmartPanels;
 			sourceTree = "<group>";
 		};
-		"TEMP_8490DB6A-254D-4C67-9097-1D8F25D5B236" /* Resources */ = {
+		"TEMP_C7C8767B-465D-4332-9FA8-33F2F782FFD6" /* Resources */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -844,6 +850,7 @@
 				0AF8CB135FF10863D353566B /* AIToolSessionDetectorTests.swift in Sources */,
 				84920B35B7A5167C2AAE9985 /* BellithSettingsTests.swift in Sources */,
 				696F6BCF502F546CDEA8F4DB /* CommandFailureSuggestionServiceTests.swift in Sources */,
+				B07DBFA7FFB66818392ACCD2 /* CommandOutputLocatorTests.swift in Sources */,
 				D976C2EC92ED3D33ECCB9882 /* CommandPaletteViewTests.swift in Sources */,
 				DBC478589477CD7D892B17D3 /* CreativeCompanionLaunchTests.swift in Sources */,
 				C24997CC29DEB911F3A122B1 /* CreativeProjectHistoryTests.swift in Sources */,
@@ -894,6 +901,7 @@
 				3A8626193F1471C659C10A4A /* BlurView.swift in Sources */,
 				EEE40CFFB40FE5F95866734E /* CommandFailureSuggestionService.swift in Sources */,
 				42B7B40974F3971A3E5472BF /* CommandFailureSuggestionView.swift in Sources */,
+				A13E0BDB1D290760C20AD7FB /* CommandOutputLocator.swift in Sources */,
 				114F10461A0D9F305FF71202 /* CommandPaletteView.swift in Sources */,
 				A0CFB54241CAA6006E58472C /* CommandRegistry.swift in Sources */,
 				18245BFE622B231108C45FFC /* ContextBadgeView.swift in Sources */,

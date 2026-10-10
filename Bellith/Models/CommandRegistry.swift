@@ -478,6 +478,54 @@ final class CommandRegistry {
         })
 
         register(CommandPlugin(
+            id: "jumpToPreviousPrompt",
+            title: "Jump to Previous Prompt",
+            description: "Scroll to the previous shell prompt",
+            iconName: "chevron.up",
+            shortcutID: "jumpToPreviousPrompt",
+            aliases: ["prompt", "mark", "previous command"]
+        ) { container, _ in
+            container.jumpToPrompt(-1)
+            return true
+        })
+
+        register(CommandPlugin(
+            id: "jumpToNextPrompt",
+            title: "Jump to Next Prompt",
+            description: "Scroll to the next shell prompt",
+            iconName: "chevron.down",
+            shortcutID: "jumpToNextPrompt",
+            aliases: ["prompt", "mark", "next command"]
+        ) { container, _ in
+            container.jumpToPrompt(1)
+            return true
+        })
+
+        register(CommandPlugin(
+            id: "selectCommandOutput",
+            title: "Select Last Command Output",
+            description: "Select everything the last command printed",
+            iconName: "text.line.last.and.arrowtriangle.forward",
+            shortcutID: "selectCommandOutput",
+            aliases: ["output", "select output", "last output"]
+        ) { container, _ in
+            container.selectLastCommandOutput()
+            return true
+        })
+
+        register(CommandPlugin(
+            id: "copyCommandOutput",
+            title: "Copy Last Command Output",
+            description: "Copy everything the last command printed",
+            iconName: "doc.on.clipboard",
+            shortcutID: "copyCommandOutput",
+            aliases: ["output", "copy output", "last output"]
+        ) { container, _ in
+            container.copyLastCommandOutput()
+            return true
+        })
+
+        register(CommandPlugin(
             id: "fullscreen",
             title: "Toggle Fullscreen",
             description: "Enter or exit fullscreen",

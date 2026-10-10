@@ -83,11 +83,14 @@ final class TerminalConfig {
 
     private(set) var config: ghostty_config_t?
     private(set) var configurationError: TerminalConfigError?
+    private let notificationCenter: NotificationCenter
 
     init(
         settings: BellithSettings = .shared,
-        configurationDirectory: URL? = nil
+        configurationDirectory: URL? = nil,
+        notificationCenter: NotificationCenter = .default
     ) {
+        self.notificationCenter = notificationCenter
         config = ghostty_config_new()
         guard config != nil else {
             report(.failedToCreateGhosttyConfig)
@@ -110,6 +113,7 @@ final class TerminalConfig {
     }
 
     init(cloning other: TerminalConfig) {
+        notificationCenter = other.notificationCenter
         guard let src = other.config else { config = nil; return }
         config = ghostty_config_clone(src)
     }
@@ -258,14 +262,16 @@ final class TerminalConfig {
     /// `background-blur-radius`. 0 disables the native blur; 1 pins it to a
     /// heavy frost.
     private static func backgroundBlurRadius(for settings: BellithSettings) -> Int {
-        let opacity = min(max(settings.backgroundOpacity, 0.0), 1.0)
+        let opacity = min(max(backgroundOpacity(for: settings), 0.0), 1.0)
         let intensity = 1.0 - opacity
         guard intensity > 0 else { return 0 }
         return max(1, Int((intensity * 40).rounded()))
     }
 
+    /// The rebrand shell draws its own translucent material around the
+    /// terminal, so the Ghostty canvas stays opaque to keep text legible.
     private static func backgroundOpacity(for settings: BellithSettings) -> Double {
-        settings.backgroundOpacity
+        settings.useRebrandShell ? 1.0 : settings.backgroundOpacity
     }
 
     private static func rebrandColorOverrides(for settings: BellithSettings) -> [String] {
@@ -307,6 +313,6 @@ final class TerminalConfig {
 
     private func report(_ error: TerminalConfigError) {
         configurationError = error
-        NotificationCenter.default.post(name: .terminalConfigDidFail, object: error)
+        notificationCenter.post(name: .terminalConfigDidFail, object: error)
     }
 }

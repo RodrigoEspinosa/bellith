@@ -46,7 +46,7 @@ final class BellithSettingsTests: XCTestCase {
 
     func testDefaultAppearancePalette() {
         XCTAssertEqual(settings.appearancePaletteID, AppearancePalette.aurora.id)
-        XCTAssertTrue(settings.resolvedTheme.accent.isEqual(AppearancePalette.aurora.accent))
+        XCTAssertEqual(settings.resolvedTheme.accent.bellithHexRGB, AppearancePalette.aurora.accent.bellithHexRGB)
     }
 
     func testDefaultTabMode() {
@@ -440,7 +440,8 @@ final class BellithSettingsTests: XCTestCase {
 
     func testResolvedAppearanceUsesPaletteAccent() {
         settings.appearancePaletteID = AppearancePalette.steel.id
-        XCTAssertTrue(settings.resolvedTheme.accent.isEqual(AppearancePalette.steel.accent))
+        XCTAssertEqual(settings.resolvedTheme.accent.bellithHexRGB, AppearancePalette.steel.accent.bellithHexRGB)
+        XCTAssertTrue(settings.resolvedTheme.name.contains("Steel"))
     }
 
     func testInvalidAppearancePaletteFallsBackToDefault() {
@@ -550,6 +551,8 @@ final class BellithSettingsTests: XCTestCase {
             withIntermediateDirectories: true
         )
         try json.write(to: settingsFileURL, atomically: true, encoding: .utf8)
+        // setUp already ran the one-time migration; simulate a pre-migration install.
+        defaults.removeObject(forKey: BellithSettings.BuiltInSettingsWindowDefaults.migrationKey)
 
         let loaded = BellithSettings(defaults: defaults, settingsFileURL: settingsFileURL)
 

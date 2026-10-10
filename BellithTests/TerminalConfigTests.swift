@@ -103,7 +103,7 @@ final class TerminalConfigTests: XCTestCase {
         XCTAssertTrue(contents.contains("theme = \(themeFile.path)"))
         XCTAssertTrue(themeContents.contains("background = #08090B"))
         XCTAssertTrue(themeContents.contains("cursor-color = #7C9CD8"))
-        XCTAssertTrue(themeContents.contains("palette = 0=#2A2B2D"))
+        XCTAssertTrue(themeContents.contains("palette = 0=#393A3B"), themeContents)
     }
 
     func testRebrandConfigOverridesTerminalBackground() throws {
@@ -255,7 +255,21 @@ final class TerminalConfigTests: XCTestCase {
         try "not a directory".write(to: invalidDirectory, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: invalidDirectory) }
 
-        let config = TerminalConfig(configurationDirectory: invalidDirectory)
+        // A private center keeps the app host from presenting a modal alert,
+        // which would block the test run until someone dismisses it.
+        let notificationCenter = NotificationCenter()
+        var reportedError: TerminalConfigError?
+        let observer = notificationCenter.addObserver(
+            forName: .terminalConfigDidFail, object: nil, queue: nil
+        ) { reportedError = $0.object as? TerminalConfigError }
+        defer { notificationCenter.removeObserver(observer) }
+
+        let config = TerminalConfig(
+            settings: settings,
+            configurationDirectory: invalidDirectory,
+            notificationCenter: notificationCenter
+        )
+        XCTAssertNotNil(reportedError, "Failures should still be broadcast to observers")
         XCTAssertNotNil(config.config, "Ghostty config object should still be created")
         XCTAssertNotNil(config.configurationError, "Initializer should retain the write failure for callers")
         if case .some(.failedToCreateConfigDirectory(let url, _)) = config.configurationError {

@@ -676,6 +676,10 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         if matches(event, action: "reopenTab") { reopenClosedTab(); return true }
         if matches(event, action: "renameTab") { promptRenameTab(); return true }
         if matches(event, action: "clearBuffer") { clearBuffer(); return true }
+        if matches(event, action: "jumpToPreviousPrompt") { jumpToPrompt(-1); return true }
+        if matches(event, action: "jumpToNextPrompt") { jumpToPrompt(1); return true }
+        if matches(event, action: "selectCommandOutput") { selectLastCommandOutput(); return true }
+        if matches(event, action: "copyCommandOutput") { copyLastCommandOutput(); return true }
         if matches(event, action: "preferences") {
             SettingsNavigation.open(
                 in: self,
@@ -1748,6 +1752,26 @@ final class TerminalContainerView: NSView, TerminalOverlayControllerHost, Termin
         action.withCString { ptr in
             _ = ghostty_surface_binding_action(surface, ptr, UInt(action.utf8.count))
         }
+    }
+
+    // MARK: - Prompt Marks
+
+    func jumpToPrompt(_ delta: Int) {
+        activeSurface?.jumpToPrompt(delta)
+    }
+
+    @discardableResult
+    func selectLastCommandOutput() -> Bool {
+        guard activeSurface?.selectLastCommandOutput() == true else {
+            NSSound.beep()
+            return false
+        }
+        return true
+    }
+
+    func copyLastCommandOutput() {
+        guard selectLastCommandOutput() else { return }
+        copySelection()
     }
 
     // MARK: - Zoom Badge

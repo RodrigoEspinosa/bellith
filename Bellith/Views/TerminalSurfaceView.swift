@@ -21,6 +21,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
     private var lastScrollbarTotal: Int = 0
     private var lastScrollbarOffset: Int = 0
     private var lastScrollbarLen: Int = 0
+    private var commandSubmitAnchor: CommandOutputLocator.Anchor?
     private var settingsObserver: NSObjectProtocol?
 
     /// Called when the shell process exits or the surface requests close.
@@ -294,6 +295,114 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         }
     }
 
+    // MARK: - Command Output
+
+    private static func isSubmitKey(_ event: NSEvent) -> Bool {
+        // Return and keypad Enter.
+        event.keyCode == 36 || event.keyCode == 76
+    }
+
+    private func recordCommandSubmitAnchor() {
+        guard let surface else { return }
+        commandSubmitAnchor = CommandOutputLocator.Anchor(
+            screenRows: screenRowCount(),
+            cursorY: cursorPoint(surface).y
+        )
+    }
+
+    /// Selects the output of the most recent command using Ghostty's semantic
+    /// prompt marks (requires shell integration). Returns false when no output
+    /// could be found, e.g. the command printed nothing or a program has
+    /// captured the mouse.
+    @discardableResult
+    func selectLastCommandOutput() -> Bool {
+        guard let surface, !ghostty_surface_mouse_captured(surface) else { return false }
+        performBindingAction("scroll_to_bottom")
+
+        let cursor = cursorPoint(surface)
+        guard cursor.height > 0 else { return false }
+        let rowsAboveSubmit = commandSubmitAnchor.flatMap {
+            CommandOutputLocator.rowsAboveCursor(
+                anchor: $0,
+                currentScreenRows: screenRowCount(),
+                currentCursorY: cursor.y,
+                cellHeight: cursor.height
+            )
+        }
+        // Ghostty reports the cursor's bottom edge; centre of the cursor row.
+        let cursorRowMidY = cursor.y - cursor.height / 2
+        let offsets = CommandOutputLocator.candidateOffsets(
+            rowsAboveSubmit: rowsAboveSubmit,
+            visibleRowsAboveCursor: Int(cursorRowMidY / cursor.height)
+        )
+
+        defer { restoreMousePosition() }
+        for offset in offsets {
+            let y = cursorRowMidY - Double(offset) * cursor.height
+            if selectOutputBlock(atViewportY: y, surface: surface) { return true }
+        }
+        return false
+    }
+
+    /// Ctrl+triple-click is Ghostty's gesture for selecting a whole output
+    /// block. It yields no selection when the row is a prompt or input line.
+    private func selectOutputBlock(atViewportY y: Double, surface: ghostty_surface_t) -> Bool {
+        let mods = GHOSTTY_MODS_CTRL
+        // x = 1 lands in the padding, which Ghostty clamps to column 0.
+        ghostty_surface_mouse_pos(surface, 1, y, mods)
+        for _ in 0..<3 {
+            ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_PRESS, GHOSTTY_MOUSE_LEFT, mods)
+            ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_RELEASE, GHOSTTY_MOUSE_LEFT, mods)
+        }
+        var text = ghostty_text_s()
+        guard ghostty_surface_read_selection(surface, &text) else { return false }
+        defer { ghostty_surface_free_text(surface, &text) }
+        return text.text_len > 0
+    }
+
+    private func restoreMousePosition() {
+        guard let surface, let window else { return }
+        let pos = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        ghostty_surface_mouse_pos(surface, pos.x, frame.height - pos.y,
+                                  InputHelpers.ghosttyMods(NSEvent.modifierFlags))
+    }
+
+    private func cursorPoint(_ surface: ghostty_surface_t) -> (y: Double, height: Double) {
+        var x: Double = 0, y: Double = 0, w: Double = 0, h: Double = 0
+        ghostty_surface_ime_point(surface, &x, &y, &w, &h)
+        return (y, h)
+    }
+
+    /// Rows in the active screen, scrollback included. Ghostty has no direct
+    /// accessor, so probe single-cell reads, which fail past the last row.
+    private func screenRowCount() -> Int {
+        guard let surface else { return 0 }
+        return CommandOutputLocator.screenRowCount { row in
+            let point = ghostty_point_s(
+                tag: GHOSTTY_POINT_SCREEN,
+                coord: GHOSTTY_POINT_COORD_EXACT,
+                x: 0,
+                y: UInt32(clamping: row)
+            )
+            var text = ghostty_text_s()
+            let selection = ghostty_selection_s(top_left: point, bottom_right: point, rectangle: false)
+            guard ghostty_surface_read_text(surface, selection, &text) else { return false }
+            ghostty_surface_free_text(surface, &text)
+            return true
+        }
+    }
+
+    func jumpToPrompt(_ delta: Int) {
+        performBindingAction("jump_to_prompt:\(delta)")
+    }
+
+    private func performBindingAction(_ action: String) {
+        guard let surface else { return }
+        action.withCString { ptr in
+            _ = ghostty_surface_binding_action(surface, ptr, UInt(action.utf8.count))
+        }
+    }
+
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         guard let surface else { return }
@@ -505,6 +614,10 @@ final class TerminalSurfaceView: NSView, NSTextInputClient {
         guard let surface else {
             interpretKeyEvents([event])
             return
+        }
+
+        if Self.isSubmitKey(event), markedText.length == 0 {
+            recordCommandSubmitAnchor()
         }
 
         // Translate mods for configs like option-as-alt
